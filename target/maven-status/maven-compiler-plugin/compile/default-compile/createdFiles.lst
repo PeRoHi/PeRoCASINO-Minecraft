@@ -1,0 +1,11 @@
+me\bokan\perocasino\listeners\LoanMenuListener.class
+me\bokan\perocasino\commands\DepositCommand.class
+me\bokan\perocasino\commands\BalanceCommand.class
+me\bokan\perocasino\tasks\HudTask.class
+me\bokan\perocasino\commands\CasinoCommand.class
+me\bokan\perocasino\listeners\WalletListener.class
+me\bokan\perocasino\tasks\LoanTask.class
+me\bokan\perocasino\data\PlayerData.class
+me\bokan\perocasino\listeners\CasinoMenuListener.class
+me\bokan\perocasino\economy\EconomyManager.class
+me\bokan\perocasino\PeRoCasino.class

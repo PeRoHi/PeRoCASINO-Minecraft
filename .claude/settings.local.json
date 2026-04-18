@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn --version)",
+      "Bash(java -version)",
+      "Bash(mkdir -p \"/c/Users/hidek/Desktop/program/マイクラプラグイン/MinecraftCasino/src/main/java/me/bokan/perocasino/data\")",
+      "Bash(mkdir -p \"/c/Users/hidek/Desktop/program/マイクラプラグイン/MinecraftCasino/src/main/java/me/bokan/perocasino/economy\")",
+      "Bash(mkdir -p \"/c/Users/hidek/Desktop/program/マイクラプラグイン/MinecraftCasino/src/main/java/me/bokan/perocasino/commands\")",
+      "Bash(mkdir -p \"/c/Users/hidek/Desktop/program/マイクラプラグイン/MinecraftCasino/src/main/resources\")",
+      "Bash(mvn package:*)",
+      "Bash(ls:*)",
+      "Bash(mvn clean:*)"
+    ]
+  }
+}
