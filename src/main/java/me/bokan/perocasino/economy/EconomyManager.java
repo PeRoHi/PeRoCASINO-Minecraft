@@ -21,12 +21,6 @@ public class EconomyManager {
     public boolean hasData(UUID playerId) {
         return playerDataMap.containsKey(playerId);
     }
-    public int getLastRouletteIndex(UUID uuid) {
-        return getPlayerData(uuid).getLastRouletteIndex();
-    }
-    public void setLastRouletteIndex(UUID uuid, int index) {
-        getPlayerData(uuid).setLastRouletteIndex(index);
-    }
 
     // --- 財布残高 ---
     public int getWalletBalance(UUID id) { return getData(id).getWalletBalance(); }
