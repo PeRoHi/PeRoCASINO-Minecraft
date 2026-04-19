@@ -177,20 +177,17 @@ public class LoanMenuListener implements Listener {
         return gui;
     }
 
-    /**
-     * 百・十・一の位の紙アイテムを更新する。
-     * 桁が 0 のときは AIR（空欄）に設定する。
-     */
-    // refreshDigits メソッドの修正
+        // LoanMenuListener.java の refreshDigits メソッド
     private void refreshDigits(Inventory gui, int value) {
         int h = value / 100;
         int t = (value % 100) / 10;
         int o = value % 10;
         
-        // 百と十の位は0なら非表示、一の位は0でも表示する
         gui.setItem(20, h == 0 ? new ItemStack(Material.AIR) : createPaper("§e百の位", h));
         gui.setItem(22, t == 0 ? new ItemStack(Material.AIR) : createPaper("§e十の位", t));
-        gui.setItem(24, createPaper("§e一の位", o)); // ← ここを常に表示に変更
+        
+        // 一の位は 0 でも AIR にせず、常に表示する！
+        gui.setItem(24, createPaper("§e一の位", o)); 
     }
 
     // -----------------------------------------------------------------------
