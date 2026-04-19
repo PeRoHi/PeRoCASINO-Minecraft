@@ -13,11 +13,14 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.List;
 
+/**
+ * /casino [playerName]
+ * * - セレクター（@p, @a等）に対応し、コマンドブロックからも実行可能。
+ */
 public class CasinoCommand implements CommandExecutor {
 
     public static final String GUI_TITLE = "§0§lPeRo Casino";
 
-    // CasinoCommand.java の onCommand メソッド内を以下に差し替え
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
@@ -30,28 +33,19 @@ public class CasinoCommand implements CommandExecutor {
         }
 
         // セレクター（@p, @a等）を解決する処理
-        List<org.bukkit.entity.Entity> targets;
+        List<Entity> targets;
         try {
             targets = Bukkit.selectEntities(sender, args[0]);
         } catch (IllegalArgumentException e) {
-            // セレクターじゃない（普通の名前）場合の保険
+            // セレクターではない（通常のプレイヤー名）場合の処理
             Player target = Bukkit.getPlayer(args[0]);
             if (target != null) {
                 open(target);
             } else {
-                sender.sendMessage("§cプレイヤー「" + args[0] + "」が見つかりません。");
+                sender.sendMessage("§cプレイヤー「§e" + args[0] + "§c」が見つかりません。");
             }
             return true;
         }
-
-        // 解決されたプレイヤー全員にGUIを開く
-        for (org.bukkit.entity.Entity entity : targets) {
-            if (entity instanceof Player p) {
-                open(p);
-            }
-        }
-        return true;
-    }
 
         // 解析されたターゲットのうち、プレイヤー全員にGUIを開く
         boolean opened = false;

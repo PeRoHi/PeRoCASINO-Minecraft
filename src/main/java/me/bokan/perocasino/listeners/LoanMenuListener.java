@@ -19,45 +19,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * LOAN モード選択・借入・返済 GUI の処理。
- *
- * 画面遷移:
- *   カジノメイン → [モード選択] → [借入 / 返済 数値入力] → 確定
- *
- * モード選択 (MODE_TITLE):
- *   Slot 11: 借りる  Slot 15: 返済する  Slot 22: 閉じる
- *
- * 数値入力 共通レイアウト（BORROW_TITLE / REPAY_TITLE）:
- *   Row1: [11]▲+100  [13]▲+10  [15]▲+1
- *   Row2: [20]百の位  [22]十の位  [24]一の位  (紙)
- *   Row3: [29]▼-100  [31]▼-10  [33]▼-1
- *   Row5: [48]戻る                [50]確定
- */
 public class LoanMenuListener implements Listener {
 
-    // GUI タイトル
     public static final String MODE_TITLE   = "§0§lLOAN - メニュー";
     public static final String BORROW_TITLE = "§0§lLOAN - 借入額選択";
     public static final String REPAY_TITLE  = "§0§lLOAN - 返済額選択";
 
-    /** 後方互換用エイリアス（CasinoMenuListener が参照することがあれば使用） */
     public static final String GUI_TITLE = BORROW_TITLE;
 
     private static final int MIN_VALUE   = 0;
     private static final int BORROW_MAX  = 999;
 
-    /** 返済期限（借入確定から 15 分）。 */
     private static final long LOAN_DURATION_MS    = 15 * 60 * 1000L;
-    /** 利息適用間隔（5 分）。 */
     private static final long INTEREST_INTERVAL_MS = 5 * 60 * 1000L;
 
     private final EconomyManager economyManager;
     private final Plugin plugin;
 
-    /** 数値入力中の値（借入・返済どちらも共用）。 */
     private final Map<UUID, Integer> inputValues   = new HashMap<>();
-    /** 返済 GUI での最大値（min(debt, wallet)）。 */
     private final Map<UUID, Integer> repayMaxValues = new HashMap<>();
 
     public LoanMenuListener(EconomyManager economyManager, Plugin plugin) {
@@ -65,11 +44,6 @@ public class LoanMenuListener implements Listener {
         this.plugin = plugin;
     }
 
-    // -----------------------------------------------------------------------
-    // GUI オープナー
-    // -----------------------------------------------------------------------
-
-    /** カジノメインから遷移するエントリポイント。モード選択画面を開く。 */
     public void openGui(Player player) {
         player.openInventory(buildModeGui(player));
     }
@@ -96,17 +70,12 @@ public class LoanMenuListener implements Listener {
                 "§a§l返済する", subtitle));
     }
 
-    // -----------------------------------------------------------------------
-    // GUI 構築
-    // -----------------------------------------------------------------------
-
     private Inventory buildModeGui(Player player) {
         Inventory gui = Bukkit.createInventory(null, 27, MODE_TITLE);
 
         int debt   = economyManager.getDebt(player.getUniqueId());
         int wallet = economyManager.getWalletBalance(player.getUniqueId());
 
-        // 借りるボタン
         ItemStack borrow = new ItemStack(Material.GOLD_INGOT);
         ItemMeta bm = borrow.getItemMeta();
         bm.setDisplayName("§6§l借りる");
@@ -114,7 +83,6 @@ public class LoanMenuListener implements Listener {
         borrow.setItemMeta(bm);
         gui.setItem(11, borrow);
 
-        // 返済ボタン
         ItemStack repay = new ItemStack(Material.EMERALD);
         ItemMeta rm = repay.getItemMeta();
         rm.setDisplayName("§a§l返済する");
@@ -126,7 +94,6 @@ public class LoanMenuListener implements Listener {
         repay.setItemMeta(rm);
         gui.setItem(15, repay);
 
-        // 閉じるボタン
         ItemStack close = new ItemStack(Material.BARRIER);
         ItemMeta cm = close.getItemMeta();
         cm.setDisplayName("§7[閉じる]");
@@ -136,15 +103,6 @@ public class LoanMenuListener implements Listener {
         return gui;
     }
 
-    /**
-     * 借入・返済共用の数値入力 GUI を構築する。
-     *
-     * @param title    GUI タイトル
-     * @param value    初期値
-     * @param maxValue 最大値
-     * @param confirmLabel 確定ボタンの表示名
-     * @param infoLine  情報行（Lore に使用）
-     */
     private Inventory buildInputGui(String title, int value, int maxValue,
                                     String confirmLabel, String infoLine) {
         Inventory gui = Bukkit.createInventory(null, 54, title);
@@ -159,14 +117,12 @@ public class LoanMenuListener implements Listener {
         gui.setItem(31, createPane(Material.RED_STAINED_GLASS_PANE, "§c§l▼ -10"));
         gui.setItem(33, createPane(Material.RED_STAINED_GLASS_PANE, "§c§l▼ -1"));
 
-        // 戻るボタン
         ItemStack back = new ItemStack(Material.RED_WOOL);
         ItemMeta bm = back.getItemMeta();
         bm.setDisplayName("§c§l戻る");
         back.setItemMeta(bm);
         gui.setItem(48, back);
 
-        // 確定ボタン
         ItemStack confirm = new ItemStack(Material.DIAMOND);
         ItemMeta fm = confirm.getItemMeta();
         fm.setDisplayName(confirmLabel);
@@ -177,22 +133,15 @@ public class LoanMenuListener implements Listener {
         return gui;
     }
 
-        // LoanMenuListener.java の refreshDigits メソッド
     private void refreshDigits(Inventory gui, int value) {
         int h = value / 100;
         int t = (value % 100) / 10;
         int o = value % 10;
-        
         gui.setItem(20, h == 0 ? new ItemStack(Material.AIR) : createPaper("§e百の位", h));
         gui.setItem(22, t == 0 ? new ItemStack(Material.AIR) : createPaper("§e十の位", t));
-        
-        // 一の位は 0 でも AIR にせず、常に表示する！
-        gui.setItem(24, createPaper("§e一の位", o)); 
+        // 一の位は 0 でも常に表示する
+        gui.setItem(24, createPaper("§e一の位", o));
     }
-
-    // -----------------------------------------------------------------------
-    // イベント処理
-    // -----------------------------------------------------------------------
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
@@ -211,18 +160,12 @@ public class LoanMenuListener implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         String title = event.getView().getTitle();
-        // MODE_TITLE は inputValues / repayMaxValues を使わないため対象外。
-        // 入力 GUI が閉じた時だけデータを破棄する。
         if (BORROW_TITLE.equals(title) || REPAY_TITLE.equals(title)) {
             UUID uuid = event.getPlayer().getUniqueId();
             inputValues.remove(uuid);
             repayMaxValues.remove(uuid);
         }
     }
-
-    // -----------------------------------------------------------------------
-    // モード選択クリック
-    // -----------------------------------------------------------------------
 
     private void handleModeClick(Player player, InventoryClickEvent event) {
         event.setCancelled(true);
@@ -250,10 +193,6 @@ public class LoanMenuListener implements Listener {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // 数値入力クリック（借入・返済共通）
-    // -----------------------------------------------------------------------
-
     private void handleInputClick(Player player, InventoryClickEvent event, boolean isBorrow) {
         event.setCancelled(true);
         if (event.getClickedInventory() == null) return;
@@ -279,19 +218,11 @@ public class LoanMenuListener implements Listener {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // デルタ適用
-    // -----------------------------------------------------------------------
-
     private void applyDelta(UUID uuid, Inventory gui, int newValue, int maxValue) {
         int clamped = Math.max(MIN_VALUE, Math.min(maxValue, newValue));
         inputValues.put(uuid, clamped);
         refreshDigits(gui, clamped);
     }
-
-    // -----------------------------------------------------------------------
-    // ボタンアクション
-    // -----------------------------------------------------------------------
 
     private void handleBack(Player player, UUID uuid) {
         inputValues.remove(uuid);
@@ -307,21 +238,15 @@ public class LoanMenuListener implements Listener {
         inputValues.remove(uuid);
 
         long now = System.currentTimeMillis();
-        
-        // 【重要】借金を記録する
         economyManager.addDebt(uuid, amount);
-        
-        // 【ここを追加！】借りた分だけ財布（walletBalance）も増やす
-        economyManager.addWalletBalance(uuid, amount);
-
+        economyManager.addWalletBalance(uuid, amount); // 財布反映
         economyManager.setLoanDeadline(uuid, now + LOAN_DURATION_MS);
         economyManager.setNextInterestMillis(uuid, now + INTEREST_INTERVAL_MS);
 
         player.closeInventory();
-        player.sendMessage("§c§l[ローン] §f" + amount 
+        player.sendMessage("§c§l[ローン] §f" + amount
                 + " ダイヤを借りました。借金: §c" + economyManager.getDebt(uuid)
-                + " §f| 財布に反映されました。"
-                + " §f| 5分ごとに利息が加算されます。");
+                + " §f| 財布に反映されました。");
     }
 
     private void handleRepayConfirm(Player player, UUID uuid, int amount, int maxRepay) {
@@ -351,10 +276,6 @@ public class LoanMenuListener implements Listener {
                     + " ダイヤを返済しました。残り借金: §c" + remaining);
         }
     }
-
-    // -----------------------------------------------------------------------
-    // ItemStack ファクトリ
-    // -----------------------------------------------------------------------
 
     private ItemStack createPaper(String label, int digit) {
         ItemStack item = new ItemStack(Material.PAPER, Math.max(1, digit));
