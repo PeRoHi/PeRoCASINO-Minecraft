@@ -10,7 +10,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-
 import java.util.List;
 
 public class CasinoCommand implements CommandExecutor {
@@ -33,7 +32,6 @@ public class CasinoCommand implements CommandExecutor {
         try {
             targets = Bukkit.selectEntities(sender, args[0]);
         } catch (IllegalArgumentException e) {
-            // セレクターではない（通常のプレイヤー名）場合の処理
             Player target = Bukkit.getPlayer(args[0]);
             if (target != null) {
                 open(target);
@@ -43,7 +41,6 @@ public class CasinoCommand implements CommandExecutor {
             return true;
         }
 
-        // 解析されたターゲットのうち、プレイヤー全員にGUIを開く
         boolean opened = false;
         for (Entity entity : targets) {
             if (entity instanceof Player player) {
@@ -64,13 +61,16 @@ public class CasinoCommand implements CommandExecutor {
         gui.setItem(10, createItem(Material.GOLD_INGOT, "§6§lLOAN"));
         gui.setItem(13, createItem(Material.EMERALD,    "§a§lSHOP"));
         gui.setItem(16, createItem(Material.REDSTONE,   "§c§lSABOTAGE"));
+        
+        // 【追加】ルーレットへの入り口ボタン
+        gui.setItem(22, createItem(Material.ENDER_CHEST, "§d§lROULETTE"));
+        
         gui.setItem(49, createItem(Material.BARRIER,    "§7[閉じる]"));
         player.openInventory(gui);
     }
 
     static ItemStack createItem(Material material, String displayName) {
-        ItemStack item = new ItemStack(Material.PAPER); // ここをPAPERにするかはお好みで
-        if (material != null) item.setType(material);
+        ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
         meta.setDisplayName(displayName);
         item.setItemMeta(meta);
