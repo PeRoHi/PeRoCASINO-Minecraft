@@ -181,13 +181,16 @@ public class LoanMenuListener implements Listener {
      * 百・十・一の位の紙アイテムを更新する。
      * 桁が 0 のときは AIR（空欄）に設定する。
      */
+    // refreshDigits メソッドの修正
     private void refreshDigits(Inventory gui, int value) {
         int h = value / 100;
         int t = (value % 100) / 10;
         int o = value % 10;
+        
+        // 百と十の位は0なら非表示、一の位は0でも表示する
         gui.setItem(20, h == 0 ? new ItemStack(Material.AIR) : createPaper("§e百の位", h));
         gui.setItem(22, t == 0 ? new ItemStack(Material.AIR) : createPaper("§e十の位", t));
-        gui.setItem(24, o == 0 ? new ItemStack(Material.AIR) : createPaper("§e一の位", o));
+        gui.setItem(24, createPaper("§e一の位", o)); // ← ここを常に表示に変更
     }
 
     // -----------------------------------------------------------------------
@@ -307,14 +310,20 @@ public class LoanMenuListener implements Listener {
         inputValues.remove(uuid);
 
         long now = System.currentTimeMillis();
+        
+        // 【重要】借金を記録する
         economyManager.addDebt(uuid, amount);
+        
+        // 【ここを追加！】借りた分だけ財布（walletBalance）も増やす
         economyManager.addWalletBalance(uuid, amount);
+
         economyManager.setLoanDeadline(uuid, now + LOAN_DURATION_MS);
         economyManager.setNextInterestMillis(uuid, now + INTEREST_INTERVAL_MS);
 
         player.closeInventory();
-        player.sendMessage("§c§l[ローン] §f" + amount
+        player.sendMessage("§c§l[ローン] §f" + amount 
                 + " ダイヤを借りました。借金: §c" + economyManager.getDebt(uuid)
+                + " §f| 財布に反映されました。"
                 + " §f| 5分ごとに利息が加算されます。");
     }
 

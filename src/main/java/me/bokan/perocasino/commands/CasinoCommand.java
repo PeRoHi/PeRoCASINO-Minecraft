@@ -5,20 +5,16 @@ import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-/**
- * /casino [playerName]
- *
- * - 引数なし + プレイヤー実行 → 自身のカジノGUIを開く
- * - 引数あり           → 指定プレイヤーのGUIを開く（コンソール・コマブロ対応）
- */
+import java.util.List;
+
 public class CasinoCommand implements CommandExecutor {
 
-    /** GUIタイトル。CasinoMenuListener と一致させること。 */
     public static final String GUI_TITLE = "§0§lPeRo Casino";
 
     @Override
@@ -32,17 +28,38 @@ public class CasinoCommand implements CommandExecutor {
             return true;
         }
 
-        // プレイヤー名が指定された場合（コンソール・コマブロ・他プレイヤー共通）
-        Player target = Bukkit.getPlayer(args[0]);
-        if (target == null) {
-            sender.sendMessage("§cプレイヤー「§e" + args[0] + "§c」が見つかりません。");
+        // セレクター（@p, @a等）に対応させるための処理
+        List<Entity> targets;
+        try {
+            // 入力された引数をセレクターとして解析する
+            targets = Bukkit.selectEntities(sender, args[0]);
+        } catch (IllegalArgumentException e) {
+            // セレクターではない（通常のプレイヤー名）場合のフォールバック
+            Player target = Bukkit.getPlayer(args[0]);
+            if (target != null) {
+                open(target);
+            } else {
+                sender.sendMessage("§cプレイヤー「§e" + args[0] + "§c」が見つかりません。");
+            }
             return true;
         }
-        open(target);
+
+        // 解析されたターゲットのうち、プレイヤー全員にGUIを開く
+        boolean opened = false;
+        for (Entity entity : targets) {
+            if (entity instanceof Player player) {
+                open(player);
+                opened = true;
+            }
+        }
+
+        if (!opened) {
+            sender.sendMessage("§c対象のプレイヤーが見つかりませんでした。");
+        }
+
         return true;
     }
 
-    /** どこからでも呼べるメインメニューオープナー。 */
     public static void open(Player player) {
         Inventory gui = Bukkit.createInventory(null, 54, GUI_TITLE);
         gui.setItem(10, createItem(Material.GOLD_INGOT, "§6§lLOAN"));
