@@ -6,51 +6,112 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
 public class RouletteBetMenuListener implements Listener {
 
+    // リソースパックで背景画像を設定する場合、このタイトルに特殊文字（\uE001など）を指定する
     public static final String GUI_TITLE = "§0§lROULETTE - ベット";
+    public static final String GUI_TITLE = "§f\uE001"; 
+    // ※文字の色設定に影響されないように §f (白) を最初につけるのがコツだ！
+
+    // ベット可能な4x5マス（左から 2倍, 4倍, 6倍, 10倍, 20倍）のスロット番号
+    private static final Set<Integer> BET_SLOTS = Set.of(
+            11, 12, 13, 14, 15, // 1段目
+            20, 21, 22, 23, 24, // 2段目
+            29, 30, 31, 32, 33, // 3段目
+            38, 39, 40, 41, 42  // 4段目
+    );
+
+    // プレイヤーごとのベット状態（置いたダイヤ）を保存するマップ
+    private final Map<UUID, ItemStack[]> savedBets = new HashMap<>();
 
     public void openBetGui(Player player) {
-        // 画像のような 54マスのチェストUIを作成
+        UUID uuid = player.getUniqueId();
         Inventory gui = Bukkit.createInventory(null, 54, GUI_TITLE);
 
-        // 例：倍率のアイコンを配置（実際の画像に合わせて色や位置は調整してくれ）
-        gui.setItem(11, createMultiplierItem(Material.RED_TERRACOTTA, "§c§l2倍", "§7ここにダイヤを置く"));
-        gui.setItem(13, createMultiplierItem(Material.BLUE_TERRACOTTA, "§9§l4倍", "§7ここにダイヤを置く"));
-        gui.setItem(15, createMultiplierItem(Material.YELLOW_TERRACOTTA, "§e§l6倍", "§7ここにダイヤを置く"));
-        gui.setItem(29, createMultiplierItem(Material.LIME_TERRACOTTA, "§a§l10倍", "§7ここにダイヤを置く"));
-        gui.setItem(33, createMultiplierItem(Material.PURPLE_TERRACOTTA, "§5§l20倍", "§7ここにダイヤを置く"));
+        // 背景（ベット枠以外）をガラスで埋めてクリックできなくする
+        ItemStack bg = createBgItem();
+        for (int i = 0; i < 54; i++) {
+            if (!BET_SLOTS.contains(i)) {
+                gui.setItem(i, bg);
+            }
+        }
 
-        // 下部の装飾や情報表示（必要に応じて）
-        gui.setItem(49, createMultiplierItem(Material.BARRIER, "§7[閉じる]", ""));
+        // 以前のベット（待機時間中に置いたダイヤ）が保存されていれば復元
+        if (savedBets.containsKey(uuid)) {
+            ItemStack[] saved = savedBets.get(uuid);
+            for (int slot : BET_SLOTS) {
+                gui.setItem(slot, saved[slot]);
+            }
+        }
 
         player.openInventory(gui);
-    }
-
-    private ItemStack createMultiplierItem(Material material, String name, String lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(name);
-        if (!lore.isEmpty()) {
-            meta.setLore(java.util.List.of(lore));
-        }
-        item.setItemMeta(meta);
-        return item;
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (event.getView().getTitle().equals(GUI_TITLE)) {
-            // ここに「ダイヤを置いた時の処理」や「取り消し処理」を追加していく
-            // 枠外のクリックや装飾品の移動防止なども必要になる
-            if (event.getCurrentItem() != null && event.getCurrentItem().getType() != Material.DIAMOND) {
+        if (!event.getView().getTitle().equals(GUI_TITLE)) return;
+
+        int slot = event.getSlot();
+        Inventory clickedInv = event.getClickedInventory();
+
+        // 上のGUI（チェスト側）をクリックした場合の制御
+        if (clickedInv != null && clickedInv.equals(event.getView().getTopInventory())) {
+            // ベット枠以外は操作不可
+            if (!BET_SLOTS.contains(slot)) {
                 event.setCancelled(true);
+                return;
+            }
+            
+            // 置けるのはダイヤのみにする
+            ItemStack cursor = event.getCursor();
+            if (cursor != null && cursor.getType() != Material.AIR && cursor.getType() != Material.DIAMOND) {
+                event.setCancelled(true);
+                player.sendMessage("§cダイヤしかベットできません！");
             }
         }
+        // 自分のインベントリからのシフトクリック（一括移動）制御
+        else if (event.isShiftClick()) {
+            ItemStack current = event.getCurrentItem();
+            if (current != null && current.getType() != Material.DIAMOND) {
+                event.setCancelled(true); // ダイヤ以外はGUIに飛ばせないようにする
+            }
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!event.getView().getTitle().equals(GUI_TITLE)) return;
+        
+        Player player = (Player) event.getPlayer();
+        // 閉じた瞬間に、現在のGUIの中身（54マス分の配列）を丸ごと保存する
+        savedBets.put(player.getUniqueId(), event.getView().getTopInventory().getContents());
+    }
+
+    // 外部（RouletteManagerなど）からベットを回収・リセットするためのメソッド
+    public Map<UUID, ItemStack[]> getSavedBets() {
+        return savedBets;
+    }
+
+    public void clearAllBets() {
+        savedBets.clear();
+    }
+
+    private ItemStack createBgItem() {
+        ItemStack item = new ItemStack(Material.LIGHT_GRAY_STAINED_GLASS_PANE);
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(" "); // 名前を空白にして目立たなくする
+        item.setItemMeta(meta);
+        return item;
     }
 }
