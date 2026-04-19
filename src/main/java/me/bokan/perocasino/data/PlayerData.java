@@ -11,7 +11,11 @@ public class PlayerData {
     private final UUID playerId;
     private int walletBalance = 0;
     private int debt = 0;
+    // フィールドに追加
     private int lastRouletteIndex = 0;
+    // メソッドを追加
+    public int getLastRouletteIndex() { return lastRouletteIndex; }
+    public void setLastRouletteIndex(int index) { this.lastRouletteIndex = index; }
     /** 返済期限（Unix ミリ秒）。0 = 借金なし。 */
     private long loanDeadlineMillis = 0L;
     /** 次回利息適用時刻（Unix ミリ秒）。0 = 利息タイマー未起動。 */
