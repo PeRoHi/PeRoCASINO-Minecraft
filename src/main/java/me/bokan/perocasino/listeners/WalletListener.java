@@ -8,11 +8,13 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -22,19 +24,6 @@ import org.bukkit.plugin.Plugin;
 import java.util.List;
 import java.util.Map;
 
-/**
- * プレイヤーの財布システムを管理するリスナー。
- *
- * スロット 8（ホットバー右端）: ダイヤ引き出し口 [NETHER_STAR]
- *   - 左クリック          : 財布から最大64ダイヤをカーソルへ
- *   - シフト+左クリック   : 財布から最大64ダイヤをインベントリへ直接
- *
- * スロット 35（スロット8の真上）: 専用バンドル [BUNDLE]
- *   - ダイヤをドラッグ&ドロップ : 財布に収納
- *   - シフト+左クリック         : インベントリ内の全ダイヤを財布に収納
- *
- * インベントリ内のダイヤにシフト+左クリック → 直接財布に収納（移動をキャンセル）
- */
 public class WalletListener implements Listener {
 
     private static final int WITHDRAW_SLOT = 8;
@@ -48,18 +37,25 @@ public class WalletListener implements Listener {
         this.walletKey = new NamespacedKey(plugin, "wallet_item");
     }
 
-    /** プレイヤーのスロット 8・35 に財布アイテムを配置する。 */
     public void setupWalletItems(Player player) {
         player.getInventory().setItem(WITHDRAW_SLOT, createWithdrawItem());
         player.getInventory().setItem(BUNDLE_SLOT,   createBundleItem());
     }
 
-    // -----------------------------------------------------------------------
-    // イベント処理
-    // -----------------------------------------------------------------------
-
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
+        setupWalletItems(event.getPlayer());
+    }
+
+    // --- 【追加】死んだときにアイテムをドロップさせない ---
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        event.getDrops().removeIf(this::isWalletItem);
+    }
+
+    // --- 【追加】リスポーン時にアイテムを再配布する ---
+    @EventHandler
+    public void onPlayerRespawn(PlayerRespawnEvent event) {
         setupWalletItems(event.getPlayer());
     }
 
@@ -67,7 +63,6 @@ public class WalletListener implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
-        // 数字キー HOTBAR_SWAP でスロット8へのアイテム持ち込みをブロック
         if (event.getAction() == InventoryAction.HOTBAR_SWAP
                 && event.getHotbarButton() == WITHDRAW_SLOT) {
             event.setCancelled(true);
@@ -77,14 +72,12 @@ public class WalletListener implements Listener {
         if (!(event.getClickedInventory() instanceof PlayerInventory)) return;
         int slot = event.getSlot();
 
-        // ---- クリエイティブモードは財布スロットを完全ブロック ----
         if (player.getGameMode() == GameMode.CREATIVE
                 && (slot == WITHDRAW_SLOT || slot == BUNDLE_SLOT)) {
             event.setCancelled(true);
             return;
         }
 
-        // ---- 財布スロットの処理 ----
         if (slot == WITHDRAW_SLOT) {
             event.setCancelled(true);
             handleWithdraw(player, event);
@@ -96,7 +89,6 @@ public class WalletListener implements Listener {
             return;
         }
 
-        // ---- インベントリ内のダイヤへのシフトクリック → 財布に収納 ----
         if (event.isShiftClick()
                 && event.getCurrentItem() != null
                 && event.getCurrentItem().getType() == Material.DIAMOND) {
@@ -109,17 +101,14 @@ public class WalletListener implements Listener {
         }
     }
 
-    /** スロット35へのドラッグ&ドロップを預け入れとして処理する。 */
     @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (player.getGameMode() == GameMode.CREATIVE) return;
 
-        // ドラッグ先にスロット35（PlayerInventory内）が含まれているか確認
         Map<Integer, ItemStack> newItems = event.getNewItems();
         if (!newItems.containsKey(BUNDLE_SLOT)) return;
-        // スロット35が PlayerInventory に属するかチェック（raw slot は view により異なる）
-        // getRawSlots() のいずれかが bundle slot に対応するかを確認
+        
         boolean targetsBundleSlot = event.getRawSlots().stream().anyMatch(rawSlot -> {
             try {
                 return event.getView().convertSlot(rawSlot) == BUNDLE_SLOT
@@ -135,14 +124,12 @@ public class WalletListener implements Listener {
 
         event.setCancelled(true);
 
-        // ドラッグされたダイヤの合計を計算
         int total = newItems.values().stream()
                 .filter(i -> i != null && i.getType() == Material.DIAMOND)
                 .mapToInt(ItemStack::getAmount)
                 .sum();
         if (total <= 0) return;
 
-        // カーソルから消費
         ItemStack cursor = event.getOldCursor().clone();
         cursor.setAmount(Math.max(0, cursor.getAmount() - total));
         event.getView().setCursor(cursor.getAmount() == 0 ? null : cursor);
@@ -159,11 +146,6 @@ public class WalletListener implements Listener {
         }
     }
 
-    // -----------------------------------------------------------------------
-    // アクション処理
-    // -----------------------------------------------------------------------
-
-    /** スロット8: 財布からダイヤを引き出す。 */
     private void handleWithdraw(Player player, InventoryClickEvent event) {
         int wallet = economyManager.getWalletBalance(player.getUniqueId());
         if (wallet <= 0) {
@@ -173,13 +155,11 @@ public class WalletListener implements Listener {
         int withdraw = Math.min(wallet, 64);
 
         if (event.isShiftClick()) {
-            // シフト+クリック: インベントリに直接追加
             economyManager.addWalletBalance(player.getUniqueId(), -withdraw);
             player.getInventory().addItem(new ItemStack(Material.DIAMOND, withdraw));
             player.sendMessage("§b" + withdraw + " ダイヤをインベントリに引き出しました。財布: "
                     + economyManager.getWalletBalance(player.getUniqueId()));
         } else {
-            // 通常クリック: カーソルへ渡す
             ItemStack cursor = event.getCursor();
             Material cursorType = (cursor == null) ? Material.AIR : cursor.getType();
             if (cursorType != Material.AIR && cursorType != Material.DIAMOND) {
@@ -200,13 +180,11 @@ public class WalletListener implements Listener {
         }
     }
 
-    /** スロット35: バンドルへのクリック操作を処理する。 */
     private void handleBundle(Player player, InventoryClickEvent event) {
         if (event.isShiftClick()) {
             collectAllDiamonds(player);
             return;
         }
-        // カーソルにダイヤがあれば預け入れ
         ItemStack cursor = event.getCursor();
         if (cursor != null && cursor.getType() == Material.DIAMOND && cursor.getAmount() > 0) {
             int amount = cursor.getAmount();
@@ -217,7 +195,6 @@ public class WalletListener implements Listener {
         }
     }
 
-    /** インベントリ（0〜35）の全ダイヤを財布に収納する。 */
     private void collectAllDiamonds(Player player) {
         ItemStack[] contents = player.getInventory().getContents();
         int total = 0;
@@ -236,10 +213,6 @@ public class WalletListener implements Listener {
             player.sendMessage("§cインベントリにダイヤがありません。");
         }
     }
-
-    // -----------------------------------------------------------------------
-    // ユーティリティ
-    // -----------------------------------------------------------------------
 
     private boolean isWalletItem(ItemStack item) {
         if (item == null || !item.hasItemMeta()) return false;

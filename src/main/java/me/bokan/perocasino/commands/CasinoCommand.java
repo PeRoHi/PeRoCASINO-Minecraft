@@ -13,10 +13,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.List;
 
-/**
- * /casino [playerName]
- * * - セレクター（@p, @a等）に対応し、コマンドブロックからも実行可能。
- */
 public class CasinoCommand implements CommandExecutor {
 
     public static final String GUI_TITLE = "§0§lPeRo Casino";
@@ -73,7 +69,8 @@ public class CasinoCommand implements CommandExecutor {
     }
 
     static ItemStack createItem(Material material, String displayName) {
-        ItemStack item = new ItemStack(material);
+        ItemStack item = new ItemStack(Material.PAPER); // ここをPAPERにするかはお好みで
+        if (material != null) item.setType(material);
         ItemMeta meta = item.getItemMeta();
         meta.setDisplayName(displayName);
         item.setItemMeta(meta);
