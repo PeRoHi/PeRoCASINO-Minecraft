@@ -19,7 +19,6 @@ import java.util.UUID;
 public class RouletteBetMenuListener implements Listener {
 
     // リソースパックで背景画像を設定する場合、このタイトルに特殊文字（\uE001など）を指定する
-    public static final String GUI_TITLE = "§0§lROULETTE - ベット";
     public static final String GUI_TITLE = "§f\uE001"; 
     // ※文字の色設定に影響されないように §f (白) を最初につけるのがコツだ！
 
