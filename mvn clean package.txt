@@ -1,1 +1,2 @@
 mvn clean package
+https://github.com/PeRoHi/PeRoCASINO-Minecraft.git

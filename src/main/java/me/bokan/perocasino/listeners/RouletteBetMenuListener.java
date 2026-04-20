@@ -18,9 +18,8 @@ import java.util.UUID;
 
 public class RouletteBetMenuListener implements Listener {
 
-    // リソースパックで背景画像を設定する場合、このタイトルに特殊文字（\uE001など）を指定する
-    public static final String GUI_TITLE = "§f\uE001"; 
-    // ※文字の色設定に影響されないように §f (白) を最初につけるのがコツだ！
+    // \uF808 で左に8ピクセル戻してから画像を描画する
+    public static final String GUI_TITLE = "§f\uF808\uE001";
 
     // ベット可能な4x5マス（左から 2倍, 4倍, 6倍, 10倍, 20倍）のスロット番号
     private static final Set<Integer> BET_SLOTS = Set.of(
