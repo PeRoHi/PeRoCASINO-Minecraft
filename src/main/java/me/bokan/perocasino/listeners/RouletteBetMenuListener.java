@@ -51,7 +51,7 @@ public class RouletteBetMenuListener implements Listener {
     }
 
     private void updateHiddenBundle(UUID uuid, Inventory gui) {
-        ItemStack bundle = new ItemStack(Material.BUNDLE);
+        ItemStack bundle = new ItemStack(Material.PAPER);
         ItemMeta meta = bundle.getItemMeta();
         
         if (meta != null) {
@@ -100,7 +100,7 @@ public class RouletteBetMenuListener implements Listener {
         if (slot >= 0 && slot < 54) {
             
             // 2. 隠しバンドルの特殊アクション
-            if (slot == HIDDEN_BUNDLE_SLOT) {
+            if (slot == HIDDEN_BUNDLE_SLOT && currentItem != null && currentItem.getType() == Material.PAPER) {
                 event.setCancelled(true); // バンドル自体の移動を禁止
 
                 // ※ここに後で「ルーレットが回転中なら return する」というロック処理を追加する
