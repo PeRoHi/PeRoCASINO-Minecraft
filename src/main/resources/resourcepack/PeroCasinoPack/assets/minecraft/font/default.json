@@ -1,0 +1,18 @@
+{
+  "providers": [
+    {
+      "type": "space",
+      "advances": {
+        "\uF801": -1,
+        "\uF808": -8
+      }
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/gui_bg.png",
+      "ascent": 13,
+      "height": 256,
+      "chars": ["\uE001"]
+    }
+  ]
+}

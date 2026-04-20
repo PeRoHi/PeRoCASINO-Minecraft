@@ -5,24 +5,21 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.InventoryAction;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BundleMeta;
-import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 public class RouletteBetMenuListener implements Listener {
 
-    public static final String GUI_TITLE = "§f\uF808\uE001"; // 左にズラした画像タイトル
+    public static final String GUI_TITLE = "§f\uF808\uE001"; // 位置調整済みタイトル
+    private static final int HIDDEN_BUNDLE_SLOT = 53; // 右下
 
-    // ベット可能なスロット（4x5）
+    // ベット可能な20枠
     private static final Set<Integer> BET_SLOTS = Set.of(
             11, 12, 13, 14, 15,
             20, 21, 22, 23, 24,
@@ -30,57 +27,92 @@ public class RouletteBetMenuListener implements Listener {
             38, 39, 40, 41, 42
     );
 
-    private static final int HIDDEN_SLOT = 53; // 右下の隠しマス
     private final Map<UUID, ItemStack[]> savedBets = new HashMap<>();
 
     public void openBetGui(Player player) {
         Inventory gui = Bukkit.createInventory(null, 54, GUI_TITLE);
 
-        // 以前のベットを復元
         if (savedBets.containsKey(player.getUniqueId())) {
             gui.setContents(savedBets.get(player.getUniqueId()));
         }
 
-        // 隠し要素：見えないバンドルを設置（中身が空なら設置）
-        if (gui.getItem(HIDDEN_SLOT) == null) {
-            gui.setItem(HIDDEN_SLOT, createInvisibleBundle());
-        }
+        // 隠しバンドル（表示更新メソッドを呼ぶ）
+        updateHiddenBundle(gui);
 
         player.openInventory(gui);
     }
 
-    private ItemStack createInvisibleBundle() {
-        ItemStack bundle = new ItemStack(Material.BUNDLE);
-        ItemMeta meta = bundle.getItemMeta();
+    private void updateHiddenBundle(Inventory gui) {
+        ItemStack bundle = gui.getItem(HIDDEN_BUNDLE_SLOT);
+        if (bundle == null || bundle.getType() != Material.BUNDLE) {
+            bundle = new ItemStack(Material.BUNDLE);
+        }
+        
+        BundleMeta meta = (BundleMeta) bundle.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName("§7 "); // 名前を空白にする
-            // リソースパックで Bundle の CustomModelData を透明に設定しているならここに追加
-            // meta.setCustomModelData(12345);
+            meta.setDisplayName("§6§l特殊ベット・バンドル");
+            // 中身のダイヤを計算して説明文に入れる
+            int count = 0;
+            for (ItemStack item : meta.getItems()) {
+                if (item != null && item.getType() == Material.DIAMOND) count += item.getAmount();
+            }
+            meta.setLore(List.of("§7現在の保持量: §b" + count + "個", "§e§lSHIFT + LEFT CLICK §7で全ベット！"));
             bundle.setItemMeta(meta);
         }
-        return bundle;
+        gui.setItem(HIDDEN_BUNDLE_SLOT, bundle);
     }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getView().getTitle().equals(GUI_TITLE)) return;
 
+        Player player = (Player) event.getWhoClicked();
         int slot = event.getRawSlot();
-        
-        // 上のインベントリ（GUI側）の操作
-        if (slot >= 0 && slot < 54) {
-            // ベット枠でも隠し枠でもない場所はクリック無効
-            if (!BET_SLOTS.contains(slot) && slot != HIDDEN_SLOT) {
+        ItemStack currentItem = event.getCurrentItem();
+
+        // 1. バンドルへの強制自動回収（シフトクリック）を阻止
+        if (event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT) {
+            if (currentItem != null && currentItem.getType() == Material.DIAMOND) {
+                // ダイヤをシフトクリックしても、GUI内のバンドルや財布には入らせない
                 event.setCancelled(true);
+                // 代わりに空いているベット枠に移動させる等の自作処理が必要（一旦キャンセルのみ）
                 return;
             }
+        }
 
-            // ダイヤ以外の配置を禁止（隠し枠は自由にするならここを調整）
-            ItemStack cursor = event.getCursor();
-            if (slot != HIDDEN_SLOT && cursor != null && cursor.getType() != Material.AIR && cursor.getType() != Material.DIAMOND) {
+        // 2. 隠しバンドルの特殊アクション（全入れ全ベット）
+        if (slot == HIDDEN_BUNDLE_SLOT && currentItem != null && currentItem.getType() == Material.BUNDLE) {
+            if (event.getClick() == ClickType.SHIFT_LEFT) {
+                event.setCancelled(true);
+                performAllIn(player, event.getInventory());
+                return;
+            }
+        }
+
+        // 3. 許可エリア以外のクリック禁止
+        if (slot >= 0 && slot < 54) {
+            if (!BET_SLOTS.contains(slot) && slot != HIDDEN_BUNDLE_SLOT) {
                 event.setCancelled(true);
             }
         }
+    }
+
+    private void performAllIn(Player player, Inventory gui) {
+        // インベントリ内の全ダイヤを回収してベットスロットに等分、または順に配置するロジック
+        // ここでは例として、インベントリのダイヤをすべて回収して順番に埋めていく
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (item != null && item.getType() == Material.DIAMOND) {
+                for (int betSlot : BET_SLOTS) {
+                    ItemStack target = gui.getItem(betSlot);
+                    if (target == null || target.getType() == Material.AIR) {
+                        gui.setItem(betSlot, item.clone());
+                        item.setAmount(0);
+                        break;
+                    }
+                }
+            }
+        }
+        player.sendMessage("§a全ダイヤをベットしました！");
     }
 
     @EventHandler
