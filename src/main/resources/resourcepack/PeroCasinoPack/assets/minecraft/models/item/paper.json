@@ -1,7 +1,7 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "minecraft:item/paper"
+    "layer0": "minecraft:item/hide_bundle"
   },
   "overrides": [
     {
