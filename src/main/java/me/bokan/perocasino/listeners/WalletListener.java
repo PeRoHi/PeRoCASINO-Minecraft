@@ -230,6 +230,7 @@ public class WalletListener implements Listener {
         ));
         meta.getPersistentDataContainer().set(walletKey, PersistentDataType.BYTE, (byte) 1);
         item.setItemMeta(meta);
+        meta.setCustomModelData(111); 
         return item;
     }
 
