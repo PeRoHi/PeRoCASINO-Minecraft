@@ -57,6 +57,7 @@ public class RouletteBetMenuListener implements Listener {
                 if (item != null && item.getType() == Material.DIAMOND) count += item.getAmount();
             }
             meta.setLore(List.of("§7現在の保持量: §b" + count + "個", "§e§lSHIFT + LEFT CLICK §7で全ベット！"));
+            meta.setCustomModelData(777); // カスタムモデルデータで見た目を変える（リソースパック側で設定）
             bundle.setItemMeta(meta);
         }
         gui.setItem(HIDDEN_BUNDLE_SLOT, bundle);
