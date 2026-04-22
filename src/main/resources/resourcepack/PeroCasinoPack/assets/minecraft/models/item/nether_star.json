@@ -1,14 +1,14 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "minecraft:item/paper"
+    "layer0": "minecraft:item/nether_star"
   },
   "overrides": [
     {
       "predicate": {
-        "custom_model_data": 777
+        "custom_model_data": 111
       },
-      "model": "minecraft:item/hide_bundle"
+      "model": "minecraft:item/pulldia"
     }
   ]
 }

@@ -228,9 +228,9 @@ public class WalletListener implements Listener {
                 "§7左クリック: カーソルに最大64枚引き出し",
                 "§7シフト+左クリック: インベントリに最大64枚引き出し"
         ));
+        meta.setCustomModelData(111);
         meta.getPersistentDataContainer().set(walletKey, PersistentDataType.BYTE, (byte) 1);
         item.setItemMeta(meta);
-        meta.setCustomModelData(111); 
         return item;
     }
 
