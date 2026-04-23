@@ -16,3 +16,8 @@ commands:
   casino:
     description: カジノメニューを開く（コンソール・コマブロからも使用可）
     usage: /casino [プレイヤー名]
+  perocasino:
+    description: 管理者用（ルーレット設置・採石場範囲など）
+    usage: /perocasino <subcommand>
+    permission: perocasino.admin
+    aliases: [pc]

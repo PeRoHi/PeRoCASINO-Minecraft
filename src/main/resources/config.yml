@@ -1,0 +1,75 @@
+# PeRoCasino 設定
+
+roulette:
+  # ルーレット拠点（砥石）の座標。未設定なら近接UIは出ません。
+  # /perocasino roulette set で現在見ている砥石を登録
+  world: ""
+  x: 0
+  y: 0
+  z: 0
+  # ルーレット拠点からこの距離以内のプレイヤーにフェーズ表示（BossBar）
+  notify-radius: 40
+  # ベット待ち（秒）
+  bet-seconds: 20
+  # ルーレット演出（秒）
+  spin-seconds: 3
+  # 次ラウンドまでのクールダウン（秒）
+  cooldown-seconds: 5
+
+quarry:
+  enabled: true
+  # 採石場として扱うワールド名（空なら全ワールド）
+  world: ""
+  # 角2点（含まれる立方体領域）。未設定なら採石場機能は無効
+  min:
+    x: 0
+    y: 0
+    z: 0
+  max:
+    x: 0
+    y: 0
+    z: 0
+  # ダイヤ鉱石を掘ったあと、何tick後に元に戻すか（20tick=1秒）
+  respawn-delay-ticks: 6000
+
+slot-machine:
+  # スロットの鉱石シンボル（上から順に回転表示）
+  symbols:
+    - COAL_ORE
+    - COPPER_ORE
+    - IRON_ORE
+    - GOLD_ORE
+    - REDSTONE_ORE
+    - LAPIS_ORE
+    - EMERALD_ORE
+    - DIAMOND_ORE
+    - NETHERITE_SCRAP
+  # スピン開始後、各リールが止まるまでのランダムtick（最小〜最大）
+  spin-min-ticks: 40
+  spin-max-ticks: 120
+  # 払い戻し倍率（ベット額に掛ける）
+  payouts:
+    three-of-a-kind: 8
+    two-of-a-kind: 2
+  # スロット操作ボタン（ブロック座標）。右クリックで検知します。
+  buttons:
+    spin:
+      world: ""
+      x: 0
+      y: 0
+      z: 0
+    stop1:
+      world: ""
+      x: 0
+      y: 0
+      z: 0
+    stop2:
+      world: ""
+      x: 0
+      y: 0
+      z: 0
+    stop3:
+      world: ""
+      x: 0
+      y: 0
+      z: 0

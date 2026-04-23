@@ -64,6 +64,11 @@ public class CasinoCommand implements CommandExecutor {
         
         // 【追加】ルーレットへの入り口ボタン
         gui.setItem(22, createItem(Material.ENDER_CHEST, "§d§lROULETTE"));
+
+        // 追加ゲーム（骨組み含む）
+        gui.setItem(19, createItem(Material.TRIPWIRE_HOOK, "§e§lSLOT"));
+        gui.setItem(25, createItem(Material.TOTEM_OF_UNDYING, "§5§lHI-LO (WIP)"));
+        gui.setItem(28, createItem(Material.NAME_TAG, "§2§lBLACKJACK (WIP)"));
         
         gui.setItem(49, createItem(Material.BARRIER,    "§7[閉じる]"));
         player.openInventory(gui);

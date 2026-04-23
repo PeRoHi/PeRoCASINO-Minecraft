@@ -11,20 +11,24 @@ import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import me.bokan.perocasino.roulette.RoulettePhase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RouletteBetMenuListener implements Listener {
 
     public static final String GUI_TITLE = "§f\uF808\uE001"; // 位置調整済みタイトル
-    private static final int HIDDEN_BUNDLE_SLOT = 53; // 右下
+    public static final int HIDDEN_BUNDLE_SLOT = 53; // 右下
 
     // ベット可能な20枠
-    private static final Set<Integer> BET_SLOTS = Set.of(
+    public static final Set<Integer> BET_SLOTS = Set.of(
             11, 12, 13, 14, 15,
             20, 21, 22, 23, 24,
             29, 30, 31, 32, 33,
@@ -37,6 +41,29 @@ public class RouletteBetMenuListener implements Listener {
     // 【新規】全ベット（特殊枠）として預けられたダイヤの個数データ
     private final Map<UUID, Integer> allInBets = new HashMap<>();
 
+    /** 現在開いているベットGUI（自動ルーレットの精算対象） */
+    private final Map<UUID, Inventory> openBetInventories = new ConcurrentHashMap<>();
+
+    private final JavaPlugin plugin;
+
+    private static volatile RoulettePhase hubPhase = RoulettePhase.BETTING;
+
+    public RouletteBetMenuListener(JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    public static RoulettePhase getHubPhase() {
+        return hubPhase;
+    }
+
+    public static void setHubPhase(RoulettePhase phase) {
+        hubPhase = phase == null ? RoulettePhase.BETTING : phase;
+    }
+
+    public Map<UUID, Inventory> getOpenBetInventoriesView() {
+        return openBetInventories;
+    }
+
     public void openBetGui(Player player) {
         Inventory gui = Bukkit.createInventory(null, 54, GUI_TITLE);
 
@@ -48,6 +75,7 @@ public class RouletteBetMenuListener implements Listener {
         updateHiddenBundle(player.getUniqueId(), gui);
 
         player.openInventory(gui);
+        openBetInventories.put(player.getUniqueId(), gui);
     }
 
     private void updateHiddenBundle(UUID uuid, Inventory gui) {
@@ -80,6 +108,10 @@ public class RouletteBetMenuListener implements Listener {
         gui.setItem(HIDDEN_BUNDLE_SLOT, bundle);
     }
 
+    public void refreshHiddenBundle(UUID uuid, Inventory gui) {
+        updateHiddenBundle(uuid, gui);
+    }
+
     private boolean isHiddenBundleItem(ItemStack item) {
         if (item == null || item.getType() != Material.PAPER) return false;
         ItemMeta meta = item.getItemMeta();
@@ -95,6 +127,12 @@ public class RouletteBetMenuListener implements Listener {
         Player player = (Player) event.getWhoClicked();
         int slot = event.getRawSlot();
         ItemStack currentItem = event.getCurrentItem();
+
+        // 自動ルーレット：ベット受付中以外は盤面操作をロック
+        if (getHubPhase() != RoulettePhase.BETTING) {
+            event.setCancelled(true);
+            return;
+        }
 
         // 1. 手持ちインベントリからのシフトクリックでの不正な移動を防ぐ
         if (event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT) {
@@ -182,7 +220,20 @@ public class RouletteBetMenuListener implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (event.getView().getTitle().equals(GUI_TITLE)) {
+            if (getHubPhase() != RoulettePhase.BETTING) {
+                // 回転中に閉じるとベットが宙に浮くので、強制的に開き直す
+                if (event.getPlayer() instanceof Player player) {
+                    player.sendMessage("§cルーレット進行中はGUIを閉じられません。");
+                    Bukkit.getScheduler().runTaskLater(
+                            plugin,
+                            () -> openBetGui(player),
+                            1L
+                    );
+                }
+                return;
+            }
             savedBets.put(event.getPlayer().getUniqueId(), event.getInventory().getContents());
+            openBetInventories.remove(event.getPlayer().getUniqueId());
         }
     }
 
