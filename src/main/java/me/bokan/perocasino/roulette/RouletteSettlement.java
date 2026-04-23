@@ -28,10 +28,10 @@ public final class RouletteSettlement {
 
     public static RoundResult randomResult(List<Material> symbolPool) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        Material pick() {
-            return symbolPool.get(r.nextInt(symbolPool.size()));
-        }
-        return new RoundResult(pick(), pick(), pick());
+        Material a = symbolPool.get(r.nextInt(symbolPool.size()));
+        Material b = symbolPool.get(r.nextInt(symbolPool.size()));
+        Material c = symbolPool.get(r.nextInt(symbolPool.size()));
+        return new RoundResult(a, b, c);
     }
 
     public static void settleRound(EconomyManager economy,

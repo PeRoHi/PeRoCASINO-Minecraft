@@ -131,7 +131,6 @@ public class RouletteHubService extends BukkitRunnable {
                 phase = RoulettePhase.SPINNING;
                 phaseTicksRemaining = spinTicks;
             }
-            break;
             case SPINNING -> {
                 int three = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.three-of-a-kind", 8));
                 int two = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.two-of-a-kind", 2));
@@ -147,12 +146,10 @@ public class RouletteHubService extends BukkitRunnable {
                 phase = RoulettePhase.COOLDOWN;
                 phaseTicksRemaining = cooldownTicks;
             }
-            break;
             case COOLDOWN -> {
                 phase = RoulettePhase.BETTING;
                 phaseTicksRemaining = betTicks;
             }
-            break;
         }
         RouletteBetMenuListener.setHubPhase(phase);
         updateBossBarForPhase();
@@ -184,15 +181,12 @@ public class RouletteHubService extends BukkitRunnable {
             case BETTING -> {
                 bossBar.setColor(BarColor.GREEN);
             }
-            break;
             case SPINNING -> {
                 bossBar.setColor(BarColor.YELLOW);
             }
-            break;
             case COOLDOWN -> {
                 bossBar.setColor(BarColor.BLUE);
             }
-            break;
         }
         updateBossBarTitleAndProgress();
     }
