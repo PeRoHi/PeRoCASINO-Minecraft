@@ -144,17 +144,17 @@ public class RouletteHubService extends BukkitRunnable {
                 phaseTicksRemaining = spinTicks;
             }
             case SPINNING -> {
-                int three = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.three-of-a-kind", 8));
-                int two = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.two-of-a-kind", 2));
-                RouletteSettlement.settleRound(
-                        economyManager,
-                        betMenuListener,
-                        symbolPool,
-                        three,
-                        two,
-                        hub,
-                        radius
-                );
+                if (angleConfig == null) {
+                    plugin.getLogger().warning("[Roulette] angleConfig is null; skipping settlement.");
+                } else {
+                    RouletteSettlement.settleRound(
+                            economyManager,
+                            betMenuListener,
+                            angleConfig,
+                            hub,
+                            radius
+                    );
+                }
                 phase = RoulettePhase.COOLDOWN;
                 phaseTicksRemaining = cooldownTicks;
             }
