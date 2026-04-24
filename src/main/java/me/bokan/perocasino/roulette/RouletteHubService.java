@@ -40,6 +40,8 @@ public class RouletteHubService extends BukkitRunnable {
 
     private final List<Material> symbolPool = new ArrayList<>();
 
+    private RouletteAngleConfig angleConfig;
+
     public RouletteHubService(JavaPlugin plugin,
                               EconomyManager economyManager,
                               RouletteBetMenuListener betMenuListener) {
@@ -72,6 +74,16 @@ public class RouletteHubService extends BukkitRunnable {
         betTicks = Math.max(20, cfg.getInt("roulette.bet-seconds", 20) * 20);
         spinTicks = Math.max(20, cfg.getInt("roulette.spin-seconds", 3) * 20);
         cooldownTicks = Math.max(20, cfg.getInt("roulette.cooldown-seconds", 5) * 20);
+
+        // 角度セグメント設定（画像制作・当たり判定の基準）
+        try {
+            angleConfig = RouletteAngleConfig.loadAndValidate(cfg);
+            plugin.getLogger().info("[Roulette] angle segments loaded: total=" + angleConfig.totalDegrees()
+                    + "°, segments=" + angleConfig.segments().size());
+        } catch (Exception e) {
+            angleConfig = null;
+            plugin.getLogger().warning("[Roulette] angle segments invalid: " + e.getMessage());
+        }
 
         symbolPool.clear();
         List<String> raw = cfg.getStringList("slot-machine.symbols");
@@ -132,17 +144,17 @@ public class RouletteHubService extends BukkitRunnable {
                 phaseTicksRemaining = spinTicks;
             }
             case SPINNING -> {
-                int three = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.three-of-a-kind", 8));
-                int two = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.two-of-a-kind", 2));
-                RouletteSettlement.settleRound(
-                        economyManager,
-                        betMenuListener,
-                        symbolPool,
-                        three,
-                        two,
-                        hub,
-                        radius
-                );
+                if (angleConfig == null) {
+                    plugin.getLogger().warning("[Roulette] angleConfig is null; skipping settlement.");
+                } else {
+                    RouletteSettlement.settleRound(
+                            economyManager,
+                            betMenuListener,
+                            angleConfig,
+                            hub,
+                            radius
+                    );
+                }
                 phase = RoulettePhase.COOLDOWN;
                 phaseTicksRemaining = cooldownTicks;
             }

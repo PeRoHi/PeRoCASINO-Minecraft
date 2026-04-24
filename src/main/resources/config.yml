@@ -15,6 +15,44 @@ roulette:
   spin-seconds: 3
   # 次ラウンドまでのクールダウン（秒）
   cooldown-seconds: 5
+  # ルーレットの当たり判定（上部の針＝角度0°）の角度セグメント定義。
+  # - unit は「度」。分解能は 1° 以上にしてください。
+  # - 角度の合計は 360° である必要があります。
+  # - 高倍率ほど僅かに範囲が広くなる想定（例: 20x は 20〜25°程度）
+  #
+  # この設定に沿って、あなたが3×3表示用のルーレット画像を作成できます。
+  segments:
+    # 24分割（各15°）で一周360°
+    # 出現回数: 20x×1 / 10x×3 / 6x×4 / 4x×6 / 2x×10 = 24枠
+    # 配置ルール:
+    # - 10x と 20x は「四方（0°, 90°, 180°, 270°）」に配置（index 0,6,12,18）
+    # - 4x と 6x は同じ数字が隣り合わない
+    # - 2x は隣接してもOK
+    # ※針(0°)から時計回りにこの順で並びます（index 0 が 0°〜15°）
+    - { multiplier: 20, degrees: 15 } # 0
+    - { multiplier: 2,  degrees: 15 } # 1
+    - { multiplier: 4,  degrees: 15 } # 2
+    - { multiplier: 2,  degrees: 15 } # 3
+    - { multiplier: 6,  degrees: 15 } # 4
+    - { multiplier: 2,  degrees: 15 } # 5
+    - { multiplier: 10, degrees: 15 } # 6  (90°)
+    - { multiplier: 2,  degrees: 15 } # 7
+    - { multiplier: 4,  degrees: 15 } # 8
+    - { multiplier: 2,  degrees: 15 } # 9
+    - { multiplier: 6,  degrees: 15 } # 10
+    - { multiplier: 4,  degrees: 15 } # 11
+    - { multiplier: 10, degrees: 15 } # 12 (180°)
+    - { multiplier: 2,  degrees: 15 } # 13
+    - { multiplier: 4,  degrees: 15 } # 14
+    - { multiplier: 2,  degrees: 15 } # 15
+    - { multiplier: 6,  degrees: 15 } # 16
+    - { multiplier: 2,  degrees: 15 } # 17
+    - { multiplier: 10, degrees: 15 } # 18 (270°)
+    - { multiplier: 2,  degrees: 15 } # 19
+    - { multiplier: 4,  degrees: 15 } # 20
+    - { multiplier: 2,  degrees: 15 } # 21
+    - { multiplier: 6,  degrees: 15 } # 22
+    - { multiplier: 4,  degrees: 15 } # 23
 
 quarry:
   enabled: true
