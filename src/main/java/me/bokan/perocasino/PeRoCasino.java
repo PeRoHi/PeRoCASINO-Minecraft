@@ -9,6 +9,7 @@ import me.bokan.perocasino.games.slot.SlotMachineService;
 import me.bokan.perocasino.listeners.CasinoMenuListener;
 import me.bokan.perocasino.listeners.GameMenuListener;
 import me.bokan.perocasino.listeners.LoanMenuListener;
+import me.bokan.perocasino.listeners.CommandBookListener;
 import me.bokan.perocasino.listeners.NetherPortalTeleportListener;
 import me.bokan.perocasino.listeners.QuarryRespawnListener;
 import me.bokan.perocasino.listeners.RuleBookListener;
@@ -57,6 +58,9 @@ public class PeRoCasino extends JavaPlugin {
         // ルールブック（ホットバー左端0に固定）
         getServer().getPluginManager().registerEvents(new RuleBookListener(this), this);
 
+        // 初回参加者向け: コマンド集ルールブック（固定なし）
+        getServer().getPluginManager().registerEvents(new CommandBookListener(), this);
+
         // 【追加】ルーレットのリスナーを登録
         RouletteBetMenuListener betListener = new RouletteBetMenuListener(this);
         getServer().getPluginManager().registerEvents(betListener, this);
@@ -65,6 +69,9 @@ public class PeRoCasino extends JavaPlugin {
         rouletteDisplayService = new RouletteDisplayService(this);
         rouletteHubService = new RouletteHubService(this, economyManager, betListener, rouletteDisplayService);
         rouletteHubService.runTaskTimer(this, 0L, 1L);
+
+        // 初回参加者へコマンド集ブック配布（固定なし）
+        getServer().getPluginManager().registerEvents(new CommandBookListener(), this);
 
         org.bukkit.command.PluginCommand pc = getCommand("perocasino");
         if (pc != null) {

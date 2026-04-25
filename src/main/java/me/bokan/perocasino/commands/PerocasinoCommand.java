@@ -40,6 +40,9 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 0) {
             sender.sendMessage("§e/perocasino roulette set §7… 見ている砥石をルーレット拠点に登録");
+            sender.sendMessage("§e/perocasino roulette remove §7… ルーレット拠点登録を削除");
+            sender.sendMessage("§e/perocasino roulette stop §7… ルーレット進行を一時停止");
+            sender.sendMessage("§e/perocasino roulette start §7… ルーレット進行を再開");
             sender.sendMessage("§e/perocasino roulette display set §7… 見ているブロック面にルーレット表示(ItemDisplay)を設置");
             sender.sendMessage("§e/perocasino roulette display remove §7… ルーレット表示(ItemDisplay)を削除");
             sender.sendMessage("§e/perocasino quarry set §7… 採石場の立方体範囲を現在位置の角として登録（2回実行）");
@@ -84,6 +87,36 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 plugin.saveConfig();
                 sender.sendMessage("§aルーレット拠点を登録しました: §f" + loc.getWorld().getName()
                         + " " + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
+                return true;
+            }
+
+            if ("remove".equals(action)) {
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("roulette.world", "");
+                cfg.set("roulette.x", 0);
+                cfg.set("roulette.y", 0);
+                cfg.set("roulette.z", 0);
+                plugin.saveConfig();
+                sender.sendMessage("§aルーレット拠点登録を削除しました。");
+                sender.sendMessage("§7※ /perocasino reload で反映されます。");
+                return true;
+            }
+
+            if ("stop".equals(action)) {
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("roulette.enabled", false);
+                plugin.saveConfig();
+                sender.sendMessage("§eルーレット進行を停止しました。");
+                sender.sendMessage("§7※ /perocasino reload で反映されます。");
+                return true;
+            }
+
+            if ("start".equals(action)) {
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("roulette.enabled", true);
+                plugin.saveConfig();
+                sender.sendMessage("§aルーレット進行を再開しました。");
+                sender.sendMessage("§7※ /perocasino reload で反映されます。");
                 return true;
             }
 

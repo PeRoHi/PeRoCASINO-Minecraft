@@ -45,6 +45,7 @@ public class RouletteHubService extends BukkitRunnable {
 
     // SPINNING開始時に「停止角度」を先に決め、精算と表示の停止を同期する
     private RouletteSettlement.AngleRoundResult pendingResult;
+    private boolean enabled;
 
     public RouletteHubService(JavaPlugin plugin,
                               EconomyManager economyManager,
@@ -64,6 +65,7 @@ public class RouletteHubService extends BukkitRunnable {
 
     public void reloadFromConfig() {
         FileConfiguration cfg = plugin.getConfig();
+        enabled = cfg.getBoolean("roulette.enabled", true);
         String worldName = cfg.getString("roulette.world", "");
         int x = cfg.getInt("roulette.x", 0);
         int y = cfg.getInt("roulette.y", 0);
@@ -130,6 +132,13 @@ public class RouletteHubService extends BukkitRunnable {
 
     @Override
     public void run() {
+        if (!enabled) {
+            bossBar.setVisible(false);
+            for (Player p : new ArrayList<>(bossBar.getPlayers())) {
+                bossBar.removePlayer(p);
+            }
+            return;
+        }
         if (hub == null || hub.getWorld() == null) {
             bossBar.setVisible(false);
             for (Player p : new ArrayList<>(bossBar.getPlayers())) {
