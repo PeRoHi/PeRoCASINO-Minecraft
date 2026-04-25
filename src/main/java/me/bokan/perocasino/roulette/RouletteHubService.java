@@ -41,10 +41,15 @@ public class RouletteHubService extends BukkitRunnable {
     private final List<Material> symbolPool = new ArrayList<>();
 
     private RouletteAngleConfig angleConfig;
+    private RouletteDisplayService displayService;
+
+    // SPINNING開始時に「停止角度」を先に決め、精算と表示の停止を同期する
+    private RouletteSettlement.AngleRoundResult pendingResult;
 
     public RouletteHubService(JavaPlugin plugin,
                               EconomyManager economyManager,
-                              RouletteBetMenuListener betMenuListener) {
+                              RouletteBetMenuListener betMenuListener,
+                              RouletteDisplayService displayService) {
         this.plugin = plugin;
         this.economyManager = economyManager;
         this.betMenuListener = betMenuListener;
@@ -53,6 +58,7 @@ public class RouletteHubService extends BukkitRunnable {
         this.bossBar.setVisible(false);
         this.bossBar.setProgress(1.0);
 
+        this.displayService = (displayService == null) ? new RouletteDisplayService(plugin) : displayService;
         reloadFromConfig();
     }
 
@@ -85,6 +91,9 @@ public class RouletteHubService extends BukkitRunnable {
             plugin.getLogger().warning("[Roulette] angle segments invalid: " + e.getMessage());
         }
 
+        // 表示（ItemDisplay）
+        displayService.reloadFromConfig();
+
         symbolPool.clear();
         List<String> raw = cfg.getStringList("slot-machine.symbols");
         if (raw == null || raw.isEmpty()) {
@@ -114,6 +123,7 @@ public class RouletteHubService extends BukkitRunnable {
         // フェーズをリセット
         phase = RoulettePhase.BETTING;
         phaseTicksRemaining = betTicks;
+        pendingResult = null;
         RouletteBetMenuListener.setHubPhase(phase);
         updateBossBarForPhase();
     }
@@ -142,15 +152,22 @@ public class RouletteHubService extends BukkitRunnable {
             case BETTING -> {
                 phase = RoulettePhase.SPINNING;
                 phaseTicksRemaining = spinTicks;
+                if (angleConfig != null) {
+                    pendingResult = RouletteSettlement.randomAngleResult(angleConfig);
+                    displayService.startSpinning();
+                } else {
+                    pendingResult = null;
+                }
             }
             case SPINNING -> {
-                if (angleConfig == null) {
-                    plugin.getLogger().warning("[Roulette] angleConfig is null; skipping settlement.");
+                if (angleConfig == null || pendingResult == null) {
+                    plugin.getLogger().warning("[Roulette] angleConfig/pendingResult is null; skipping settlement.");
                 } else {
+                    displayService.stopAtAngle(pendingResult.stopAngleDeg());
                     RouletteSettlement.settleRound(
                             economyManager,
                             betMenuListener,
-                            angleConfig,
+                            pendingResult,
                             hub,
                             radius
                     );
@@ -161,6 +178,7 @@ public class RouletteHubService extends BukkitRunnable {
             case COOLDOWN -> {
                 phase = RoulettePhase.BETTING;
                 phaseTicksRemaining = betTicks;
+                pendingResult = null;
             }
         }
         RouletteBetMenuListener.setHubPhase(phase);

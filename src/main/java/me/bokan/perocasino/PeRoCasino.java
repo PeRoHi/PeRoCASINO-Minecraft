@@ -17,6 +17,7 @@ import me.bokan.perocasino.listeners.SlotInteractListener;
 import me.bokan.perocasino.listeners.SlotMenuListener;
 import me.bokan.perocasino.listeners.SlotSessionCleanupListener;
 import me.bokan.perocasino.listeners.WalletListener;
+import me.bokan.perocasino.roulette.RouletteDisplayService;
 import me.bokan.perocasino.roulette.RouletteHubService;
 import me.bokan.perocasino.tasks.HudTask;
 import me.bokan.perocasino.tasks.LoanTask;
@@ -27,6 +28,7 @@ public class PeRoCasino extends JavaPlugin {
     private EconomyManager economyManager;
     private RouletteHubService rouletteHubService;
     private SlotMachineService slotMachineService;
+    private RouletteDisplayService rouletteDisplayService;
 
     @Override
     public void onEnable() {
@@ -38,6 +40,10 @@ public class PeRoCasino extends JavaPlugin {
         getCommand("casino").setExecutor(new CasinoCommand());
 
         slotMachineService = new SlotMachineService(this, economyManager);
+
+        // ルーレット表示（ItemDisplay）
+        RouletteDisplayService rouletteDisplayService = new RouletteDisplayService(this);
+        rouletteDisplayService.reloadFromConfig();
 
         // LOAN GUI リスナー → カジノメインリスナーへ渡す
         LoanMenuListener loanListener = new LoanMenuListener(economyManager, this);
@@ -55,7 +61,8 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(betListener, this);
         getServer().getPluginManager().registerEvents(new RouletteInteractListener(betListener), this);
 
-        rouletteHubService = new RouletteHubService(this, economyManager, betListener);
+        rouletteDisplayService = new RouletteDisplayService(this);
+        rouletteHubService = new RouletteHubService(this, economyManager, betListener, rouletteDisplayService);
         rouletteHubService.runTaskTimer(this, 0L, 1L);
 
         org.bukkit.command.PluginCommand pc = getCommand("perocasino");
