@@ -83,7 +83,44 @@ public final class RouletteDisplayService {
         return getDisplay() != null;
     }
 
+    /**
+     * ルーレット表示を削除し、設定もクリアする。
+     */
+    public void removeDisplay() {
+        // 回転タスク停止
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
+        targetDeg = null;
+
+        // entity削除
+        ItemDisplay d = getDisplay();
+        if (d != null) {
+            d.remove();
+        }
+
+        displayUuid = null;
+        anchor = null;
+
+        // configクリア
+        FileConfiguration cfg = plugin.getConfig();
+        cfg.set("roulette.display.anchor.world", "");
+        cfg.set("roulette.display.anchor.x", null);
+        cfg.set("roulette.display.anchor.y", null);
+        cfg.set("roulette.display.anchor.z", null);
+        cfg.set("roulette.display.face", null);
+        cfg.set("roulette.display.uuid", "");
+        plugin.saveConfig();
+    }
+
     public void setAnchor(Location anchorCenter, BlockFace face) {
+        // 既存があれば削除（移動/貼り替え）
+        ItemDisplay existing = getDisplay();
+        if (existing != null) {
+            existing.remove();
+            displayUuid = null;
+        }
         this.anchor = anchorCenter;
         if (face != null) this.face = face;
         ensureSpawned();

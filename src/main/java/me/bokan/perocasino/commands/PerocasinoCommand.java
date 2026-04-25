@@ -1,6 +1,5 @@
 package me.bokan.perocasino.commands;
 
-import me.bokan.perocasino.roulette.RouletteDisplayService;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.BlockFace;
@@ -42,6 +41,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         if (args.length == 0) {
             sender.sendMessage("§e/perocasino roulette set §7… 見ている砥石をルーレット拠点に登録");
             sender.sendMessage("§e/perocasino roulette display set §7… 見ているブロック面にルーレット表示(ItemDisplay)を設置");
+            sender.sendMessage("§e/perocasino roulette display remove §7… ルーレット表示(ItemDisplay)を削除");
             sender.sendMessage("§e/perocasino quarry set §7… 採石場の立方体範囲を現在位置の角として登録（2回実行）");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
@@ -88,8 +88,26 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             }
 
             if ("display".equals(action)) {
-                if (args.length < 3 || !"set".equalsIgnoreCase(args[2])) {
+                if (args.length < 3) {
                     sender.sendMessage("§c使い方: /perocasino roulette display set");
+                    sender.sendMessage("§c使い方: /perocasino roulette display remove");
+                    return true;
+                }
+                String subAction = args[2].toLowerCase();
+
+                // display remove
+                if ("remove".equals(subAction)) {
+                    RouletteDisplayService display = new RouletteDisplayService(plugin);
+                    display.reloadFromConfig();
+                    display.removeDisplay();
+                    sender.sendMessage("§aルーレット表示(ItemDisplay)を削除しました。");
+                    return true;
+                }
+
+                // display set
+                if (!"set".equals(subAction)) {
+                    sender.sendMessage("§c使い方: /perocasino roulette display set");
+                    sender.sendMessage("§c使い方: /perocasino roulette display remove");
                     return true;
                 }
                 org.bukkit.block.Block target = player.getTargetBlockExact(8, FluidCollisionMode.NEVER);
@@ -106,6 +124,8 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
 
                 RouletteDisplayService display = new RouletteDisplayService(plugin);
                 display.reloadFromConfig();
+                // 貼り替え（移動）: 既存があれば削除してから再設置
+                display.removeDisplay();
                 display.setAnchor(anchor, face);
                 sender.sendMessage("§aルーレット表示(ItemDisplay)を設置しました。");
                 sender.sendMessage("§7※ /perocasino reload で確実に復元されます。");
@@ -114,6 +134,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
 
             sender.sendMessage("§c使い方: /perocasino roulette set");
             sender.sendMessage("§c使い方: /perocasino roulette display set");
+            sender.sendMessage("§c使い方: /perocasino roulette display remove");
             return true;
         }
 
