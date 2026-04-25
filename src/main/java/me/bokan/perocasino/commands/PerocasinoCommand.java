@@ -177,14 +177,12 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             cfg.set(pathBase + "max.x", maxX);
             cfg.set(pathBase + "max.y", maxY);
             cfg.set(pathBase + "max.z", maxZ);
-            // 次回セットし直せるように min を一旦消す
-            cfg.set(pathBase + "min", null);
             plugin.saveConfig();
 
             sender.sendMessage("§a採石場範囲を登録しました: §f" + world.getName()
                     + " §7MIN§f(" + minX + "," + minY + "," + minZ + ")"
                     + " §7MAX§f(" + maxX + "," + maxY + "," + maxZ + ")");
-            sender.sendMessage("§7※ もう一度 /perocasino quarry set を2回実行すると範囲を作り直せます。");
+            sender.sendMessage("§7※ 範囲を作り直したい場合は config.yml の quarry.min/max を編集するか、/perocasino quarry reset を実装予定です。");
             return true;
         }
 

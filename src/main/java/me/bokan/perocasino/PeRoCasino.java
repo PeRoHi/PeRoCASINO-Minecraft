@@ -9,6 +9,7 @@ import me.bokan.perocasino.games.slot.SlotMachineService;
 import me.bokan.perocasino.listeners.CasinoMenuListener;
 import me.bokan.perocasino.listeners.GameMenuListener;
 import me.bokan.perocasino.listeners.LoanMenuListener;
+import me.bokan.perocasino.listeners.NetherPortalTeleportListener;
 import me.bokan.perocasino.listeners.QuarryRespawnListener;
 import me.bokan.perocasino.listeners.RuleBookListener;
 import me.bokan.perocasino.listeners.RouletteBetMenuListener;
@@ -80,6 +81,7 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SlotMenuListener(), this);
         getServer().getPluginManager().registerEvents(new SlotSessionCleanupListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new GameMenuListener(), this);
+        getServer().getPluginManager().registerEvents(new NetherPortalTeleportListener(this), this);
 
         // HUD 表示（1秒ごと）
         new HudTask(economyManager).runTaskTimer(this, 0L, 20L);

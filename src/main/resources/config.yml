@@ -54,6 +54,15 @@ roulette:
     - { multiplier: 6,  degrees: 15 } # 22
     - { multiplier: 4,  degrees: 15 } # 23
 
+nether-portal:
+  # ネザーポータルに触れた瞬間、固定座標へテレポートさせる
+  enabled: false
+  to:
+    world: ""
+    x: 0
+    y: 0
+    z: 0
+
 quarry:
   enabled: true
   # 採石場として扱うワールド名（空なら全ワールド）
