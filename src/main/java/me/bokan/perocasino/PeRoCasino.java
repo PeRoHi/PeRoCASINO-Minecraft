@@ -2,6 +2,7 @@ package me.bokan.perocasino;
 
 import me.bokan.perocasino.commands.BalanceCommand;
 import me.bokan.perocasino.commands.CasinoCommand;
+import me.bokan.perocasino.commands.CommandBookCommand;
 import me.bokan.perocasino.commands.DepositCommand;
 import me.bokan.perocasino.commands.PerocasinoCommand;
 import me.bokan.perocasino.economy.EconomyManager;
@@ -42,6 +43,7 @@ public class PeRoCasino extends JavaPlugin {
         getCommand("balance").setExecutor(new BalanceCommand(economyManager));
         getCommand("deposit").setExecutor(new DepositCommand(economyManager));
         getCommand("casino").setExecutor(new CasinoCommand());
+        getCommand("commandbook").setExecutor(new CommandBookCommand(this));
 
         slotMachineService = new SlotMachineService(this, economyManager);
 
@@ -60,8 +62,8 @@ public class PeRoCasino extends JavaPlugin {
         // ルールブック（ホットバー左端0に固定）
         getServer().getPluginManager().registerEvents(new RuleBookListener(this), this);
 
-        // 初回参加者向け: コマンド集ルールブック（固定なし）
-        getServer().getPluginManager().registerEvents(new CommandBookListener(), this);
+        // コマンド集ルールブック（固定なし）
+        getServer().getPluginManager().registerEvents(new CommandBookListener(this), this);
 
         // 【追加】ルーレットのリスナーを登録
         RouletteBetMenuListener betListener = new RouletteBetMenuListener(this);
@@ -74,8 +76,7 @@ public class PeRoCasino extends JavaPlugin {
         rouletteHubService = new RouletteHubService(this, economyManager, betListener, rouletteDisplayService, betBoardService);
         rouletteHubService.runTaskTimer(this, 0L, 1L);
 
-        // 初回参加者へコマンド集ブック配布（固定なし）
-        // ※すでに上で登録済み（重複登録しない）
+        // ※上で登録済み（重複登録しない）
 
         org.bukkit.command.PluginCommand pc = getCommand("perocasino");
         if (pc != null) {
