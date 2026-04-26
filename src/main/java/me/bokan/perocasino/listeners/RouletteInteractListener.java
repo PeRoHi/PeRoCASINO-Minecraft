@@ -38,10 +38,7 @@ public class RouletteInteractListener implements Listener {
                 }
                 // 物理ベット盤が設定されているならそちらを優先
                 if (betBoardService != null && betBoardService.isBetGrindstone(event.getClickedBlock())) {
-                    int mult = betBoardService.multiplierFor(event.getClickedBlock());
-                    if (mult > 0) {
-                        betBoardService.placeBet(player, mult, player.isSneaking());
-                    }
+                    betBoardService.handleBetClick(player, event);
                     return;
                 }
 

@@ -8,13 +8,17 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 
 /**
  * ルーレットの「砥石5列ベット」管理。
@@ -29,6 +33,7 @@ import java.util.UUID;
 public final class RouletteBetBoardService {
 
     private static final int[] MULTS = new int[]{2, 4, 6, 10, 20};
+    private static final String GUI_TITLE_PREFIX = "§0§lROULETTE BET ";
 
     private final Plugin plugin;
     private final EconomyManager economy;
@@ -38,6 +43,9 @@ public final class RouletteBetBoardService {
 
     /** ベット: player -> (multiplier -> amount) */
     private final Map<UUID, Map<Integer, Integer>> bets = new HashMap<>();
+
+    /** プレイヤーごとの「列別ベットGUI」(multiplier -> inventory) */
+    private final Map<UUID, Map<Integer, Inventory>> openBetGuis = new HashMap<>();
 
     public RouletteBetBoardService(Plugin plugin, EconomyManager economy) {
         this.plugin = plugin;
@@ -104,8 +112,122 @@ public final class RouletteBetBoardService {
         if (event.getClickedBlock() == null) return;
         int mult = multiplierFor(event.getClickedBlock());
         if (mult <= 0) return;
-        boolean shift = player.isSneaking();
-        placeBet(player, mult, shift);
+        openBetGui(player, mult);
+    }
+
+    public boolean isBetGui(Inventory inv) {
+        if (inv == null) return false;
+        return isBetGuiTitle(inv.getViewers().isEmpty() ? null : inv.getViewers().getFirst().getOpenInventory().getTitle());
+    }
+
+    public boolean isBetGuiTitle(String title) {
+        return title != null && title.startsWith(GUI_TITLE_PREFIX);
+    }
+
+    public int multiplierFromGuiTitle(String title) {
+        if (title == null) return 0;
+        // "§0§lROULETTE BET 10x"
+        String plain = org.bukkit.ChatColor.stripColor(title);
+        if (plain == null) return 0;
+        plain = plain.trim();
+        if (!plain.startsWith("ROULETTE BET")) return 0;
+        int idx = plain.lastIndexOf(' ');
+        if (idx < 0) return 0;
+        String last = plain.substring(idx + 1).trim();
+        if (last.endsWith("x")) last = last.substring(0, last.length() - 1);
+        try {
+            return Integer.parseInt(last);
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    public void onBetGuiClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        Inventory inv = event.getInventory();
+        if (!isBetGui(inv)) return;
+        int mult = multiplierFromGuiTitle(event.getView().getTitle());
+        if (mult <= 0) return;
+        // 保存: GUI内のダイヤ枚数をベットとして記録（それ以外は強制排出して返す）
+        int diamonds = 0;
+        for (ItemStack it : inv.getContents()) {
+            if (it == null) continue;
+            if (it.getType() == org.bukkit.Material.DIAMOND) diamonds += it.getAmount();
+            else {
+                // 想定外アイテムは返す
+                player.getInventory().addItem(it);
+            }
+        }
+        bets.computeIfAbsent(player.getUniqueId(), k -> new HashMap<>());
+        bets.get(player.getUniqueId()).put(mult, diamonds);
+
+        // GUIは都度作り直しせず保持しない（クローズ時に破棄）
+        Map<Integer, Inventory> m = openBetGuis.get(player.getUniqueId());
+        if (m != null) {
+            m.remove(mult);
+            if (m.isEmpty()) openBetGuis.remove(player.getUniqueId());
+        }
+    }
+
+    private void openBetGui(Player player, int multiplier) {
+        openBetGuis.computeIfAbsent(player.getUniqueId(), k -> new HashMap<>());
+        Inventory inv = openBetGuis.get(player.getUniqueId()).get(multiplier);
+        if (inv == null) {
+            inv = Bukkit.createInventory(null, 27, "§0§lROULETTE BET " + multiplier + "x");
+            // 既にベットがあれば表示
+            int existing = bets.getOrDefault(player.getUniqueId(), Map.of()).getOrDefault(multiplier, 0);
+            if (existing > 0) {
+                inv.setItem(13, new ItemStack(org.bukkit.Material.DIAMOND, Math.min(64, existing)));
+                int remain = existing - Math.min(64, existing);
+                if (remain > 0) {
+                    inv.setItem(14, new ItemStack(org.bukkit.Material.DIAMOND, Math.min(64, remain)));
+                }
+            }
+            // ガイド
+            ItemStack guide = new ItemStack(org.bukkit.Material.PAPER);
+            ItemMeta meta = guide.getItemMeta();
+            if (meta != null) {
+                meta.setDisplayName("§e置いたダイヤがベットになります");
+                meta.setLore(java.util.List.of(
+                        "§7このGUIにダイヤを置いて閉じるとベット確定",
+                        "§7結果が出ると当たり列だけ払戻",
+                        "§7外れは没収"
+                ));
+                guide.setItemMeta(meta);
+            }
+            inv.setItem(22, guide);
+            openBetGuis.get(player.getUniqueId()).put(multiplier, inv);
+        }
+        player.openInventory(inv);
+    }
+
+    /**
+     * GUI の内容をベットとして確定し、GUI内のダイヤは没収（=保管）する。
+     * - close時に呼ぶ想定
+     */
+    public void captureBetFromGui(UUID playerId, Inventory topInv, String title) {
+        int mult = multiplierFromGuiTitle(title);
+        if (mult <= 0) return;
+        int diamonds = countDiamonds(topInv);
+        bets.computeIfAbsent(playerId, k -> new HashMap<>());
+        bets.get(playerId).put(mult, diamonds);
+        // GUI内はクリア（置きっぱなし防止）
+        clearInventory(topInv);
+    }
+
+    private static int countDiamonds(Inventory inv) {
+        int n = 0;
+        for (ItemStack it : inv.getContents()) {
+            if (it != null && it.getType() == Material.DIAMOND) n += it.getAmount();
+        }
+        return n;
+    }
+
+    private static void clearInventory(Inventory inv) {
+        if (inv == null) return;
+        for (int i = 0; i < inv.getSize(); i++) {
+            inv.setItem(i, null);
+        }
     }
 
     public int multiplierFor(Block block) {
@@ -186,6 +308,10 @@ public final class RouletteBetBoardService {
             }
             settleFor(p, resultMultiplier);
         }
+    }
+
+    public void lockAllGuis(boolean lock) {
+        // 現状は閉じる強制まではしない（ロックはリスナー側でクリックキャンセルする想定）
     }
 
     public void clearAllBets() {

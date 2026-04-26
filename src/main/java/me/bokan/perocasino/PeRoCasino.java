@@ -12,6 +12,7 @@ import me.bokan.perocasino.listeners.LoanMenuListener;
 import me.bokan.perocasino.listeners.CommandBookListener;
 import me.bokan.perocasino.listeners.NetherPortalTeleportListener;
 import me.bokan.perocasino.listeners.QuarryRespawnListener;
+import me.bokan.perocasino.listeners.RouletteBetBoardMenuListener;
 import me.bokan.perocasino.listeners.RuleBookListener;
 import me.bokan.perocasino.listeners.RouletteBetMenuListener;
 import me.bokan.perocasino.listeners.RouletteInteractListener;
@@ -67,6 +68,7 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(betListener, this);
         RouletteBetBoardService betBoardService = new RouletteBetBoardService(this, economyManager);
         getServer().getPluginManager().registerEvents(new RouletteInteractListener(betListener, betBoardService), this);
+        getServer().getPluginManager().registerEvents(new RouletteBetBoardMenuListener(betBoardService), this);
 
         rouletteDisplayService = new RouletteDisplayService(this);
         rouletteHubService = new RouletteHubService(this, economyManager, betListener, rouletteDisplayService, betBoardService);
