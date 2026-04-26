@@ -29,20 +29,13 @@ public class RouletteInteractListener implements Listener {
                 event.setCancelled(true);
 
                 Player player = event.getPlayer();
-                // 物理ベット盤が有効なら、ベット受付中のみ許可
-                if (betBoardService != null && betBoardService.isConfigured()) {
-                    if (RouletteBetMenuListener.getHubPhase() != RoulettePhase.BETTING) {
-                        player.sendMessage("§cルーレット進行中はベットできません。");
-                        return;
-                    }
-                }
-                // 物理ベット盤が設定されているならそちらを優先
-                if (betBoardService != null && betBoardService.isBetGrindstone(event.getClickedBlock())) {
-                    betBoardService.handleBetClick(player, event);
+                // ベット受付中のみ許可
+                if (RouletteBetMenuListener.getHubPhase() != RoulettePhase.BETTING) {
+                    player.sendMessage("§cルーレット進行中はベットできません。");
                     return;
                 }
 
-                // フォールバック: 従来GUI
+                // 要望: 砥石5列のどれを右クリックしても、列別GUIではなく 54枠ベットGUI を開く
                 betMenuListener.openBetGui(player);
             }
         }

@@ -70,7 +70,7 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(betListener, this);
         RouletteBetBoardService betBoardService = new RouletteBetBoardService(this, economyManager);
         getServer().getPluginManager().registerEvents(new RouletteInteractListener(betListener, betBoardService), this);
-        getServer().getPluginManager().registerEvents(new RouletteBetBoardMenuListener(betBoardService), this);
+        // 砥石ベットは 54枠GUI（RouletteBetMenuListener）で扱うので列別GUIは無効化
 
         rouletteDisplayService = new RouletteDisplayService(this);
         rouletteHubService = new RouletteHubService(this, economyManager, betListener, rouletteDisplayService, betBoardService);

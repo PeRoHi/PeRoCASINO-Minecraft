@@ -165,9 +165,7 @@ public class RouletteHubService extends BukkitRunnable {
             if (phaseTicksRemaining <= 0) {
                 // ここで結果確定通知を出してからクールダウンへ
                 notifyResult(pendingResult);
-                if (betBoardService != null && pendingResult != null) {
-                    betBoardService.settleAll(pendingResult.multiplier());
-                }
+                // 精算は RouletteBetMenuListener 側で行う（54枠GUIのスロット配置で倍率判定）
                 phase = RoulettePhase.COOLDOWN;
                 phaseTicksRemaining = cooldownTicks;
                 pendingSettlement = false;

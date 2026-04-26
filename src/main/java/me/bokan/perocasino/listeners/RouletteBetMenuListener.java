@@ -78,6 +78,67 @@ public class RouletteBetMenuListener implements Listener {
         openBetInventories.put(player.getUniqueId(), gui);
     }
 
+    /**
+     * BET_SLOTS のスロット位置から倍率を決定する。
+     * 配置仕様:
+     * 11/20/29/38 => 2x
+     * 12/21/30/39 => 4x
+     * 13/22/31/40 => 6x
+     * 14/23/32/41 => 10x
+     * 15/24/33/42 => 20x
+     */
+    public static int multiplierForSlot(int slot) {
+        if (!BET_SLOTS.contains(slot)) return 0;
+        int col = slot % 9; // 11..15,20..24,... は col=2..6
+        return switch (col) {
+            case 2 -> 2;
+            case 3 -> 4;
+            case 4 -> 6;
+            case 5 -> 10;
+            case 6 -> 20;
+            default -> 0;
+        };
+    }
+
+    /**
+     * 現在開いているベットGUIから、倍率ごとの賭け枚数を集計する。
+     * - BET_SLOTS 内のダイヤのみ対象
+     * - それ以外のスロットのダイヤはベットとして扱わない（精算対象外）
+     */
+    public Map<UUID, Map<Integer, Integer>> snapshotBetsByMultiplier() {
+        Map<UUID, Map<Integer, Integer>> out = new HashMap<>();
+        for (Map.Entry<UUID, Inventory> e : openBetInventories.entrySet()) {
+            UUID uuid = e.getKey();
+            Inventory inv = e.getValue();
+            if (inv == null) continue;
+            Map<Integer, Integer> m = new HashMap<>();
+            for (int slot : BET_SLOTS) {
+                ItemStack it = inv.getItem(slot);
+                if (it != null && it.getType() == Material.DIAMOND) {
+                    int mult = multiplierForSlot(slot);
+                    if (mult > 0) m.merge(mult, it.getAmount(), Integer::sum);
+                }
+            }
+            int allIn = allInBets.getOrDefault(uuid, 0);
+            if (allIn > 0) m.merge(54, allIn, Integer::sum); // 特殊枠（54扱い）
+            if (!m.isEmpty()) out.put(uuid, m);
+        }
+        return out;
+    }
+
+    /** 精算後にGUI内ベットと特殊枠をクリアする（開いているGUIだけ対象） */
+    public void clearAllOpenBets() {
+        for (Inventory inv : openBetInventories.values()) {
+            if (inv == null) continue;
+            for (int slot : BET_SLOTS) inv.setItem(slot, null);
+            // 表示更新（特殊枠が0になるので反映）
+            updateHiddenBundle(null, inv);
+        }
+        allInBets.clear();
+        savedBets.clear();
+        openBetInventories.clear();
+    }
+
     private void updateHiddenBundle(UUID uuid, Inventory gui) {
         ItemStack bundle = new ItemStack(Material.PAPER);
         ItemMeta meta = bundle.getItemMeta();
