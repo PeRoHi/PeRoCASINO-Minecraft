@@ -39,7 +39,8 @@ public final class RouletteDisplayService {
 
     // 回転状態
     private float currentDeg; // 0..360
-    private Float targetDeg;  // nullならフリー回転
+    private Float targetDeg;  // nullならフリー回転（絶対角）
+    private Float targetDegAbsolute; // current基準で「必ず前進して止まる」用（絶対角、単調増加）
 
     // 簡易回転タスク
     private BukkitRunnable task;
@@ -141,12 +142,16 @@ public final class RouletteDisplayService {
         if (task != null) return;
 
         targetDeg = null;
+        targetDegAbsolute = null;
         // ランダムな初速っぽい開始角
         currentDeg = ThreadLocalRandom.current().nextInt(360);
 
         task = new BukkitRunnable() {
-            private float speedDegPerTick = 18f; // 10回/秒換算だと 36°/update 程度。tick更新なら18°/tick。
-            private int slowDownTicks;
+            // 遅めの回転（必要なら後でconfig化）
+            private float speedDegPerTick = 8f;
+            private final float minSpeed = 0.8f;
+            private final float decelPerTick = 0.985f;
+            private final float snapEps = 0.6f;
 
             @Override
             public void run() {
@@ -156,27 +161,26 @@ public final class RouletteDisplayService {
                     return;
                 }
 
-                // ターゲットがある場合は減速して近づける
-                if (targetDeg != null) {
-                    float diff = shortestDiffDeg(currentDeg, targetDeg);
-                    float abs = Math.abs(diff);
-                    slowDownTicks++;
-
-                    // 近いほど遅く、最終的にスナップ
-                    float step = Math.max(0.5f, Math.min(speedDegPerTick, abs / 6f));
-                    if (abs < 0.8f) {
-                        currentDeg = normalizeDeg(targetDeg);
-                        applyTransform(d, currentDeg);
+                if (targetDegAbsolute != null) {
+                    // 「現在角→目標角」まで必ず前進して止める（必要なら1周以上も可）
+                    float remaining = targetDegAbsolute - currentDeg;
+                    if (remaining <= snapEps) {
+                        currentDeg = targetDegAbsolute;
+                        applyTransform(d, normalizeDeg(currentDeg));
                         stopTask();
                         return;
                     }
-                    currentDeg = normalizeDeg(currentDeg + Math.signum(diff) * step);
-                    speedDegPerTick = Math.max(2.0f, speedDegPerTick * 0.985f);
+                    // 残りが少ないほど減速。stepは常に正（前進のみ）
+                    float step = Math.min(speedDegPerTick, Math.max(minSpeed, remaining / 10f));
+                    currentDeg += step;
+                    // 停止に向けてなだらかに減速
+                    speedDegPerTick = Math.max(minSpeed, speedDegPerTick * decelPerTick);
                 } else {
-                    currentDeg = normalizeDeg(currentDeg + speedDegPerTick);
+                    // フリー回転
+                    currentDeg += speedDegPerTick;
                 }
 
-                applyTransform(d, currentDeg);
+                applyTransform(d, normalizeDeg(currentDeg));
             }
 
             private void stopTask() {
@@ -193,12 +197,22 @@ public final class RouletteDisplayService {
     public void stopAtAngle(int targetAngleDeg0to359) {
         if (getDisplay() == null) return;
         targetDeg = (float) ((targetAngleDeg0to359 % 360 + 360) % 360);
+
+        // すでに通過している（またはギリギリ）なら、もう1周分足して「次に来るタイミング」で止める
+        float cur = currentDeg;
+        float curNorm = normalizeDeg(cur);
+        float deltaForward = (targetDeg - curNorm + 360f) % 360f; // 0..359 前進差分
+        if (deltaForward < 5f) { // ほぼ通過扱い（見た目の自然さ優先）
+            deltaForward += 360f;
+        }
+        targetDegAbsolute = cur + deltaForward;
+
         if (task == null) {
             // 回ってない場合は即反映
             ItemDisplay d = getDisplay();
             if (d != null) {
-                currentDeg = targetDeg;
-                applyTransform(d, currentDeg);
+                currentDeg = targetDegAbsolute;
+                applyTransform(d, normalizeDeg(currentDeg));
             }
         }
     }

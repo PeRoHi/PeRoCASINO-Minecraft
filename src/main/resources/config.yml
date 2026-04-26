@@ -7,14 +7,22 @@ roulette:
   x: 0
   y: 0
   z: 0
-  # ルーレット拠点からこの距離以内のプレイヤーにフェーズ表示（BossBar）
-  notify-radius: 40
+  # ルーレット拠点からこの距離以内（正方形半径。dx/dz判定）のプレイヤーにフェーズ表示（BossBar）
+  notify-radius: 20
   # ベット待ち（秒）
   bet-seconds: 20
   # ルーレット演出（秒）
   spin-seconds: 3
   # 次ラウンドまでのクールダウン（秒）
   cooldown-seconds: 5
+  # 砥石ベット盤（左→右が 2x/4x/6x/10x/20x）。登録していない場合はGUI方式のままです。
+  # /perocasino roulette board set で「左端の砥石」を登録
+  board:
+    world: ""
+    x: 0
+    y: 0
+    z: 0
+    facing: "NORTH" # 盤面が伸びる方向（左→右）を決める
   # ルーレットの当たり判定（上部の針＝角度0°）の角度セグメント定義。
   # - unit は「度」。分解能は 1° 以上にしてください。
   # - 角度の合計は 360° である必要があります。

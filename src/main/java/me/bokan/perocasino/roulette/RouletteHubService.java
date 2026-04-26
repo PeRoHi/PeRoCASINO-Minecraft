@@ -34,6 +34,7 @@ public class RouletteHubService extends BukkitRunnable {
     private int betTicks;
     private int spinTicks;
     private int cooldownTicks;
+    private int settleDelayTicks;
 
     private RoulettePhase phase = RoulettePhase.BETTING;
     private int phaseTicksRemaining;
@@ -42,15 +43,18 @@ public class RouletteHubService extends BukkitRunnable {
 
     private RouletteAngleConfig angleConfig;
     private RouletteDisplayService displayService;
+    private RouletteBetBoardService betBoardService;
 
     // SPINNING開始時に「停止角度」を先に決め、精算と表示の停止を同期する
     private RouletteSettlement.AngleRoundResult pendingResult;
     private boolean enabled;
+    private boolean pendingSettlement;
 
     public RouletteHubService(JavaPlugin plugin,
                               EconomyManager economyManager,
                               RouletteBetMenuListener betMenuListener,
-                              RouletteDisplayService displayService) {
+                              RouletteDisplayService displayService,
+                              RouletteBetBoardService betBoardService) {
         this.plugin = plugin;
         this.economyManager = economyManager;
         this.betMenuListener = betMenuListener;
@@ -60,6 +64,7 @@ public class RouletteHubService extends BukkitRunnable {
         this.bossBar.setProgress(1.0);
 
         this.displayService = (displayService == null) ? new RouletteDisplayService(plugin) : displayService;
+        this.betBoardService = betBoardService;
         reloadFromConfig();
     }
 
@@ -82,6 +87,7 @@ public class RouletteHubService extends BukkitRunnable {
         betTicks = Math.max(20, cfg.getInt("roulette.bet-seconds", 20) * 20);
         spinTicks = Math.max(20, cfg.getInt("roulette.spin-seconds", 3) * 20);
         cooldownTicks = Math.max(20, cfg.getInt("roulette.cooldown-seconds", 5) * 20);
+        settleDelayTicks = Math.max(0, cfg.getInt("roulette.settle-delay-ticks", 40));
 
         // 角度セグメント設定（画像制作・当たり判定の基準）
         try {
@@ -95,6 +101,9 @@ public class RouletteHubService extends BukkitRunnable {
 
         // 表示（ItemDisplay）
         displayService.reloadFromConfig();
+        if (betBoardService != null) {
+            betBoardService.reloadFromConfig();
+        }
 
         symbolPool.clear();
         List<String> raw = cfg.getStringList("slot-machine.symbols");
@@ -126,6 +135,7 @@ public class RouletteHubService extends BukkitRunnable {
         phase = RoulettePhase.BETTING;
         phaseTicksRemaining = betTicks;
         pendingResult = null;
+        pendingSettlement = false;
         RouletteBetMenuListener.setHubPhase(phase);
         updateBossBarForPhase();
     }
@@ -148,6 +158,26 @@ public class RouletteHubService extends BukkitRunnable {
         }
 
         syncBossBarPlayers();
+
+        // 止まる演出待ち（減速停止）を優先
+        if (pendingSettlement) {
+            phaseTicksRemaining--;
+            if (phaseTicksRemaining <= 0) {
+                // ここで結果確定通知を出してからクールダウンへ
+                notifyResult(pendingResult);
+                if (betBoardService != null && pendingResult != null) {
+                    betBoardService.settleAll(pendingResult.multiplier());
+                }
+                phase = RoulettePhase.COOLDOWN;
+                phaseTicksRemaining = cooldownTicks;
+                pendingSettlement = false;
+                pendingResult = null;
+                RouletteBetMenuListener.setHubPhase(phase);
+                updateBossBarForPhase();
+            }
+            updateBossBarProgress();
+            return;
+        }
 
         phaseTicksRemaining--;
         if (phaseTicksRemaining < 0) {
@@ -173,13 +203,10 @@ public class RouletteHubService extends BukkitRunnable {
                     plugin.getLogger().warning("[Roulette] angleConfig/pendingResult is null; skipping settlement.");
                 } else {
                     displayService.stopAtAngle(pendingResult.stopAngleDeg());
-                    RouletteSettlement.settleRound(
-                            economyManager,
-                            betMenuListener,
-                            pendingResult,
-                            hub,
-                            radius
-                    );
+                    // 表示が止まるまで待ってから、結果通知＋精算へ
+                    pendingSettlement = true;
+                    phaseTicksRemaining = settleDelayTicks;
+                    return;
                 }
                 phase = RoulettePhase.COOLDOWN;
                 phaseTicksRemaining = cooldownTicks;
@@ -196,12 +223,15 @@ public class RouletteHubService extends BukkitRunnable {
 
     private void syncBossBarPlayers() {
         World w = hub.getWorld();
-        double r2 = radius * radius;
+        int r = (int) Math.max(1, Math.round(radius));
 
         // 近傍にいるプレイヤーを追加
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (!p.getWorld().equals(w)) continue;
-            if (p.getLocation().distanceSquared(hub) <= r2) {
+            int dx = Math.abs(p.getLocation().getBlockX() - hub.getBlockX());
+            int dz = Math.abs(p.getLocation().getBlockZ() - hub.getBlockZ());
+            boolean inside = dx <= r && dz <= r;
+            if (inside) {
                 if (!bossBar.getPlayers().contains(p)) {
                     bossBar.addPlayer(p);
                 }
@@ -213,6 +243,21 @@ public class RouletteHubService extends BukkitRunnable {
         }
 
         bossBar.setVisible(!bossBar.getPlayers().isEmpty());
+    }
+
+    private void notifyResult(RouletteSettlement.AngleRoundResult result) {
+        if (result == null || hub == null || hub.getWorld() == null) return;
+        World w = hub.getWorld();
+        int r = (int) Math.max(1, Math.round(radius));
+        String msg = "§d[ルーレット] §f結果: §e" + result.multiplier() + "x §7(角度 " + result.stopAngleDeg() + "°)";
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            if (!p.getWorld().equals(w)) continue;
+            int dx = Math.abs(p.getLocation().getBlockX() - hub.getBlockX());
+            int dz = Math.abs(p.getLocation().getBlockZ() - hub.getBlockZ());
+            if (dx <= r && dz <= r) {
+                p.sendMessage(msg);
+            }
+        }
     }
 
     private void updateBossBarForPhase() {
@@ -234,6 +279,7 @@ public class RouletteHubService extends BukkitRunnable {
         int total = switch (phase) {
             case BETTING -> betTicks;
             case SPINNING -> spinTicks;
+            case STOPPING -> settleDelayTicks;
             case COOLDOWN -> cooldownTicks;
         };
 
@@ -241,6 +287,7 @@ public class RouletteHubService extends BukkitRunnable {
         String title = switch (phase) {
             case BETTING -> "§aルーレット: ベット受付 §f" + sec + "s";
             case SPINNING -> "§eルーレット: 抽選中… §f" + sec + "s";
+            case STOPPING -> "§eルーレット: 減速中… §f" + sec + "s";
             case COOLDOWN -> "§bルーレット: クールダウン §f" + sec + "s";
         };
         bossBar.setTitle(title);

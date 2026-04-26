@@ -1,19 +1,21 @@
 package me.bokan.perocasino.listeners;
 
+import me.bokan.perocasino.roulette.RouletteBetBoardService;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.plugin.Plugin;
 
 public class RouletteInteractListener implements Listener {
 
     private final RouletteBetMenuListener betMenuListener;
+    private final RouletteBetBoardService betBoardService;
 
-    public RouletteInteractListener(RouletteBetMenuListener betMenuListener) {
+    public RouletteInteractListener(RouletteBetMenuListener betMenuListener, RouletteBetBoardService betBoardService) {
         this.betMenuListener = betMenuListener;
+        this.betBoardService = betBoardService;
     }
 
     @EventHandler
@@ -24,9 +26,19 @@ public class RouletteInteractListener implements Listener {
             if (event.getClickedBlock() != null && event.getClickedBlock().getType() == Material.GRINDSTONE) {
                 // バニラの砥石画面が開くのを防ぐ
                 event.setCancelled(true);
-                
-                // ルーレットのベット画面を開く
-                betMenuListener.openBetGui(event.getPlayer());
+
+                Player player = event.getPlayer();
+                // 物理ベット盤が設定されているならそちらを優先
+                if (betBoardService != null && betBoardService.isBetGrindstone(event.getClickedBlock())) {
+                    int mult = betBoardService.multiplierFor(event.getClickedBlock());
+                    if (mult > 0) {
+                        betBoardService.placeBet(player, mult, player.isSneaking());
+                    }
+                    return;
+                }
+
+                // フォールバック: 従来GUI
+                betMenuListener.openBetGui(player);
             }
         }
     }
