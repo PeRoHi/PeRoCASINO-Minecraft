@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import me.bokan.perocasino.roulette.RouletteDisplayService;
+import me.bokan.perocasino.roulette.RouletteBetBoardService;
 
 /**
  * 管理者向けコマンド（ルーレット設置・採石場範囲など）。
@@ -87,6 +88,32 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 plugin.saveConfig();
                 sender.sendMessage("§aルーレット拠点を登録しました: §f" + loc.getWorld().getName()
                         + " " + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
+                return true;
+            }
+
+            if ("board".equals(action)) {
+                if (args.length < 3 || !"set".equalsIgnoreCase(args[2])) {
+                    sender.sendMessage("§c使い方: /perocasino roulette board set");
+                    return true;
+                }
+                Block target = player.getTargetBlockExact(8);
+                if (target == null || target.getType() != Material.GRINDSTONE) {
+                    sender.sendMessage("§c8ブロック以内の砥石（左端）を狙ってください。");
+                    return true;
+                }
+                // 盤面は「左端の砥石」から、プレイヤー視点で右方向に5列並んでいる想定
+                String facing = RouletteBetBoardService.facingFromPlayerYaw(player.getLocation().getYaw()).name();
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("roulette.board.world", target.getWorld().getName());
+                cfg.set("roulette.board.x", target.getX());
+                cfg.set("roulette.board.y", target.getY());
+                cfg.set("roulette.board.z", target.getZ());
+                cfg.set("roulette.board.facing", facing);
+                plugin.saveConfig();
+                sender.sendMessage("§aルーレット砥石ベット盤（左端）を登録しました: §f" + target.getWorld().getName()
+                        + " " + target.getX() + " " + target.getY() + " " + target.getZ()
+                        + " §7facing=" + facing);
+                sender.sendMessage("§7※ /perocasino reload で反映されます。");
                 return true;
             }
 
@@ -166,6 +193,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             }
 
             sender.sendMessage("§c使い方: /perocasino roulette set");
+            sender.sendMessage("§c使い方: /perocasino roulette board set");
             sender.sendMessage("§c使い方: /perocasino roulette display set");
             sender.sendMessage("§c使い方: /perocasino roulette display remove");
             return true;
@@ -234,11 +262,19 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         } else if (args.length == 2 && "roulette".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
+            if ("board".startsWith(a)) out.add("board");
             if ("display".startsWith(a)) out.add("display");
+            if ("remove".startsWith(a)) out.add("remove");
+            if ("stop".startsWith(a)) out.add("stop");
+            if ("start".startsWith(a)) out.add("start");
         } else if (args.length == 2 && "quarry".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
         } else if (args.length == 3 && "roulette".equalsIgnoreCase(args[0]) && "display".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+            if ("remove".startsWith(a)) out.add("remove");
+        } else if (args.length == 3 && "roulette".equalsIgnoreCase(args[0]) && "board".equalsIgnoreCase(args[1])) {
             String a = args[2].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
         }

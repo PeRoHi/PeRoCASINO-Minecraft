@@ -73,7 +73,7 @@ public class PeRoCasino extends JavaPlugin {
         rouletteHubService.runTaskTimer(this, 0L, 1L);
 
         // 初回参加者へコマンド集ブック配布（固定なし）
-        getServer().getPluginManager().registerEvents(new CommandBookListener(), this);
+        // ※すでに上で登録済み（重複登録しない）
 
         org.bukkit.command.PluginCommand pc = getCommand("perocasino");
         if (pc != null) {

@@ -34,7 +34,7 @@ public final class RouletteBetBoardService {
     private final EconomyManager economy;
 
     private Location origin; // 盤面左端の砥石（列1）の座標
-    private String direction; // "EAST" or "SOUTH"（列方向）
+    private String facing; // "NORTH" "SOUTH" "EAST" "WEST"（盤面が伸びる方向）
 
     /** ベット: player -> (multiplier -> amount) */
     private final Map<UUID, Map<Integer, Integer>> bets = new HashMap<>();
@@ -47,26 +47,40 @@ public final class RouletteBetBoardService {
 
     public void reloadFromConfig() {
         FileConfiguration cfg = plugin.getConfig();
-        String wName = cfg.getString("roulette.betboard.world", "");
+        String wName = cfg.getString("roulette.board.world", "");
         if (wName == null || wName.isBlank()) {
             origin = null;
-            direction = "EAST";
+            facing = "EAST";
             return;
         }
         World w = Bukkit.getWorld(wName);
         if (w == null) {
             origin = null;
-            direction = "EAST";
+            facing = "EAST";
             return;
         }
-        int x = cfg.getInt("roulette.betboard.x", 0);
-        int y = cfg.getInt("roulette.betboard.y", 0);
-        int z = cfg.getInt("roulette.betboard.z", 0);
+        int x = cfg.getInt("roulette.board.x", 0);
+        int y = cfg.getInt("roulette.board.y", 0);
+        int z = cfg.getInt("roulette.board.z", 0);
         origin = new Location(w, x, y, z);
-        direction = cfg.getString("roulette.betboard.direction", "EAST");
-        if (!"EAST".equalsIgnoreCase(direction) && !"SOUTH".equalsIgnoreCase(direction)) {
-            direction = "EAST";
+        facing = cfg.getString("roulette.board.facing", "EAST");
+        if (!java.util.Set.of("NORTH", "SOUTH", "EAST", "WEST").contains(facing.toUpperCase())) {
+            facing = "EAST";
         }
+    }
+
+    /**
+     * プレイヤーの yaw（向いている方角）から、盤面の「列1→列5が伸びる方向」を返す。
+     * 盤面の左端砥石を見たときに、右方向へ並んでいる方向を想定。
+     */
+    public static org.bukkit.block.BlockFace facingFromPlayerYaw(float yaw) {
+        // Bukkit yaw は -180..180 付近。0=South, 90=West, 180/-180=North, -90=East
+        float y = yaw % 360f;
+        if (y < 0) y += 360f;
+        if (y >= 315f || y < 45f) return org.bukkit.block.BlockFace.EAST;   // South向きなら右はEast
+        if (y < 135f) return org.bukkit.block.BlockFace.SOUTH;              // West向きなら右はSouth
+        if (y < 225f) return org.bukkit.block.BlockFace.WEST;               // North向きなら右はWest
+        return org.bukkit.block.BlockFace.NORTH;                            // East向きなら右はNorth
     }
 
     public boolean isConfigured() {
@@ -104,13 +118,14 @@ public final class RouletteBetBoardService {
     }
 
     private int indexFromDelta(int dx, int dz) {
-        if ("EAST".equalsIgnoreCase(direction)) {
-            if (dz != 0) return -1;
-            return dx;
-        } else {
-            if (dx != 0) return -1;
-            return dz;
-        }
+        // facing は「列1→列5へ伸びる方向」
+        return switch (facing.toUpperCase()) {
+            case "EAST" -> (dz == 0) ? dx : -1;
+            case "WEST" -> (dz == 0) ? -dx : -1;
+            case "SOUTH" -> (dx == 0) ? dz : -1;
+            case "NORTH" -> (dx == 0) ? -dz : -1;
+            default -> (dz == 0) ? dx : -1;
+        };
     }
 
     /**
