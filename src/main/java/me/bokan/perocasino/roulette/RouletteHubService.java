@@ -165,7 +165,10 @@ public class RouletteHubService extends BukkitRunnable {
             if (phaseTicksRemaining <= 0) {
                 // ここで結果確定通知を出してからクールダウンへ
                 notifyResult(pendingResult);
-                // 精算は RouletteBetMenuListener 側で行う（54枠GUIのスロット配置で倍率判定）
+                // 54枠GUIに確定済みのベットを倍率で精算（当たり払戻 / 外れ没収）
+                if (pendingResult != null) {
+                    betMenuListener.settleLockedBets(pendingResult.multiplier(), economyManager);
+                }
                 phase = RoulettePhase.COOLDOWN;
                 phaseTicksRemaining = cooldownTicks;
                 pendingSettlement = false;
@@ -189,6 +192,8 @@ public class RouletteHubService extends BukkitRunnable {
             case BETTING -> {
                 phase = RoulettePhase.SPINNING;
                 phaseTicksRemaining = spinTicks;
+                // ベット締切: 54枠GUIの内容を内部データに確定して、GUIから物理回収する
+                betMenuListener.lockBetsForSpin();
                 if (angleConfig != null) {
                     pendingResult = RouletteSettlement.randomAngleResult(angleConfig);
                     displayService.startSpinning();
@@ -213,6 +218,8 @@ public class RouletteHubService extends BukkitRunnable {
                 phase = RoulettePhase.BETTING;
                 phaseTicksRemaining = betTicks;
                 pendingResult = null;
+                // 次ラウンドに賭けが残らないようGUIをリセット
+                betMenuListener.resetForNextRound();
             }
         }
         RouletteBetMenuListener.setHubPhase(phase);

@@ -44,6 +44,9 @@ public class RouletteBetMenuListener implements Listener {
     /** 現在開いているベットGUI（自動ルーレットの精算対象） */
     private final Map<UUID, Inventory> openBetInventories = new ConcurrentHashMap<>();
 
+    /** SPINNING突入時にベットを確定して保管する内部データ。停止確定時にここから精算する。 */
+    private final Map<UUID, Map<Integer, Integer>> lockedBets = new HashMap<>();
+
     private final JavaPlugin plugin;
 
     private static volatile RoulettePhase hubPhase = RoulettePhase.BETTING;
@@ -136,7 +139,142 @@ public class RouletteBetMenuListener implements Listener {
         }
         allInBets.clear();
         savedBets.clear();
-        openBetInventories.clear();
+    }
+
+    /**
+     * BETTING → SPINNING 直前に呼ぶ。
+     * - 開いているGUIと、閉じて保存されている savedBets の両方から
+     *   BET_SLOTS のダイヤを没収して内部データへ確定保存する。
+     * - 特殊枠(allInBets)も確定する。
+     * - 確定後、対応するスロットは空にする（盤面に賭けが残らない）。
+     */
+    public void lockBetsForSpin() {
+        lockedBets.clear();
+
+        // 1) 現在開いているGUIから集計＆没収
+        for (Map.Entry<UUID, Inventory> e : openBetInventories.entrySet()) {
+            UUID uuid = e.getKey();
+            Inventory inv = e.getValue();
+            if (inv == null) continue;
+            Map<Integer, Integer> m = lockedBets.computeIfAbsent(uuid, k -> new HashMap<>());
+            for (int slot : BET_SLOTS) {
+                ItemStack it = inv.getItem(slot);
+                if (it != null && it.getType() == Material.DIAMOND) {
+                    int mult = multiplierForSlot(slot);
+                    if (mult > 0) m.merge(mult, it.getAmount(), Integer::sum);
+                    inv.setItem(slot, null);
+                }
+            }
+        }
+
+        // 2) 閉じられて保存されている内容（savedBets）からも回収
+        for (Map.Entry<UUID, ItemStack[]> e : savedBets.entrySet()) {
+            UUID uuid = e.getKey();
+            ItemStack[] contents = e.getValue();
+            if (contents == null) continue;
+            Map<Integer, Integer> m = lockedBets.computeIfAbsent(uuid, k -> new HashMap<>());
+            for (int slot : BET_SLOTS) {
+                if (slot < 0 || slot >= contents.length) continue;
+                ItemStack it = contents[slot];
+                if (it != null && it.getType() == Material.DIAMOND) {
+                    int mult = multiplierForSlot(slot);
+                    if (mult > 0) m.merge(mult, it.getAmount(), Integer::sum);
+                    contents[slot] = null;
+                }
+            }
+        }
+
+        // 3) 特殊枠（allInBets）も「54」キーとして確定
+        for (Map.Entry<UUID, Integer> e : allInBets.entrySet()) {
+            int amount = e.getValue() == null ? 0 : e.getValue();
+            if (amount <= 0) continue;
+            lockedBets.computeIfAbsent(e.getKey(), k -> new HashMap<>())
+                    .merge(54, amount, Integer::sum);
+        }
+        allInBets.clear();
+
+        // 4) 開いているGUIの表示を更新（特殊枠表示を0に）
+        for (Inventory inv : openBetInventories.values()) {
+            if (inv != null) updateHiddenBundle(null, inv);
+        }
+    }
+
+    /**
+     * 結果倍率に応じて精算する。
+     * - 一致する倍率枠の賭け枚数 × 倍率 を払戻（手持ち優先、溢れは財布）
+     * - その他はすべて没収（=データ削除のみ）
+     * - 戻り値: メッセージ用に各プレイヤーへ通知済み
+     */
+    public void settleLockedBets(int resultMultiplier,
+                                 me.bokan.perocasino.economy.EconomyManager economy) {
+        if (lockedBets.isEmpty()) return;
+
+        for (Map.Entry<UUID, Map<Integer, Integer>> e : lockedBets.entrySet()) {
+            UUID uuid = e.getKey();
+            Map<Integer, Integer> m = e.getValue();
+            if (m == null || m.isEmpty()) continue;
+
+            int totalBet = m.values().stream().mapToInt(Integer::intValue).sum();
+            int win = m.getOrDefault(resultMultiplier, 0);
+
+            Player p = Bukkit.getPlayer(uuid);
+            if (win > 0) {
+                int payout = win * resultMultiplier;
+                if (p != null && p.isOnline()) {
+                    int toInv = addDiamondsToInventory(p, payout);
+                    int overflow = payout - toInv;
+                    if (overflow > 0 && economy != null) {
+                        economy.addWalletBalance(uuid, overflow);
+                    }
+                    p.sendMessage("§a[ルーレット] §f結果: §e" + resultMultiplier + "x §a当たり！ §f払戻 §b"
+                            + payout + "§f（手持ち+" + toInv + (overflow > 0 ? " / 財布+" + overflow : "") + "）");
+                } else if (economy != null) {
+                    economy.addWalletBalance(uuid, payout);
+                }
+            } else {
+                if (p != null && p.isOnline()) {
+                    p.sendMessage("§c[ルーレット] §f結果: §e" + resultMultiplier + "x §c外れ §7(没収: " + totalBet + "個)");
+                }
+            }
+        }
+        lockedBets.clear();
+    }
+
+    /** 次ラウンドのために、開いているGUIと保存されているGUI内容のベット枠をクリアする。 */
+    public void resetForNextRound() {
+        for (Inventory inv : openBetInventories.values()) {
+            if (inv == null) continue;
+            for (int slot : BET_SLOTS) inv.setItem(slot, null);
+            updateHiddenBundle(null, inv);
+        }
+        for (ItemStack[] contents : savedBets.values()) {
+            if (contents == null) continue;
+            for (int slot : BET_SLOTS) {
+                if (slot < 0 || slot >= contents.length) continue;
+                contents[slot] = null;
+            }
+        }
+        allInBets.clear();
+    }
+
+    private static int addDiamondsToInventory(Player player, int amount) {
+        if (amount <= 0) return 0;
+        int remaining = amount;
+        // ItemStack のスタック上限(64)を考慮しつつ複数スタックに分けて投入
+        while (remaining > 0) {
+            int n = Math.min(64, remaining);
+            ItemStack stack = new ItemStack(Material.DIAMOND, n);
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(stack);
+            if (leftover.isEmpty()) {
+                remaining -= n;
+            } else {
+                int left = leftover.values().stream().mapToInt(ItemStack::getAmount).sum();
+                int placed = n - left;
+                remaining -= placed;
+                break;
+            }
+        }
+        return amount - remaining;
     }
 
     private void updateHiddenBundle(UUID uuid, Inventory gui) {
