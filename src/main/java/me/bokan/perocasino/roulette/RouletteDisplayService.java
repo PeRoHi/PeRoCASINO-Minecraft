@@ -49,6 +49,9 @@ public final class RouletteDisplayService {
         this.plugin = plugin;
     }
 
+    /** 画像の真上(0°)を実際の上方向に合わせるための補正角度。 */
+    private float angleOffsetDeg = 0f;
+
     public void reloadFromConfig() {
         FileConfiguration cfg = plugin.getConfig();
         String worldName = cfg.getString("roulette.display.anchor.world", "");
@@ -56,6 +59,7 @@ public final class RouletteDisplayService {
         if (worldName == null || worldName.isBlank()) {
             displayUuid = null;
             anchor = null;
+            angleOffsetDeg = (float) cfg.getDouble("roulette.display.angle-offset-deg", 0.0);
             return;
         }
 
@@ -73,6 +77,7 @@ public final class RouletteDisplayService {
         } catch (Exception ignored) {
             face = BlockFace.NORTH;
         }
+        angleOffsetDeg = (float) cfg.getDouble("roulette.display.angle-offset-deg", 0.0);
 
         // uuidが無い/不正なら、起動時に生成できる状態にしておく
         if (displayUuid == null) {
@@ -162,21 +167,18 @@ public final class RouletteDisplayService {
                 }
 
                 if (targetDegAbsolute != null) {
-                    // 「現在角→目標角」まで必ず前進して止める（必要なら1周以上も可）
                     float remaining = targetDegAbsolute - currentDeg;
                     if (remaining <= snapEps) {
+                        // 必ず狙った角度にスナップ（多少不自然でも誤差をゼロに）
                         currentDeg = targetDegAbsolute;
                         applyTransform(d, normalizeDeg(currentDeg));
                         stopTask();
                         return;
                     }
-                    // 残りが少ないほど減速。stepは常に正（前進のみ）
                     float step = Math.min(speedDegPerTick, Math.max(minSpeed, remaining / 10f));
                     currentDeg += step;
-                    // 停止に向けてなだらかに減速
                     speedDegPerTick = Math.max(minSpeed, speedDegPerTick * decelPerTick);
                 } else {
-                    // フリー回転
                     currentDeg += speedDegPerTick;
                 }
 
@@ -194,21 +196,25 @@ public final class RouletteDisplayService {
         task.runTaskTimer(plugin, 0L, 1L);
     }
 
+    /**
+     * 指定された結果角度に関わらず、停止位置を「真上(0°)」へスナップする。
+     * (画像の上方向を実際の真上にしたいので、angle-offset-deg で微調整可能)
+     */
     public void stopAtAngle(int targetAngleDeg0to359) {
         if (getDisplay() == null) return;
-        targetDeg = (float) ((targetAngleDeg0to359 % 360 + 360) % 360);
+        // 実際に止めたい角度（応用画像の上が真上になるように補正可能）
+        float aim = normalizeDeg(-angleOffsetDeg); // applyTransform 側で +offset するため、画面表示が0°になるように逆数
+        targetDeg = aim;
 
-        // すでに通過している（またはギリギリ）なら、もう1周分足して「次に来るタイミング」で止める
         float cur = currentDeg;
         float curNorm = normalizeDeg(cur);
-        float deltaForward = (targetDeg - curNorm + 360f) % 360f; // 0..359 前進差分
-        if (deltaForward < 5f) { // ほぼ通過扱い（見た目の自然さ優先）
+        float deltaForward = (aim - curNorm + 360f) % 360f;
+        if (deltaForward < 5f) {
             deltaForward += 360f;
         }
         targetDegAbsolute = cur + deltaForward;
 
         if (task == null) {
-            // 回ってない場合は即反映
             ItemDisplay d = getDisplay();
             if (d != null) {
                 currentDeg = targetDegAbsolute;
@@ -269,10 +275,12 @@ public final class RouletteDisplayService {
         Vector3f scale = new Vector3f(3.0f, 3.0f, 0.01f);
         Vector3f translation = new Vector3f(0f, 0f, 0f);
 
+        float effectiveAngle = normalizeDeg(angleDeg + angleOffsetDeg);
+
         // 壁に向ける回転（Y軸）→盤面回転（Z軸）
         float yaw = yawFromFace(face);
         Quaternionf toWall = new Quaternionf().rotateY((float) Math.toRadians(yaw));
-        Quaternionf spin = new Quaternionf().rotateZ((float) Math.toRadians(angleDeg));
+        Quaternionf spin = new Quaternionf().rotateZ((float) Math.toRadians(effectiveAngle));
         Quaternionf rot = toWall.mul(spin, new Quaternionf());
 
         Transformation t = new Transformation(

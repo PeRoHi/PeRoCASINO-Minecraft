@@ -15,6 +15,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import me.bokan.perocasino.roulette.RoulettePhase;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,17 +36,31 @@ public class RouletteBetMenuListener implements Listener {
             38, 39, 40, 41, 42
     );
 
+    /** 特殊枠の必要倍率シーケンス: 2→4→6→10 を全て当てると 7777倍。 */
+    private static final int[] SPECIAL_SEQUENCE = {2, 4, 6, 10};
+    /** 特殊枠の最終当選倍率。 */
+    private static final int SPECIAL_JACKPOT_MULTIPLIER = 7777;
+
     // 盤面に置かれたダイヤの保存用
     private final Map<UUID, ItemStack[]> savedBets = new HashMap<>();
-    
-    // 【新規】全ベット（特殊枠）として預けられたダイヤの個数データ
-    private final Map<UUID, Integer> allInBets = new HashMap<>();
 
     /** 現在開いているベットGUI（自動ルーレットの精算対象） */
     private final Map<UUID, Inventory> openBetInventories = new ConcurrentHashMap<>();
 
     /** SPINNING突入時にベットを確定して保管する内部データ。停止確定時にここから精算する。 */
     private final Map<UUID, Map<Integer, Integer>> lockedBets = new HashMap<>();
+
+    /** 特殊枠（連勝枠）の状態 */
+    private final Map<UUID, SpecialBet> specialBets = new HashMap<>();
+
+    /** プレイヤーが「現在のラウンドにベット済み」かを追跡（追加ベット禁止用） */
+    private final Set<UUID> hasActiveBet = ConcurrentHashMap.newKeySet();
+
+    /** 特殊枠の状態（連勝＆預け入れ） */
+    static class SpecialBet {
+        int amount;   // 預け入れ枚数
+        int step;     // 0..SPECIAL_SEQUENCE.length-1（次に必要な段）
+    }
 
     private final JavaPlugin plugin;
 
@@ -73,12 +88,24 @@ public class RouletteBetMenuListener implements Listener {
         if (savedBets.containsKey(player.getUniqueId())) {
             gui.setContents(savedBets.get(player.getUniqueId()));
         }
+        // 念のため、ベット枠以外に紛れた可能性のあるアイテムをクリーンしてから開く
+        sanitizeNonBetSlots(gui);
 
         // 隠しバンドル（表示更新メソッドを呼ぶ）
         updateHiddenBundle(player.getUniqueId(), gui);
 
         player.openInventory(gui);
         openBetInventories.put(player.getUniqueId(), gui);
+    }
+
+    /** GUI内の「ベット枠 / 隠しバンドル」以外のスロットを必ず空にする。 */
+    private void sanitizeNonBetSlots(Inventory gui) {
+        if (gui == null) return;
+        for (int i = 0; i < gui.getSize(); i++) {
+            if (i == HIDDEN_BUNDLE_SLOT) continue;
+            if (BET_SLOTS.contains(i)) continue;
+            gui.setItem(i, null);
+        }
     }
 
     /**
@@ -122,8 +149,8 @@ public class RouletteBetMenuListener implements Listener {
                     if (mult > 0) m.merge(mult, it.getAmount(), Integer::sum);
                 }
             }
-            int allIn = allInBets.getOrDefault(uuid, 0);
-            if (allIn > 0) m.merge(54, allIn, Integer::sum); // 特殊枠（54扱い）
+            SpecialBet sb = specialBets.get(uuid);
+            if (sb != null && sb.amount > 0) m.merge(SPECIAL_JACKPOT_MULTIPLIER, sb.amount, Integer::sum);
             if (!m.isEmpty()) out.put(uuid, m);
         }
         return out;
@@ -134,28 +161,31 @@ public class RouletteBetMenuListener implements Listener {
         for (Inventory inv : openBetInventories.values()) {
             if (inv == null) continue;
             for (int slot : BET_SLOTS) inv.setItem(slot, null);
-            // 表示更新（特殊枠が0になるので反映）
+            sanitizeNonBetSlots(inv);
             updateHiddenBundle(null, inv);
         }
-        allInBets.clear();
+        specialBets.clear();
         savedBets.clear();
+        hasActiveBet.clear();
     }
 
     /**
      * BETTING → SPINNING 直前に呼ぶ。
      * - 開いているGUIと、閉じて保存されている savedBets の両方から
      *   BET_SLOTS のダイヤを没収して内部データへ確定保存する。
-     * - 特殊枠(allInBets)も確定する。
      * - 確定後、対応するスロットは空にする（盤面に賭けが残らない）。
+     * 注意: 特殊枠は別データ（specialBets）で連勝管理しているため、
+     *       lockedBets には含めない。
      */
     public void lockBetsForSpin() {
         lockedBets.clear();
 
-        // 1) 現在開いているGUIから集計＆没収
+        // 1) 現在開いているGUIから集計＆没収（合わせて非ベット枠もクリーン）
         for (Map.Entry<UUID, Inventory> e : openBetInventories.entrySet()) {
             UUID uuid = e.getKey();
             Inventory inv = e.getValue();
             if (inv == null) continue;
+            sanitizeNonBetSlots(inv);
             Map<Integer, Integer> m = lockedBets.computeIfAbsent(uuid, k -> new HashMap<>());
             for (int slot : BET_SLOTS) {
                 ItemStack it = inv.getItem(slot);
@@ -163,8 +193,12 @@ public class RouletteBetMenuListener implements Listener {
                     int mult = multiplierForSlot(slot);
                     if (mult > 0) m.merge(mult, it.getAmount(), Integer::sum);
                     inv.setItem(slot, null);
+                } else if (it != null) {
+                    // BET_SLOTS にダイヤ以外が入り込んでいる場合はクリア（潜在的不正回避）
+                    inv.setItem(slot, null);
                 }
             }
+            if (!m.isEmpty()) hasActiveBet.add(uuid);
         }
 
         // 2) 閉じられて保存されている内容（savedBets）からも回収
@@ -180,20 +214,19 @@ public class RouletteBetMenuListener implements Listener {
                     int mult = multiplierForSlot(slot);
                     if (mult > 0) m.merge(mult, it.getAmount(), Integer::sum);
                     contents[slot] = null;
+                } else if (it != null) {
+                    contents[slot] = null;
                 }
             }
+            if (!m.isEmpty()) hasActiveBet.add(uuid);
         }
 
-        // 3) 特殊枠（allInBets）も「54」キーとして確定
-        for (Map.Entry<UUID, Integer> e : allInBets.entrySet()) {
-            int amount = e.getValue() == null ? 0 : e.getValue();
-            if (amount <= 0) continue;
-            lockedBets.computeIfAbsent(e.getKey(), k -> new HashMap<>())
-                    .merge(54, amount, Integer::sum);
+        // 3) 特殊枠を持っているプレイヤーは「アクティブ」フラグを立てる
+        for (Map.Entry<UUID, SpecialBet> e : specialBets.entrySet()) {
+            if (e.getValue() != null && e.getValue().amount > 0) hasActiveBet.add(e.getKey());
         }
-        allInBets.clear();
 
-        // 4) 開いているGUIの表示を更新（特殊枠表示を0に）
+        // 4) 開いているGUIの表示を更新
         for (Inventory inv : openBetInventories.values()) {
             if (inv != null) updateHiddenBundle(null, inv);
         }
@@ -201,18 +234,17 @@ public class RouletteBetMenuListener implements Listener {
 
     /**
      * 結果倍率に応じて精算する。
-     * - 一致する倍率枠の賭け枚数 × 倍率 を払戻（手持ち優先、溢れは財布）
-     * - その他はすべて没収（=データ削除のみ）
-     * - 戻り値: メッセージ用に各プレイヤーへ通知済み
+     * - 通常枠: 一致倍率の賭け枚数 × 倍率を払戻（手持ち→溢れは財布）。それ以外は没収。
+     * - 特殊枠: 必要シーケンス(2→4→6→10)の現在ステップに一致したらステップを進める。
+     *           4段全成立で 7777倍払戻。途中で外したら没収。
      */
     public void settleLockedBets(int resultMultiplier,
                                  me.bokan.perocasino.economy.EconomyManager economy) {
-        if (lockedBets.isEmpty()) return;
-
+        // 通常枠の精算
         for (Map.Entry<UUID, Map<Integer, Integer>> e : lockedBets.entrySet()) {
             UUID uuid = e.getKey();
             Map<Integer, Integer> m = e.getValue();
-            if (m == null || m.isEmpty()) continue;
+            if (m == null) continue;
 
             int totalBet = m.values().stream().mapToInt(Integer::intValue).sum();
             int win = m.getOrDefault(resultMultiplier, 0);
@@ -231,13 +263,56 @@ public class RouletteBetMenuListener implements Listener {
                 } else if (economy != null) {
                     economy.addWalletBalance(uuid, payout);
                 }
-            } else {
+            } else if (totalBet > 0) {
                 if (p != null && p.isOnline()) {
                     p.sendMessage("§c[ルーレット] §f結果: §e" + resultMultiplier + "x §c外れ §7(没収: " + totalBet + "個)");
                 }
             }
         }
         lockedBets.clear();
+
+        // 特殊枠の精算（連勝管理）
+        for (UUID uuid : new ArrayList<>(specialBets.keySet())) {
+            SpecialBet sb = specialBets.get(uuid);
+            if (sb == null || sb.amount <= 0) {
+                specialBets.remove(uuid);
+                continue;
+            }
+            int needed = SPECIAL_SEQUENCE[Math.min(sb.step, SPECIAL_SEQUENCE.length - 1)];
+            Player p = Bukkit.getPlayer(uuid);
+            if (resultMultiplier == needed) {
+                sb.step++;
+                if (sb.step >= SPECIAL_SEQUENCE.length) {
+                    int payout = sb.amount * SPECIAL_JACKPOT_MULTIPLIER;
+                    if (p != null && p.isOnline()) {
+                        int toInv = addDiamondsToInventory(p, payout);
+                        int overflow = payout - toInv;
+                        if (overflow > 0 && economy != null) {
+                            economy.addWalletBalance(uuid, overflow);
+                        }
+                        p.sendMessage("§6§l[特殊枠] §a4連続成立！ §b" + payout + "§a の払戻 §7(手持ち+" + toInv
+                                + (overflow > 0 ? " / 財布+" + overflow : "") + ")");
+                    } else if (economy != null) {
+                        economy.addWalletBalance(uuid, payout);
+                    }
+                    specialBets.remove(uuid);
+                } else {
+                    if (p != null && p.isOnline()) {
+                        int next = SPECIAL_SEQUENCE[sb.step];
+                        p.sendMessage("§6[特殊枠] §a" + needed + "x 通過！ §7(次の必要倍率: §e" + next + "x§7, 残り "
+                                + (SPECIAL_SEQUENCE.length - sb.step) + "段)");
+                    }
+                }
+            } else {
+                if (p != null && p.isOnline()) {
+                    p.sendMessage("§c[特殊枠] §f結果: §e" + resultMultiplier + "x §c失敗 (必要: §e" + needed
+                            + "x§c) §7没収: " + sb.amount + "個");
+                }
+                specialBets.remove(uuid);
+            }
+        }
+
+        hasActiveBet.clear();
     }
 
     /** 次ラウンドのために、開いているGUIと保存されているGUI内容のベット枠をクリアする。 */
@@ -245,6 +320,7 @@ public class RouletteBetMenuListener implements Listener {
         for (Inventory inv : openBetInventories.values()) {
             if (inv == null) continue;
             for (int slot : BET_SLOTS) inv.setItem(slot, null);
+            sanitizeNonBetSlots(inv);
             updateHiddenBundle(null, inv);
         }
         for (ItemStack[] contents : savedBets.values()) {
@@ -253,8 +329,14 @@ public class RouletteBetMenuListener implements Listener {
                 if (slot < 0 || slot >= contents.length) continue;
                 contents[slot] = null;
             }
+            // 非ベット枠も保険でクリア
+            for (int i = 0; i < contents.length; i++) {
+                if (i == HIDDEN_BUNDLE_SLOT) continue;
+                if (BET_SLOTS.contains(i)) continue;
+                contents[i] = null;
+            }
         }
-        allInBets.clear();
+        // 特殊枠の連勝状態は継続。amountだけは継続(=ロックは解けない)
     }
 
     private static int addDiamondsToInventory(Player player, int amount) {
@@ -282,22 +364,30 @@ public class RouletteBetMenuListener implements Listener {
         ItemMeta meta = bundle.getItemMeta();
         
         if (meta != null) {
-            meta.setDisplayName("§6§l特殊ベット (2→4→6→10連勝枠)");
-            
-            // データから現在の預け入れ数を取得
-            int count = allInBets.getOrDefault(uuid, 0);
-            
-            // 君が求めていた操作説明と警告書きだ！
+            meta.setDisplayName("§6§l特殊ベット (2→4→6→10連勝で§e7777倍§6)");
+
+            int count = 0;
+            int step = 0;
+            if (uuid != null) {
+                SpecialBet sb = specialBets.get(uuid);
+                if (sb != null) {
+                    count = sb.amount;
+                    step = sb.step;
+                }
+            }
+            int needNext = SPECIAL_SEQUENCE[Math.min(step, SPECIAL_SEQUENCE.length - 1)];
+
             meta.setLore(List.of(
                     "§7現在の預け入れ数: §b" + count + "個",
+                    "§7連勝進捗: §e" + step + "§7/§e" + SPECIAL_SEQUENCE.length + "  §7次の必要倍率: §e" + needNext + "x",
                     "§f",
                     "§e§l[ 操作方法 ]",
                     "§7SHIFT + 左クリック: §a手持ちのダイヤをすべて預ける",
                     "§7左クリック: §c預けたダイヤを引き出す",
                     "§f",
                     "§c§l※注意※",
-                    "§7一度預けた状態でルーレットが回り始めたら、",
-                    "§7結果が決まるまで取り出すことはできません！"
+                    "§71度ベットしたら、結果が確定するまで",
+                    "§7追加ベット・引き出しはできません！"
             ));
             
             // ★超重要：ここが透明化のスイッチ
@@ -324,32 +414,22 @@ public class RouletteBetMenuListener implements Listener {
         if (!event.getView().getTitle().equals(GUI_TITLE)) return;
 
         Player player = (Player) event.getWhoClicked();
+        UUID uuid = player.getUniqueId();
         int slot = event.getRawSlot();
         ItemStack currentItem = event.getCurrentItem();
+        boolean phaseLocked = (getHubPhase() != RoulettePhase.BETTING);
+        boolean betLocked = phaseLocked || hasActiveBet.contains(uuid);
 
-        // 自動ルーレット：ベット受付中以外は盤面操作をロック
-        if (getHubPhase() != RoulettePhase.BETTING) {
-            event.setCancelled(true);
-            return;
-        }
-
-        // 1. 手持ちインベントリからのシフトクリックでの不正な移動を防ぐ
-        if (event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT) {
-            if (slot >= 54 && currentItem != null && currentItem.getType() == Material.DIAMOND) {
-                event.setCancelled(true);
-                return;
-            }
-        }
-
-        // GUI側（上半分）の操作
+        // フェーズ外/ベットロック中は GUI 側の操作（上段）を一切禁止
         if (slot >= 0 && slot < 54) {
-            
-            // 2. 隠しバンドルの特殊アクション
+            // 隠しバンドルだけは「ロック中ならキャンセルのみで他に何もしない」
             if (slot == HIDDEN_BUNDLE_SLOT && isHiddenBundleItem(currentItem)) {
-                event.setCancelled(true); // バンドル自体の移動を禁止
-
-                // ※ここに後で「ルーレットが回転中なら return する」というロック処理を追加する
-                
+                event.setCancelled(true);
+                if (betLocked) {
+                    if (phaseLocked) player.sendMessage("§cベット締切後は操作できません。");
+                    else player.sendMessage("§c結果が確定するまで追加・引き出しはできません。");
+                    return;
+                }
                 if (event.getClick() == ClickType.SHIFT_LEFT) {
                     performAllIn(player, event.getInventory());
                 } else if (event.getClick() == ClickType.LEFT) {
@@ -358,36 +438,117 @@ public class RouletteBetMenuListener implements Listener {
                 return;
             }
 
-            // 3. 通常のベット枠（ダイヤのみ許可）
+            if (betLocked) {
+                event.setCancelled(true);
+                return;
+            }
+
+            // 通常のベット枠（ダイヤのみ許可）
             if (BET_SLOTS.contains(slot)) {
                 ItemStack cursor = event.getCursor();
                 if (cursor != null && cursor.getType() != Material.AIR && cursor.getType() != Material.DIAMOND) {
                     event.setCancelled(true);
+                    return;
                 }
+                scheduleActiveBetCheck(uuid, event.getInventory());
             } else {
                 // 許可エリア以外のクリック禁止
                 event.setCancelled(true);
+                return;
+            }
+        }
+
+        // 下段（プレイヤーインベントリ側）からのシフトクリック移動でも、
+        // 既にベット中ならGUI側に入れさせない
+        if (slot >= 54) {
+            if ((event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT)) {
+                if (betLocked) {
+                    event.setCancelled(true);
+                    return;
+                }
+                // ダイヤを上に流すのは BET_SLOTS にしか入れさせたくない => 慎重なので一旦キャンセル
+                if (currentItem != null && currentItem.getType() == Material.DIAMOND) {
+                    event.setCancelled(true);
+                    return;
+                }
             }
         }
     }
 
+    @EventHandler
+    public void onInventoryDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
+        if (!event.getView().getTitle().equals(GUI_TITLE)) return;
+
+        UUID uuid = event.getWhoClicked().getUniqueId();
+        boolean phaseLocked = (getHubPhase() != RoulettePhase.BETTING);
+        boolean betLocked = phaseLocked || hasActiveBet.contains(uuid);
+
+        if (betLocked) {
+            event.setCancelled(true);
+            return;
+        }
+        // ドラッグ先が「BET_SLOTS」以外の上段スロットを含む場合は禁止
+        for (int raw : event.getRawSlots()) {
+            if (raw < 54 && raw != HIDDEN_BUNDLE_SLOT && !BET_SLOTS.contains(raw)) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+        // ダイヤ以外は上段に置けない
+        ItemStack adding = event.getOldCursor();
+        if (adding != null && adding.getType() != Material.AIR && adding.getType() != Material.DIAMOND) {
+            for (int raw : event.getRawSlots()) {
+                if (raw < 54) {
+                    event.setCancelled(true);
+                    return;
+                }
+            }
+        }
+    }
+
+    /** 現在「アクティブなベットあり」のプレイヤーをマークする。GUIのベット枠にダイヤが置かれた瞬間に呼ぶ。 */
+    public void markActiveBet(UUID uuid) {
+        if (uuid != null) hasActiveBet.add(uuid);
+    }
+
+    /** クリック反映後にBET_SLOTSへダイヤが置かれていればアクティブ扱いにする。 */
+    private void scheduleActiveBetCheck(UUID uuid, Inventory gui) {
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (gui == null) return;
+            for (int s : BET_SLOTS) {
+                ItemStack it = gui.getItem(s);
+                if (it != null && it.getType() == Material.DIAMOND && it.getAmount() > 0) {
+                    hasActiveBet.add(uuid);
+                    return;
+                }
+            }
+        });
+    }
+
     // 全ベット（預け入れ）処理
     private void performAllIn(Player player, Inventory gui) {
+        UUID uuid = player.getUniqueId();
+        SpecialBet sb = specialBets.get(uuid);
+        if (sb != null && sb.amount > 0) {
+            // 既に特殊枠に預けてあるならロック中扱い
+            player.sendMessage("§c特殊枠は既に賭け中です。結果が確定するまで操作できません。");
+            return;
+        }
         int addAmount = 0;
         for (ItemStack item : player.getInventory().getContents()) {
             if (item != null && item.getType() == Material.DIAMOND) {
                 addAmount += item.getAmount();
-                item.setAmount(0); // インベントリから回収
+                item.setAmount(0);
             }
         }
 
         if (addAmount > 0) {
-            UUID uuid = player.getUniqueId();
-            int current = allInBets.getOrDefault(uuid, 0);
-            allInBets.put(uuid, current + addAmount); // データとして保存
-            
-            updateHiddenBundle(uuid, gui); // 表示を更新
-            player.sendMessage("§a手持ちのダイヤをすべて特殊枠に預けました！");
+            SpecialBet nsb = specialBets.computeIfAbsent(uuid, k -> new SpecialBet());
+            nsb.amount += addAmount;
+            nsb.step = 0;
+            hasActiveBet.add(uuid);
+            updateHiddenBundle(uuid, gui);
+            player.sendMessage("§a手持ちのダイヤをすべて特殊枠に預けました！ §7(連勝シーケンス: 2→4→6→10 で§e7777倍§7)");
         } else {
             player.sendMessage("§cインベントリに預けるダイヤがありません。");
         }
@@ -396,31 +557,54 @@ public class RouletteBetMenuListener implements Listener {
     // 引き出し処理
     private void withdrawAllIn(Player player, Inventory gui) {
         UUID uuid = player.getUniqueId();
-        int amount = allInBets.getOrDefault(uuid, 0);
-
-        if (amount > 0) {
-            // ダイヤをインベントリに返却
-            HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(new ItemStack(Material.DIAMOND, amount));
-            
-            // インベントリが満タンで入り切らなかった場合は足元に落とす
-            if (!leftover.isEmpty()) {
-                for (ItemStack item : leftover.values()) {
-                    player.getWorld().dropItemNaturally(player.getLocation(), item);
-                }
-                player.sendMessage("§eインベントリが満タンのため、一部のダイヤが足元に落ちました。");
-            }
-            
-            allInBets.put(uuid, 0); // データを0にリセット
-            updateHiddenBundle(uuid, gui); // 表示を更新
-            player.sendMessage("§b特殊枠のダイヤを引き出しました。");
+        SpecialBet sb = specialBets.get(uuid);
+        if (sb == null || sb.amount <= 0) {
+            player.sendMessage("§e特殊枠に預け入れはありません。");
+            return;
         }
+        // 連勝が始まっている（step>0）場合は引き出し不可（=ロック）
+        if (sb.step > 0) {
+            player.sendMessage("§c連勝判定が始まっているため引き出せません。");
+            return;
+        }
+        int amount = sb.amount;
+        HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(new ItemStack(Material.DIAMOND, amount));
+        if (!leftover.isEmpty()) {
+            for (ItemStack item : leftover.values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), item);
+            }
+            player.sendMessage("§eインベントリが満タンのため、一部のダイヤが足元に落ちました。");
+        }
+        specialBets.remove(uuid);
+        // 通常枠に賭けが残っていなければアクティブ解除
+        if (noActiveNormalBet(uuid)) hasActiveBet.remove(uuid);
+        updateHiddenBundle(uuid, gui);
+        player.sendMessage("§b特殊枠のダイヤを引き出しました。");
+    }
+
+    private boolean noActiveNormalBet(UUID uuid) {
+        Inventory inv = openBetInventories.get(uuid);
+        if (inv != null) {
+            for (int s : BET_SLOTS) {
+                ItemStack it = inv.getItem(s);
+                if (it != null && it.getType() == Material.DIAMOND && it.getAmount() > 0) return false;
+            }
+        }
+        ItemStack[] saved = savedBets.get(uuid);
+        if (saved != null) {
+            for (int s : BET_SLOTS) {
+                if (s < 0 || s >= saved.length) continue;
+                ItemStack it = saved[s];
+                if (it != null && it.getType() == Material.DIAMOND && it.getAmount() > 0) return false;
+            }
+        }
+        return true;
     }
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (event.getView().getTitle().equals(GUI_TITLE)) {
             if (getHubPhase() != RoulettePhase.BETTING) {
-                // 回転中に閉じるとベットが宙に浮くので、強制的に開き直す
                 if (event.getPlayer() instanceof Player player) {
                     player.sendMessage("§cルーレット進行中はGUIを閉じられません。");
                     Bukkit.getScheduler().runTaskLater(
@@ -431,13 +615,32 @@ public class RouletteBetMenuListener implements Listener {
                 }
                 return;
             }
-            savedBets.put(event.getPlayer().getUniqueId(), event.getInventory().getContents());
-            openBetInventories.remove(event.getPlayer().getUniqueId());
+            UUID uuid = event.getPlayer().getUniqueId();
+            Inventory inv = event.getInventory();
+            // 保存前に非ベット枠を必ずクリーン
+            sanitizeNonBetSlots(inv);
+            savedBets.put(uuid, inv.getContents());
+            openBetInventories.remove(uuid);
+
+            // 保存内容に基づきアクティブ判定を更新
+            if (noActiveNormalBet(uuid)) {
+                SpecialBet sb = specialBets.get(uuid);
+                if (sb == null || sb.amount <= 0) hasActiveBet.remove(uuid);
+            } else {
+                hasActiveBet.add(uuid);
+            }
         }
     }
 
-    // 後でRouletteManagerからデータを回収するためのゲッター
+    /**
+     * 互換目的のゲッター。新実装では特殊枠を SpecialBet で持つため、
+     * 「現在の預け入れ枚数」だけを参照したい古い呼び出し向けに合算したマップを返す。
+     */
     public Map<UUID, Integer> getAllInBets() {
-        return allInBets;
+        Map<UUID, Integer> out = new HashMap<>();
+        for (Map.Entry<UUID, SpecialBet> e : specialBets.entrySet()) {
+            if (e.getValue() != null) out.put(e.getKey(), e.getValue().amount);
+        }
+        return out;
     }
 }
