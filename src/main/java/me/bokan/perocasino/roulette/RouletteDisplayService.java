@@ -197,13 +197,12 @@ public final class RouletteDisplayService {
     }
 
     /**
-     * 指定された結果角度に関わらず、停止位置を「真上(0°)」へスナップする。
-     * (画像の上方向を実際の真上にしたいので、angle-offset-deg で微調整可能)
+     * 結果の停止角度(0..359)へ止める。
+     * 角度0°は「真上(針)」基準。画像側の「上」とズレる場合は angle-offset-deg で補正する。
      */
     public void stopAtAngle(int targetAngleDeg0to359) {
         if (getDisplay() == null) return;
-        // 実際に止めたい角度（応用画像の上が真上になるように補正可能）
-        float aim = normalizeDeg(-angleOffsetDeg); // applyTransform 側で +offset するため、画面表示が0°になるように逆数
+        float aim = normalizeDeg((targetAngleDeg0to359 % 360 + 360) % 360);
         targetDeg = aim;
 
         float cur = currentDeg;
