@@ -53,8 +53,8 @@ public class RouletteBetMenuListener implements Listener {
     /** 特殊枠（連勝枠）の状態 */
     private final Map<UUID, SpecialBet> specialBets = new HashMap<>();
 
-    /** プレイヤーが「現在のラウンドにベット済み」かを追跡（追加ベット禁止用） */
-    private final Set<UUID> hasActiveBet = ConcurrentHashMap.newKeySet();
+    /** 特殊枠がルーレット開始後の判定中かを追跡（通常枠はBETTING中なら自由に操作可） */
+    private final Set<UUID> lockedSpecialBets = ConcurrentHashMap.newKeySet();
 
     /** 特殊枠の状態（連勝＆預け入れ） */
     static class SpecialBet {
@@ -166,7 +166,7 @@ public class RouletteBetMenuListener implements Listener {
         }
         specialBets.clear();
         savedBets.clear();
-        hasActiveBet.clear();
+        lockedSpecialBets.clear();
     }
 
     /**
@@ -198,7 +198,6 @@ public class RouletteBetMenuListener implements Listener {
                     inv.setItem(slot, null);
                 }
             }
-            if (!m.isEmpty()) hasActiveBet.add(uuid);
         }
 
         // 2) 閉じられて保存されている内容（savedBets）からも回収
@@ -218,12 +217,11 @@ public class RouletteBetMenuListener implements Listener {
                     contents[slot] = null;
                 }
             }
-            if (!m.isEmpty()) hasActiveBet.add(uuid);
         }
 
-        // 3) 特殊枠を持っているプレイヤーは「アクティブ」フラグを立てる
+        // 3) 特殊枠を持っているプレイヤーだけ、ルーレット開始後の特殊枠操作をロックする
         for (Map.Entry<UUID, SpecialBet> e : specialBets.entrySet()) {
-            if (e.getValue() != null && e.getValue().amount > 0) hasActiveBet.add(e.getKey());
+            if (e.getValue() != null && e.getValue().amount > 0) lockedSpecialBets.add(e.getKey());
         }
 
         // 4) 開いているGUIの表示を更新
@@ -296,6 +294,7 @@ public class RouletteBetMenuListener implements Listener {
                         economy.addWalletBalance(uuid, payout);
                     }
                     specialBets.remove(uuid);
+                    lockedSpecialBets.remove(uuid);
                 } else {
                     if (p != null && p.isOnline()) {
                         int next = SPECIAL_SEQUENCE[sb.step];
@@ -309,10 +308,9 @@ public class RouletteBetMenuListener implements Listener {
                             + "x§c) §7没収: " + sb.amount + "個");
                 }
                 specialBets.remove(uuid);
+                lockedSpecialBets.remove(uuid);
             }
         }
-
-        hasActiveBet.clear();
     }
 
     /** 次ラウンドのために、開いているGUIと保存されているGUI内容のベット枠をクリアする。 */
@@ -386,8 +384,8 @@ public class RouletteBetMenuListener implements Listener {
                     "§7左クリック: §c預けたダイヤを引き出す",
                     "§f",
                     "§c§l※注意※",
-                    "§71度ベットしたら、結果が確定するまで",
-                    "§7追加ベット・引き出しはできません！"
+                    "§7ルーレット開始後は、特殊枠の勝敗が",
+                    "§7確定するまで追加・引き出しできません！"
             ));
             
             // ★超重要：ここが透明化のスイッチ
@@ -418,16 +416,16 @@ public class RouletteBetMenuListener implements Listener {
         int slot = event.getRawSlot();
         ItemStack currentItem = event.getCurrentItem();
         boolean phaseLocked = (getHubPhase() != RoulettePhase.BETTING);
-        boolean betLocked = phaseLocked || hasActiveBet.contains(uuid);
+        boolean specialLocked = lockedSpecialBets.contains(uuid);
 
         // フェーズ外/ベットロック中は GUI 側の操作（上段）を一切禁止
         if (slot >= 0 && slot < 54) {
             // 隠しバンドルだけは「ロック中ならキャンセルのみで他に何もしない」
             if (slot == HIDDEN_BUNDLE_SLOT && isHiddenBundleItem(currentItem)) {
                 event.setCancelled(true);
-                if (betLocked) {
+                if (phaseLocked || specialLocked) {
                     if (phaseLocked) player.sendMessage("§cベット締切後は操作できません。");
-                    else player.sendMessage("§c結果が確定するまで追加・引き出しはできません。");
+                    else player.sendMessage("§c特殊枠は勝敗が確定するまで追加・引き出しできません。");
                     return;
                 }
                 if (event.getClick() == ClickType.SHIFT_LEFT) {
@@ -438,7 +436,7 @@ public class RouletteBetMenuListener implements Listener {
                 return;
             }
 
-            if (betLocked) {
+            if (phaseLocked) {
                 event.setCancelled(true);
                 return;
             }
@@ -450,7 +448,6 @@ public class RouletteBetMenuListener implements Listener {
                     event.setCancelled(true);
                     return;
                 }
-                scheduleActiveBetCheck(uuid, event.getInventory());
             } else {
                 // 許可エリア以外のクリック禁止
                 event.setCancelled(true);
@@ -458,17 +455,24 @@ public class RouletteBetMenuListener implements Listener {
             }
         }
 
-        // 下段（プレイヤーインベントリ側）からのシフトクリック移動でも、
-        // 既にベット中ならGUI側に入れさせない
+        // 下段（プレイヤーインベントリ側）からのシフトクリックは、
+        // バニラ任せだと非ベット枠へ入ることがあるので、BET_SLOTSへだけ手動投入する。
         if (slot >= 54) {
             if ((event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT)) {
-                if (betLocked) {
+                if (phaseLocked) {
                     event.setCancelled(true);
                     return;
                 }
-                // ダイヤを上に流すのは BET_SLOTS にしか入れさせたくない => 慎重なので一旦キャンセル
                 if (currentItem != null && currentItem.getType() == Material.DIAMOND) {
                     event.setCancelled(true);
+                    ItemStack moving = currentItem.clone();
+                    int inserted = addToBetSlots(event.getInventory(), moving);
+                    if (inserted > 0) {
+                        currentItem.setAmount(currentItem.getAmount() - inserted);
+                        if (currentItem.getAmount() <= 0) {
+                            event.setCurrentItem(null);
+                        }
+                    }
                     return;
                 }
             }
@@ -481,9 +485,8 @@ public class RouletteBetMenuListener implements Listener {
 
         UUID uuid = event.getWhoClicked().getUniqueId();
         boolean phaseLocked = (getHubPhase() != RoulettePhase.BETTING);
-        boolean betLocked = phaseLocked || hasActiveBet.contains(uuid);
 
-        if (betLocked) {
+        if (phaseLocked) {
             event.setCancelled(true);
             return;
         }
@@ -506,32 +509,43 @@ public class RouletteBetMenuListener implements Listener {
         }
     }
 
-    /** 現在「アクティブなベットあり」のプレイヤーをマークする。GUIのベット枠にダイヤが置かれた瞬間に呼ぶ。 */
-    public void markActiveBet(UUID uuid) {
-        if (uuid != null) hasActiveBet.add(uuid);
-    }
+    private int addToBetSlots(Inventory gui, ItemStack source) {
+        if (gui == null || source == null || source.getType() != Material.DIAMOND) return 0;
+        int before = source.getAmount();
 
-    /** クリック反映後にBET_SLOTSへダイヤが置かれていればアクティブ扱いにする。 */
-    private void scheduleActiveBetCheck(UUID uuid, Inventory gui) {
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            if (gui == null) return;
-            for (int s : BET_SLOTS) {
-                ItemStack it = gui.getItem(s);
-                if (it != null && it.getType() == Material.DIAMOND && it.getAmount() > 0) {
-                    hasActiveBet.add(uuid);
-                    return;
-                }
-            }
-        });
+        // 既存スタックを先に埋める
+        for (int slot : BET_SLOTS) {
+            if (source.getAmount() <= 0) break;
+            ItemStack current = gui.getItem(slot);
+            if (current == null || current.getType() == Material.AIR) continue;
+            if (current.getType() != Material.DIAMOND) continue;
+            int max = current.getMaxStackSize();
+            int room = max - current.getAmount();
+            if (room <= 0) continue;
+            int move = Math.min(room, source.getAmount());
+            current.setAmount(current.getAmount() + move);
+            source.setAmount(source.getAmount() - move);
+        }
+
+        // 空きBET_SLOTSへ新規スタックを作る
+        for (int slot : BET_SLOTS) {
+            if (source.getAmount() <= 0) break;
+            ItemStack current = gui.getItem(slot);
+            if (current != null && current.getType() != Material.AIR) continue;
+            int move = Math.min(source.getMaxStackSize(), source.getAmount());
+            gui.setItem(slot, new ItemStack(Material.DIAMOND, move));
+            source.setAmount(source.getAmount() - move);
+        }
+
+        return before - source.getAmount();
     }
 
     // 全ベット（預け入れ）処理
     private void performAllIn(Player player, Inventory gui) {
         UUID uuid = player.getUniqueId();
         SpecialBet sb = specialBets.get(uuid);
-        if (sb != null && sb.amount > 0) {
-            // 既に特殊枠に預けてあるならロック中扱い
-            player.sendMessage("§c特殊枠は既に賭け中です。結果が確定するまで操作できません。");
+        if (lockedSpecialBets.contains(uuid)) {
+            player.sendMessage("§c特殊枠は勝敗が確定するまで追加できません。");
             return;
         }
         int addAmount = 0;
@@ -545,8 +559,7 @@ public class RouletteBetMenuListener implements Listener {
         if (addAmount > 0) {
             SpecialBet nsb = specialBets.computeIfAbsent(uuid, k -> new SpecialBet());
             nsb.amount += addAmount;
-            nsb.step = 0;
-            hasActiveBet.add(uuid);
+            // ルーレット開始前の追加入金ならstepは維持（通常は0）
             updateHiddenBundle(uuid, gui);
             player.sendMessage("§a手持ちのダイヤをすべて特殊枠に預けました！ §7(連勝シーケンス: 2→4→6→10 で§e7777倍§7)");
         } else {
@@ -562,9 +575,8 @@ public class RouletteBetMenuListener implements Listener {
             player.sendMessage("§e特殊枠に預け入れはありません。");
             return;
         }
-        // 連勝が始まっている（step>0）場合は引き出し不可（=ロック）
-        if (sb.step > 0) {
-            player.sendMessage("§c連勝判定が始まっているため引き出せません。");
+        if (lockedSpecialBets.contains(uuid)) {
+            player.sendMessage("§c特殊枠は勝敗が確定するまで引き出せません。");
             return;
         }
         int amount = sb.amount;
@@ -576,8 +588,6 @@ public class RouletteBetMenuListener implements Listener {
             player.sendMessage("§eインベントリが満タンのため、一部のダイヤが足元に落ちました。");
         }
         specialBets.remove(uuid);
-        // 通常枠に賭けが残っていなければアクティブ解除
-        if (noActiveNormalBet(uuid)) hasActiveBet.remove(uuid);
         updateHiddenBundle(uuid, gui);
         player.sendMessage("§b特殊枠のダイヤを引き出しました。");
     }
@@ -622,13 +632,6 @@ public class RouletteBetMenuListener implements Listener {
             savedBets.put(uuid, inv.getContents());
             openBetInventories.remove(uuid);
 
-            // 保存内容に基づきアクティブ判定を更新
-            if (noActiveNormalBet(uuid)) {
-                SpecialBet sb = specialBets.get(uuid);
-                if (sb == null || sb.amount <= 0) hasActiveBet.remove(uuid);
-            } else {
-                hasActiveBet.add(uuid);
-            }
         }
     }
 

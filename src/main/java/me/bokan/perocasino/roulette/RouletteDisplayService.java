@@ -51,6 +51,8 @@ public final class RouletteDisplayService {
 
     /** 画像の真上(0°)を実際の上方向に合わせるための補正角度。 */
     private float angleOffsetDeg = 0f;
+    private float decelDistanceDeg = 540f;
+    private int decelTicks = 60;
 
     public void reloadFromConfig() {
         FileConfiguration cfg = plugin.getConfig();
@@ -60,6 +62,8 @@ public final class RouletteDisplayService {
             displayUuid = null;
             anchor = null;
             angleOffsetDeg = (float) cfg.getDouble("roulette.display.angle-offset-deg", 0.0);
+            decelDistanceDeg = (float) cfg.getDouble("roulette.display.decel-distance-deg", 540.0);
+            decelTicks = Math.max(1, cfg.getInt("roulette.display.decel-ticks", 60));
             return;
         }
 
@@ -78,6 +82,8 @@ public final class RouletteDisplayService {
             face = BlockFace.NORTH;
         }
         angleOffsetDeg = (float) cfg.getDouble("roulette.display.angle-offset-deg", 0.0);
+        decelDistanceDeg = (float) cfg.getDouble("roulette.display.decel-distance-deg", 540.0);
+        decelTicks = Math.max(1, cfg.getInt("roulette.display.decel-ticks", 60));
 
         // uuidが無い/不正なら、起動時に生成できる状態にしておく
         if (displayUuid == null) {
@@ -154,9 +160,8 @@ public final class RouletteDisplayService {
         task = new BukkitRunnable() {
             // 遅めの回転（必要なら後でconfig化）
             private float speedDegPerTick = 8f;
-            private final float minSpeed = 0.8f;
-            private final float decelPerTick = 0.985f;
-            private final float snapEps = 0.6f;
+            private int decelElapsed = 0;
+            private Float decelStartDeg = null;
 
             @Override
             public void run() {
@@ -167,17 +172,21 @@ public final class RouletteDisplayService {
                 }
 
                 if (targetDegAbsolute != null) {
-                    float remaining = targetDegAbsolute - currentDeg;
-                    if (remaining <= snapEps) {
-                        // 必ず狙った角度にスナップ（多少不自然でも誤差をゼロに）
+                    if (decelStartDeg == null) {
+                        decelStartDeg = currentDeg;
+                        decelElapsed = 0;
+                    }
+                    decelElapsed++;
+                    float t = Math.min(1.0f, (float) decelElapsed / (float) decelTicks);
+                    float eased = easeOutCubic(t);
+                    currentDeg = decelStartDeg + (targetDegAbsolute - decelStartDeg) * eased;
+                    if (t >= 1.0f) {
+                        // 最終tickは必ず狙った角度へスナップし、補間揺れを残さない
                         currentDeg = targetDegAbsolute;
                         applyTransform(d, normalizeDeg(currentDeg));
                         stopTask();
                         return;
                     }
-                    float step = Math.min(speedDegPerTick, Math.max(minSpeed, remaining / 10f));
-                    currentDeg += step;
-                    speedDegPerTick = Math.max(minSpeed, speedDegPerTick * decelPerTick);
                 } else {
                     currentDeg += speedDegPerTick;
                 }
@@ -202,16 +211,21 @@ public final class RouletteDisplayService {
      */
     public void stopAtAngle(int targetAngleDeg0to359) {
         if (getDisplay() == null) return;
-        float aim = normalizeDeg((targetAngleDeg0to359 % 360 + 360) % 360);
+        // 針は上(0°)固定なので、結果角度を上へ持ってくるには盤面を逆方向へ回す。
+        // angleOffsetDeg は applyTransform 側で加算されるため、ここでは逆補正を含める。
+        float resultAngle = normalizeDeg((targetAngleDeg0to359 % 360 + 360) % 360);
+        float aim = normalizeDeg(-resultAngle - angleOffsetDeg);
         targetDeg = aim;
 
         float cur = currentDeg;
-        float curNorm = normalizeDeg(cur);
-        float deltaForward = (aim - curNorm + 360f) % 360f;
-        if (deltaForward < 5f) {
-            deltaForward += 360f;
+        float desiredDistance = Math.max(360f, decelDistanceDeg);
+        float targetAbs = cur + desiredDistance;
+        float targetNorm = normalizeDeg(targetAbs);
+        float correction = (aim - targetNorm + 360f) % 360f;
+        if (correction > 180f) {
+            correction -= 360f;
         }
-        targetDegAbsolute = cur + deltaForward;
+        targetDegAbsolute = targetAbs + correction;
 
         if (task == null) {
             ItemDisplay d = getDisplay();
@@ -318,6 +332,11 @@ public final class RouletteDisplayService {
         float d = deg % 360f;
         if (d < 0) d += 360f;
         return d;
+    }
+
+    private static float easeOutCubic(float t) {
+        float x = 1.0f - Math.max(0.0f, Math.min(1.0f, t));
+        return 1.0f - x * x * x;
     }
 
     private static float shortestDiffDeg(float from, float to) {
