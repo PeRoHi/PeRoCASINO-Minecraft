@@ -1,7 +1,7 @@
 package me.bokan.perocasino.listeners;
 
 import me.bokan.perocasino.commands.CasinoCommand;
-import me.bokan.perocasino.games.blackjack.BlackjackMenu;
+import me.bokan.perocasino.games.blackjack.BlackjackService;
 import me.bokan.perocasino.games.hilo.HiLoMenu;
 import me.bokan.perocasino.games.slot.SlotMachineService;
 import org.bukkit.entity.Player;
@@ -18,11 +18,13 @@ public class CasinoMenuListener implements Listener {
     private final LoanMenuListener loanListener;
     private final Plugin plugin;
     private final SlotMachineService slotMachineService;
+    private final BlackjackService blackjackService;
 
-    public CasinoMenuListener(LoanMenuListener loanListener, Plugin plugin, SlotMachineService slotMachineService) {
+    public CasinoMenuListener(LoanMenuListener loanListener, Plugin plugin, SlotMachineService slotMachineService, BlackjackService blackjackService) {
         this.loanListener = loanListener;
         this.plugin = plugin;
         this.slotMachineService = slotMachineService;
+        this.blackjackService = blackjackService;
     }
 
     @EventHandler
@@ -46,7 +48,7 @@ public class CasinoMenuListener implements Listener {
             case 25 ->
                 plugin.getServer().getScheduler().runTask(plugin, () -> HiLoMenu.open(player));
             case 28 ->
-                plugin.getServer().getScheduler().runTask(plugin, () -> BlackjackMenu.open(player));
+                plugin.getServer().getScheduler().runTask(plugin, () -> blackjackService.openJoinConfirm(player));
             case 49 -> player.closeInventory();
             // 13 (SHOP), 16 (SABOTAGE) は今後実装
         }

@@ -111,3 +111,12 @@ slot-machine:
       x: 0
       y: 0
       z: 0
+
+blackjack:
+  dealer:
+    world: ""
+    uuid: ""
+    x: 0
+    y: 0
+    z: 0
+  join-radius: 16
