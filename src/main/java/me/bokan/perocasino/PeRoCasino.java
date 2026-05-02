@@ -6,6 +6,7 @@ import me.bokan.perocasino.commands.DepositCommand;
 import me.bokan.perocasino.commands.PerocasinoCommand;
 import me.bokan.perocasino.economy.EconomyManager;
 import me.bokan.perocasino.games.blackjack.BlackjackService;
+import me.bokan.perocasino.games.hilo.HiLoService;
 import me.bokan.perocasino.games.slot.SlotMachineService;
 import me.bokan.perocasino.listeners.CasinoMenuListener;
 import me.bokan.perocasino.listeners.GameMenuListener;
@@ -29,6 +30,7 @@ public class PeRoCasino extends JavaPlugin {
     private RouletteHubService rouletteHubService;
     private SlotMachineService slotMachineService;
     private BlackjackService blackjackService;
+    private HiLoService hiLoService;
 
     @Override
     public void onEnable() {
@@ -41,11 +43,12 @@ public class PeRoCasino extends JavaPlugin {
 
         slotMachineService = new SlotMachineService(this, economyManager);
         blackjackService = new BlackjackService(this, economyManager);
+        hiLoService = new HiLoService(this, economyManager);
 
         // LOAN GUI リスナー → カジノメインリスナーへ渡す
         LoanMenuListener loanListener = new LoanMenuListener(economyManager, this);
         getServer().getPluginManager().registerEvents(loanListener, this);
-        getServer().getPluginManager().registerEvents(new CasinoMenuListener(loanListener, this, slotMachineService, blackjackService), this);
+        getServer().getPluginManager().registerEvents(new CasinoMenuListener(loanListener, this, slotMachineService, blackjackService, hiLoService), this);
 
         // 財布システム（スロット8: 引き出し口 / スロット35: 専用バンドル）
         getServer().getPluginManager().registerEvents(new WalletListener(economyManager, this), this);
@@ -77,6 +80,7 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SlotSessionCleanupListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new GameMenuListener(), this);
         getServer().getPluginManager().registerEvents(blackjackService, this);
+        getServer().getPluginManager().registerEvents(hiLoService, this);
 
         // HUD 表示（1秒ごと）
         new HudTask(economyManager).runTaskTimer(this, 0L, 20L);
@@ -95,6 +99,9 @@ public class PeRoCasino extends JavaPlugin {
         if (blackjackService != null) {
             blackjackService.shutdown();
         }
+        if (hiLoService != null) {
+            hiLoService.shutdown();
+        }
         getLogger().info("PeRoCasino が無効化されました。");
     }
 
@@ -104,5 +111,9 @@ public class PeRoCasino extends JavaPlugin {
 
     public BlackjackService getBlackjackService() {
         return blackjackService;
+    }
+
+    public HiLoService getHiLoService() {
+        return hiLoService;
     }
 }
