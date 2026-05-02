@@ -10,6 +10,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Villager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
@@ -36,6 +37,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 0) {
             sender.sendMessage("§e/perocasino roulette set §7… 見ている砥石をルーレット拠点に登録");
+            sender.sendMessage("§e/perocasino blackjack dealer set §7… 見ている村人をブラックジャックディーラーに登録");
             sender.sendMessage("§e/perocasino quarry set §7… 採石場の立方体範囲を現在位置の角として登録（2回実行）");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
@@ -74,6 +76,38 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             plugin.saveConfig();
             sender.sendMessage("§aルーレット拠点を登録しました: §f" + loc.getWorld().getName()
                     + " " + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
+            return true;
+        }
+
+        if ("blackjack".equals(sub)) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
+                return true;
+            }
+            if (args.length < 3 || !"dealer".equalsIgnoreCase(args[1]) || !"set".equalsIgnoreCase(args[2])) {
+                sender.sendMessage("§c使い方: /perocasino blackjack dealer set");
+                return true;
+            }
+            Villager villager = player.getNearbyEntities(8, 8, 8).stream()
+                    .filter(e -> e instanceof Villager)
+                    .map(e -> (Villager) e)
+                    .min(java.util.Comparator.comparingDouble(e -> e.getLocation().distanceSquared(player.getEyeLocation())))
+                    .orElse(null);
+            if (villager == null) {
+                sender.sendMessage("§c8ブロック以内の村人を狙ってください。");
+                return true;
+            }
+            FileConfiguration cfg = plugin.getConfig();
+            cfg.set("blackjack.dealer.uuid", villager.getUniqueId().toString());
+            cfg.set("blackjack.dealer.world", villager.getWorld().getName());
+            cfg.set("blackjack.dealer.x", villager.getLocation().getX());
+            cfg.set("blackjack.dealer.y", villager.getLocation().getY());
+            cfg.set("blackjack.dealer.z", villager.getLocation().getZ());
+            plugin.saveConfig();
+            if (onReload != null) {
+                onReload.run();
+            }
+            sender.sendMessage("§aブラックジャックディーラーを登録しました: §f" + villager.getUniqueId());
             return true;
         }
 
@@ -137,10 +171,17 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             String a = args[0].toLowerCase();
             if ("roulette".startsWith(a)) out.add("roulette");
+            if ("blackjack".startsWith(a)) out.add("blackjack");
             if ("quarry".startsWith(a)) out.add("quarry");
             if ("reload".startsWith(a)) out.add("reload");
         } else if (args.length == 2 && "roulette".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+        } else if (args.length == 2 && "blackjack".equalsIgnoreCase(args[0])) {
+            String a = args[1].toLowerCase();
+            if ("dealer".startsWith(a)) out.add("dealer");
+        } else if (args.length == 3 && "blackjack".equalsIgnoreCase(args[0]) && "dealer".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
         } else if (args.length == 2 && "quarry".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
