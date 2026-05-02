@@ -56,8 +56,7 @@ public final class BlackjackService implements Listener {
     private static final String BET_TITLE = "§0§lBLACKJACK: 掛け金";
     private static final String ACTION_TITLE = "§0§lBLACKJACK: 操作";
 
-    private static final int CARD_MODEL_BASE = 8200;
-
+    /** resourcepack: paper の custom_model_data 1〜13 が textures/item/1.png〜13.png に対応 */
     private final JavaPlugin plugin;
     @SuppressWarnings("unused")
     private final EconomyManager economy;
@@ -648,7 +647,7 @@ public final class BlackjackService implements Listener {
                 "§7点数: §e" + card.rank.valueText(),
                 "§8ゲーム中は移動/ドロップ不可"
         ));
-        meta.setCustomModelData(CARD_MODEL_BASE + card.rank.ordinal());
+        meta.setCustomModelData(card.rank.ordinal() + 1);
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         pdc.set(cardKey, PersistentDataType.BYTE, (byte) 1);
         pdc.set(ownerKey, PersistentDataType.STRING, owner.toString());
