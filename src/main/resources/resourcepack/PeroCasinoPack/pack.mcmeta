@@ -1,7 +1,7 @@
 {
   "pack": {
-    "pack_format": 55,
-    "supported_formats": { "min_inclusive": 34, "max_inclusive": 55 },
+    "min_format": [75, 0],
+    "max_format": [75, 0],
     "description": "PeRo Casino Resource Pack"
   }
 }
