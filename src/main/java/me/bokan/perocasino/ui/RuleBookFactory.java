@@ -27,7 +27,7 @@ public final class RuleBookFactory {
 
         meta.setTitle("PeRoCasino ルールブック");
         meta.setAuthor("PeRoCasino");
-        meta.setDisplayName("§e§lルールブック（固定）");
+        meta.setDisplayName("§f§lルールブック（固定）");
 
         meta.setPages(List.of(
                 "§0§lPeRoCasino ルール\n" +
@@ -39,6 +39,7 @@ public final class RuleBookFactory {
                         "§1- ルーレット\n" +
                         "§1- 採石場\n" +
                         "§1- ブラックジャック\n" +
+                        "§1- ハイアンドロー\n" +
                         "§1- その他",
                 "§0§l財布（Wallet）\n" +
                         "§7右側に固定アイテムが入ります。\n\n" +
@@ -53,7 +54,7 @@ public final class RuleBookFactory {
                         "§a・開始\n" +
                         "§7スピンボタンを右クリック\n" +
                         "§7（GUIのベット枠にダイヤを置く）\n\n" +
-                        "§e・停止\n" +
+                        "§f・停止\n" +
                         "§7各停止ボタンは別々。\n" +
                         "§7押すとランダムtick後に停止。\n\n" +
                         "§b・精算\n" +
@@ -64,7 +65,7 @@ public final class RuleBookFactory {
                         "§7半径40でBossBar表示\n" +
                         "§7ベット20秒 → 抽選 → クール5秒\n" +
                         "§7を繰り返します。\n\n" +
-                        "§e・注意\n" +
+                        "§f・注意\n" +
                         "§7抽選中はGUIを閉じられません。",
                 "§0§l採石場（Quarry）\n" +
                         "§7採石場範囲内のダイヤ鉱石は\n" +
@@ -97,9 +98,28 @@ public final class RuleBookFactory {
                         "§7勝ち2倍 / 21で3倍\n" +
                         "§7ダブルで21勝ち5倍\n" +
                         "§7引分は掛け返却",
+                "§0§lハイアンドロー\n" +
+                        "§7H&Lディーラー村人に右クリック。\n\n" +
+                        "§a・ディーラー\n" +
+                        "§7/perocasino hilo dealer set\n" +
+                        "§7（近くの村人を登録）\n" +
+                        "§7または summon で召喚・登録\n" +
+                        "§7名前に H&L / ハイロー 等\n\n" +
+                        "§a・流れ\n" +
+                        "§7モード（ディーラー戦 or 2人）\n" +
+                        "§7セット数 5 / 7 / 9\n" +
+                        "§7ロビーで待機→掛け金→START",
+                "§0§lハイアンドロー（続）\n" +
+                        "§7親は表カード（頭上）、子は裏（？）。\n" +
+                        "§7子が High / Low を選択。\n" +
+                        "§7当たりで1pt。\n\n" +
+                        "§a・精算（目安）\n" +
+                        "§7最終pt差で配当（切捨）\n" +
+                        "§7勝: bet×(差+1)×1.5 等\n" +
+                        "§7同点は返却、負けは没収\n" +
+                        "§7差2以上は追加徴収（財布）",
                 "§0§lその他\n" +
-                        "§7ハイアンドロー等は\n" +
-                        "§7準備中の場合があります。\n\n" +
+                        "§7ゲームは随時追加・調整されます。\n\n" +
                         "§7コマンド一覧は\n" +
                         "§7コマンド集ブックを参照。"
         ));
