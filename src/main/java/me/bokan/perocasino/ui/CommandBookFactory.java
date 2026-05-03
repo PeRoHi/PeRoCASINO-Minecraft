@@ -42,6 +42,8 @@ public final class CommandBookFactory {
                         "§7  財布・借金の表示\n\n" +
                         "§7・/deposit\n" +
                         "§7  手持ちコインを財布へ\n\n" +
+                        "§7・/hilo select <high|low>\n" +
+                        "§7  H&L進行中の選択（GUIなし）\n\n" +
                         "§7・/commandbook（/cb）\n" +
                         "§7  この本を再取得",
                 "§0§l管理者（設置）\n" +
@@ -58,7 +60,8 @@ public final class CommandBookFactory {
                         "§7・/perocasino hilo dealer set\n" +
                         "§7  近くの村人をH&Lディーラーに\n\n" +
                         "§7・/perocasino hilo dealer summon\n" +
-                        "§7  H&Lディーラーを召喚・登録",
+                        "§7  H&Lディーラーを召喚・登録\n" +
+                        "§7  （AI/重力オフで固定）",
                 "§0§lブラックジャック / H&L\n" +
                         "§7・BJはディーラー村人へ話しかけ\n" +
                         "§7  Yes/No → ロビー → 掛け金 → START\n\n" +

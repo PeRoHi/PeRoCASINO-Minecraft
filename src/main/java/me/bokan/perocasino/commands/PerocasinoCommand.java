@@ -127,6 +127,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 villager.setCustomName("§6H&L Dealer");
                 villager.setCustomNameVisible(true);
                 villager.setProfession(Villager.Profession.LIBRARIAN);
+                configureHiLoDealerNpc(villager);
                 saveHiLoDealer(villager);
                 sender.sendMessage("§aH&Lディーラーを召喚・登録しました: §f" + villager.getUniqueId());
                 return true;
@@ -141,6 +142,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§c8ブロック以内の村人を狙ってください。");
                     return true;
                 }
+                configureHiLoDealerNpc(villager);
                 saveHiLoDealer(villager);
                 sender.sendMessage("§aH&Lディーラーを登録しました: §f" + villager.getUniqueId());
                 return true;
@@ -201,6 +203,12 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
 
         sender.sendMessage("§c不明なサブコマンドです。");
         return true;
+    }
+
+    /** H&amp;L ディーラー用NPC：移動・重力を無効化（サーバー再起動後は手動で再設定が必要な場合あり）。 */
+    private void configureHiLoDealerNpc(Villager villager) {
+        villager.setAI(false);
+        villager.setGravity(false);
     }
 
     private void saveHiLoDealer(Villager villager) {

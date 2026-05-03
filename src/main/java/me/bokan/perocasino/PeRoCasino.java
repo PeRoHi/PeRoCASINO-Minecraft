@@ -4,6 +4,7 @@ import me.bokan.perocasino.commands.BalanceCommand;
 import me.bokan.perocasino.commands.CasinoCommand;
 import me.bokan.perocasino.commands.CommandBookCommand;
 import me.bokan.perocasino.commands.DepositCommand;
+import me.bokan.perocasino.commands.HiLoSelectCommand;
 import me.bokan.perocasino.commands.PerocasinoCommand;
 import me.bokan.perocasino.economy.EconomyManager;
 import me.bokan.perocasino.games.blackjack.BlackjackService;
@@ -50,6 +51,10 @@ public class PeRoCasino extends JavaPlugin {
         slotMachineService = new SlotMachineService(this, economyManager);
         blackjackService = new BlackjackService(this, economyManager);
         hiLoService = new HiLoService(this, economyManager);
+        org.bukkit.command.PluginCommand hiloCmd = getCommand("hilo");
+        if (hiloCmd != null) {
+            hiloCmd.setExecutor(new HiLoSelectCommand(hiLoService));
+        }
 
         // LOAN GUI リスナー → カジノメインリスナーへ渡す
         LoanMenuListener loanListener = new LoanMenuListener(economyManager, this);

@@ -2,6 +2,9 @@ package me.bokan.perocasino.games.hilo;
 
 import me.bokan.perocasino.economy.EconomyManager;
 import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.ComponentBuilder;
+import net.md_5.bungee.api.chat.HoverEvent;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -18,7 +21,9 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -76,6 +81,22 @@ public final class HiLoService implements Listener {
         this.rankKey = new NamespacedKey(plugin, "hilo_rank");
         this.reverseKey = new NamespacedKey(plugin, "hilo_reverse");
         startHud();
+        applyConfiguredDealerNpcSettings();
+    }
+
+    /** config の UUID に一致するディーラー村人がいれば AI/重力を無効化（再起動後も固定）。 */
+    public void applyConfiguredDealerNpcSettings() {
+        String raw = plugin.getConfig().getString("hilo.dealer.uuid", "");
+        if (raw == null || raw.isBlank()) return;
+        try {
+            UUID id = UUID.fromString(raw.trim());
+            org.bukkit.entity.Entity e = Bukkit.getEntity(id);
+            if (e instanceof Villager v) {
+                v.setAI(false);
+                v.setGravity(false);
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     public void shutdown() {
@@ -105,10 +126,14 @@ public final class HiLoService implements Listener {
         if (!(event.getRightClicked() instanceof Villager villager)) return;
         if (!isDealer(villager)) return;
         event.setCancelled(true);
-        if (tryJoinExistingLobby(event.getPlayer())) {
+        Player player = event.getPlayer();
+        if (resumeFromDealer(player)) {
             return;
         }
-        openMode(event.getPlayer(), villager);
+        if (tryJoinExistingLobby(player)) {
+            return;
+        }
+        openMode(player, villager);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -224,9 +249,97 @@ public final class HiLoService implements Listener {
         }
 
         if (CHOICE_TITLE.equals(title)) {
-            if (event.getSlot() == 11) choose(player, Guess.HIGH);
-            else if (event.getSlot() == 15) choose(player, Guess.LOW);
+            if (event.getSlot() == 11) applyChoice(player, Guess.HIGH);
+            else if (event.getSlot() == 15) applyChoice(player, Guess.LOW);
         }
+    }
+
+    /**
+     * GUI を閉じてもセッションは維持する（進行中・ロビー）。
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        String title = event.getView().getTitle();
+        if (!MODE_TITLE.equals(title)
+                && !SETS_TITLE.equals(title)
+                && !LOBBY_TITLE.equals(title)
+                && !BET_TITLE.equals(title)
+                && !CHOICE_TITLE.equals(title)) {
+            return;
+        }
+        if (session == null || !session.players.containsKey(player.getUniqueId())) return;
+        session.lastGuiTitle.put(player.getUniqueId(), title);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onChatChoice(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        if (session == null || session.phase != Phase.PLAYING) return;
+        if (!player.getUniqueId().equals(session.currentChild)) return;
+        PlayerState child = session.players.get(player.getUniqueId());
+        if (child == null || !child.awaitingChoice) return;
+
+        String msg = event.getMessage().trim().toLowerCase(Locale.ROOT);
+        Guess guess = null;
+        if ("high".equals(msg)) guess = Guess.HIGH;
+        else if ("low".equals(msg)) guess = Guess.LOW;
+        if (guess == null) return;
+
+        event.setCancelled(true);
+        Guess finalGuess = guess;
+        Bukkit.getScheduler().runTask(plugin, () -> applyChoice(player, finalGuess));
+    }
+
+    /** 進行中セッションでのみ有効（{@link HiLoSelectCommand} からも呼ぶ）。 */
+    public enum GuessSelection {
+        HIGH,
+        LOW
+    }
+
+    public void trySelectGuess(Player player, GuessSelection selection) {
+        if (session == null || session.phase != Phase.PLAYING) {
+            player.sendMessage("§7進行中のH&Lがありません。");
+            return;
+        }
+        Guess guess = selection == GuessSelection.HIGH ? Guess.HIGH : Guess.LOW;
+        applyChoice(player, guess);
+    }
+
+    /** ディーラー右クリックで、中断していたGUIを再表示する */
+    private boolean resumeFromDealer(Player player) {
+        if (session == null || !session.players.containsKey(player.getUniqueId())) return false;
+        Entity dealer = findDealerFor(player);
+        if (dealer == null || !dealer.getUniqueId().equals(session.dealerId)) return false;
+
+        if (session.phase == Phase.PLAYING) {
+            PlayerState ps = session.players.get(player.getUniqueId());
+            if (ps != null && player.getUniqueId().equals(session.currentChild) && ps.awaitingChoice) {
+                openChoice(player);
+                return true;
+            }
+        }
+        String last = session.lastGuiTitle.get(player.getUniqueId());
+        if (last == null) {
+            if (session.phase == Phase.LOBBY) openLobby(player);
+            return true;
+        }
+        if (MODE_TITLE.equals(last)) {
+            openMode(player, dealer);
+        } else if (SETS_TITLE.equals(last)) {
+            PendingMode pm = pendingModes.get(player.getUniqueId());
+            if (pm != null) openSetSelect(player, pm.mode);
+            else openMode(player, dealer);
+        } else if (LOBBY_TITLE.equals(last) || BET_TITLE.equals(last)) {
+            if (session.phase == Phase.LOBBY) {
+                if (BET_TITLE.equals(last)) openBet(player);
+                else openLobby(player);
+            }
+        } else if (CHOICE_TITLE.equals(last) && session.phase == Phase.PLAYING) {
+            PlayerState ps = session.players.get(player.getUniqueId());
+            if (ps != null && player.getUniqueId().equals(session.currentChild) && ps.awaitingChoice) openChoice(player);
+        }
+        return true;
     }
 
     private final Map<UUID, PendingMode> pendingModes = new HashMap<>();
@@ -267,6 +380,7 @@ public final class HiLoService implements Listener {
         inv.setItem(22, icon(Material.BARRIER, "§7閉じる", null));
         pendingModes.put(player.getUniqueId(), new PendingMode(Mode.DEALER, dealer.getUniqueId()));
         player.openInventory(inv);
+        rememberGuiTitle(player, MODE_TITLE);
     }
 
     private void openSetSelect(Player player, Mode mode) {
@@ -279,6 +393,7 @@ public final class HiLoService implements Listener {
         inv.setItem(15, icon(Material.PAPER, "§e9セット", List.of("§7長めの勝負")));
         inv.setItem(22, icon(Material.ARROW, "§7戻る", null));
         player.openInventory(inv);
+        rememberGuiTitle(player, SETS_TITLE);
     }
 
     private void createLobby(Player host, Mode mode, UUID dealerId, int sets) {
@@ -307,6 +422,7 @@ public final class HiLoService implements Listener {
         )));
         inv.setItem(15, icon(Material.BARRIER, "§c退出", null));
         player.openInventory(inv);
+        rememberGuiTitle(player, LOBBY_TITLE);
     }
 
     private List<String> lobbyLore() {
@@ -337,6 +453,7 @@ public final class HiLoService implements Listener {
         inv.setItem(15, icon(Material.DIAMOND_BLOCK, "§b手持ち全部", List.of("§7現在: " + countHandCoins(player))));
         inv.setItem(22, icon(Material.ARROW, "§7戻る", null));
         player.openInventory(inv);
+        rememberGuiTitle(player, BET_TITLE);
     }
 
     private void setBet(Player player, int amount) {
@@ -438,7 +555,10 @@ public final class HiLoService implements Listener {
         broadcast("§d[H&L] §fセット §e" + (session.setIndex + 1) + "/" + session.maxSets
                 + " §7親: §f" + playerName(parentId)
                 + " §7表カード: §e" + parent.parentCard.label());
-        if (childPlayer != null) openChoice(childPlayer);
+        if (childPlayer != null) {
+            openChoice(childPlayer);
+            sendClickableHighLow(childPlayer);
+        }
     }
 
     private void openChoice(Player player) {
@@ -452,9 +572,32 @@ public final class HiLoService implements Listener {
         inv.setItem(15, icon(Material.RED_CONCRETE, "§c§lLOW", List.of("§7子カードが親カードより低い")));
         inv.setItem(22, icon(Material.DIAMOND, "§b現在ポイント: §f" + ps.points, null));
         player.openInventory(inv);
+        rememberGuiTitle(player, CHOICE_TITLE);
     }
 
-    private void choose(Player player, Guess guess) {
+    private void rememberGuiTitle(Player player, String title) {
+        if (session == null) return;
+        if (!session.players.containsKey(player.getUniqueId())) return;
+        session.lastGuiTitle.put(player.getUniqueId(), title);
+    }
+
+    /** チャットで high / low を送るか、クリックで進行。 */
+    private void sendClickableHighLow(Player childPlayer) {
+        TextComponent head = new TextComponent(TextComponent.fromLegacyText("§d[H&L] §7チャットで §fhigh §7/ §flow §7か、"));
+        TextComponent hi = new TextComponent(TextComponent.fromLegacyText("§a§nHIGH"));
+        hi.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/hilo select high"));
+        hi.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                new ComponentBuilder("§aクリックで HIGH").create()));
+        TextComponent mid = new TextComponent(TextComponent.fromLegacyText(" §7/ "));
+        TextComponent lo = new TextComponent(TextComponent.fromLegacyText("§c§nLOW"));
+        lo.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/hilo select low"));
+        lo.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                new ComponentBuilder("§cクリックで LOW").create()));
+        TextComponent tail = new TextComponent(TextComponent.fromLegacyText(" §7を選べます。"));
+        childPlayer.spigot().sendMessage(head, hi, mid, lo, tail);
+    }
+
+    private void applyChoice(Player player, Guess guess) {
         if (session == null || session.phase != Phase.PLAYING) return;
         if (!player.getUniqueId().equals(session.currentChild)) {
             player.sendMessage("§e今選ぶのは子の番です。");
@@ -472,10 +615,10 @@ public final class HiLoService implements Listener {
                 || (guess == Guess.LOW && childRank < parentRank);
         if (hit) {
             child.points++;
-            player.sendMessage("§a正解！ §7親: §f" + parent.parentCard.label()
+            player.sendMessage("§a[H&L] §a当たり §7親: §f" + parent.parentCard.label()
                     + " §7子: §f" + child.childCard.label() + " §a+1pt");
         } else {
-            player.sendMessage("§c不正解。 §7親: §f" + parent.parentCard.label()
+            player.sendMessage("§c[H&L] §c外れ §7親: §f" + parent.parentCard.label()
                     + " §7子: §f" + child.childCard.label());
         }
         revealChildCard(player, child);
@@ -879,6 +1022,8 @@ public final class HiLoService implements Listener {
         private final UUID dealerId;
         private final Mode mode;
         private final int maxSets;
+        /** 最後に閉じたH&L GUIタイトル（デーラー右クリックで再開用） */
+        private final Map<UUID, String> lastGuiTitle = new HashMap<>();
         private final Map<UUID, PlayerState> players = new HashMap<>();
         private List<Card> deck = new ArrayList<>();
         private Phase phase = Phase.LOBBY;

@@ -25,3 +25,6 @@ commands:
     usage: /perocasino <subcommand>
     permission: perocasino.admin
     aliases: [pc]
+  hilo:
+    description: High & Low の選択（進行中のセッションがあるときのみ）
+    usage: /hilo select <high|low>
