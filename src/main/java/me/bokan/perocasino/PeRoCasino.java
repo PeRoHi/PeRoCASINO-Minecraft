@@ -2,13 +2,18 @@ package me.bokan.perocasino;
 
 import me.bokan.perocasino.commands.BalanceCommand;
 import me.bokan.perocasino.commands.CasinoCommand;
+import me.bokan.perocasino.commands.CommandBookCommand;
 import me.bokan.perocasino.commands.DepositCommand;
+import me.bokan.perocasino.commands.HiLoSelectCommand;
 import me.bokan.perocasino.commands.PerocasinoCommand;
 import me.bokan.perocasino.economy.EconomyManager;
+import me.bokan.perocasino.games.blackjack.BlackjackService;
+import me.bokan.perocasino.games.hilo.HiLoService;
 import me.bokan.perocasino.games.slot.SlotMachineService;
 import me.bokan.perocasino.listeners.CasinoMenuListener;
 import me.bokan.perocasino.listeners.GameMenuListener;
 import me.bokan.perocasino.listeners.LoanMenuListener;
+import me.bokan.perocasino.listeners.CommandBookListener;
 import me.bokan.perocasino.listeners.QuarryRespawnListener;
 import me.bokan.perocasino.listeners.RuleBookListener;
 import me.bokan.perocasino.listeners.RouletteBetMenuListener;
@@ -27,6 +32,8 @@ public class PeRoCasino extends JavaPlugin {
     private EconomyManager economyManager;
     private RouletteHubService rouletteHubService;
     private SlotMachineService slotMachineService;
+    private BlackjackService blackjackService;
+    private HiLoService hiLoService;
 
     @Override
     public void onEnable() {
@@ -36,19 +43,30 @@ public class PeRoCasino extends JavaPlugin {
         getCommand("balance").setExecutor(new BalanceCommand(economyManager));
         getCommand("deposit").setExecutor(new DepositCommand(economyManager));
         getCommand("casino").setExecutor(new CasinoCommand());
+        org.bukkit.command.PluginCommand cb = getCommand("commandbook");
+        if (cb != null) {
+            cb.setExecutor(new CommandBookCommand(this));
+        }
 
         slotMachineService = new SlotMachineService(this, economyManager);
+        blackjackService = new BlackjackService(this, economyManager);
+        hiLoService = new HiLoService(this, economyManager);
+        org.bukkit.command.PluginCommand hiloCmd = getCommand("hilo");
+        if (hiloCmd != null) {
+            hiloCmd.setExecutor(new HiLoSelectCommand(hiLoService));
+        }
 
         // LOAN GUI リスナー → カジノメインリスナーへ渡す
         LoanMenuListener loanListener = new LoanMenuListener(economyManager, this);
         getServer().getPluginManager().registerEvents(loanListener, this);
-        getServer().getPluginManager().registerEvents(new CasinoMenuListener(loanListener, this, slotMachineService), this);
+        getServer().getPluginManager().registerEvents(new CasinoMenuListener(loanListener, this, slotMachineService, blackjackService, hiLoService), this);
 
         // 財布システム（スロット8: 引き出し口 / スロット35: 専用バンドル）
         getServer().getPluginManager().registerEvents(new WalletListener(economyManager, this), this);
 
         // ルールブック（ホットバー左端0に固定）
         getServer().getPluginManager().registerEvents(new RuleBookListener(this), this);
+        getServer().getPluginManager().registerEvents(new CommandBookListener(this), this);
 
         // 【追加】ルーレットのリスナーを登録
         RouletteBetMenuListener betListener = new RouletteBetMenuListener(this);
@@ -73,6 +91,8 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SlotMenuListener(), this);
         getServer().getPluginManager().registerEvents(new SlotSessionCleanupListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new GameMenuListener(), this);
+        getServer().getPluginManager().registerEvents(blackjackService, this);
+        getServer().getPluginManager().registerEvents(hiLoService, this);
 
         // HUD 表示（1秒ごと）
         new HudTask(economyManager).runTaskTimer(this, 0L, 20L);
@@ -88,10 +108,24 @@ public class PeRoCasino extends JavaPlugin {
         if (rouletteHubService != null) {
             rouletteHubService.shutdown();
         }
+        if (blackjackService != null) {
+            blackjackService.shutdown();
+        }
+        if (hiLoService != null) {
+            hiLoService.shutdown();
+        }
         getLogger().info("PeRoCasino が無効化されました。");
     }
 
     public EconomyManager getEconomyManager() {
         return economyManager;
+    }
+
+    public BlackjackService getBlackjackService() {
+        return blackjackService;
+    }
+
+    public HiLoService getHiLoService() {
+        return hiLoService;
     }
 }

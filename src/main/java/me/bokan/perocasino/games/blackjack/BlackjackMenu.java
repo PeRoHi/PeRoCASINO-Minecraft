@@ -10,8 +10,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.List;
 
 /**
- * ブラックジャック（骨組み）。
- * 今後: デッキ、ヒット/スタンド、ディーラーAI、支払いをここに集約する。
+ * 旧カジノメニューからの入口用。
+ * 実ゲームは村人ディーラーから開始するため、ここでは案内だけ表示する。
  */
 public final class BlackjackMenu {
 
@@ -21,11 +21,14 @@ public final class BlackjackMenu {
 
     public static void open(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, GUI_TITLE);
-        inv.setItem(11, pane(Material.LIME_STAINED_GLASS_PANE, "§a§lHIT（予定）"));
-        inv.setItem(15, pane(Material.RED_STAINED_GLASS_PANE, "§c§lSTAND（予定）"));
-        inv.setItem(13, pane(Material.PAPER, "§e§lルール（予定）", List.of(
-                "§7このGUIは骨組みです。",
-                "§7次の実装でカード表示・勝敗処理を追加します。"
+        inv.setItem(13, pane(Material.PAPER, "§e§lブラックジャック", List.of(
+                "§7ブラックジャックはディーラー村人に",
+                "§7話しかけて開始します。",
+                "§f",
+                "§7ディーラー設定:",
+                "§e/perocasino blackjack dealer set",
+                "§7または名前に Blackjack / ブラックジャック / ディーラー",
+                "§7を含む村人を右クリック"
         )));
         inv.setItem(22, pane(Material.BARRIER, "§7閉じる"));
         player.openInventory(inv);
