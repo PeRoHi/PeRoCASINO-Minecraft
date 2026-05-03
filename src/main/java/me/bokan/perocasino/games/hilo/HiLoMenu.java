@@ -36,4 +36,8 @@ public final class HiLoMenu {
         it.setItemMeta(meta);
         return it;
     }
+
+    private static ItemStack pane(Material mat, String name) {
+        return pane(mat, name, null);
+    }
 }

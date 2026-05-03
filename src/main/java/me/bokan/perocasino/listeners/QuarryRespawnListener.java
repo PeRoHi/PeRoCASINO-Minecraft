@@ -5,6 +5,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -34,17 +35,36 @@ public class QuarryRespawnListener implements Listener {
 
         Block block = event.getBlock();
         Material type = block.getType();
-        if (type != Material.DIAMOND_ORE && type != Material.DEEPSLATE_DIAMOND_ORE) return;
+        if (type != Material.DIAMOND_ORE && type != Material.DEEPSLATE_DIAMOND_ORE && type != Material.COBBLESTONE) return;
 
         Location loc = block.getLocation();
         if (!isInQuarry(cfg, loc)) return;
 
         String key = key(loc);
+
+        // 採石場の丸石は掘れない（無ドロップ＆即補完）
+        if (type == Material.COBBLESTONE) {
+            event.setDropItems(false);
+            event.setExpToDrop(0);
+            event.setCancelled(true);
+            // 念のため1tick後に丸石を補完（クライアント側の見た目ズレ対策）
+            plugin.getServer().getScheduler().runTask(plugin, () -> {
+                if (loc.getWorld() == null) return;
+                Block b = loc.getWorld().getBlockAt(loc);
+                if (b.getType() != Material.COBBLESTONE) {
+                    b.setType(Material.COBBLESTONE, false);
+                }
+            });
+            return;
+        }
+
         // 既に復帰待ちの座標なら二重登録しない
         if (pending.containsKey(key)) return;
 
-        // ドロップはバニラ通り出るので、ブロックだけ置換する
-        event.setDropItems(true);
+        // ビースト鉱石（=ダイヤ鉱石）は「ビーストコイン（=ダイヤ）」を落として、ブロックだけ丸石に置換する
+        event.setDropItems(false);
+        event.setExpToDrop(0);
+        block.getWorld().dropItemNaturally(block.getLocation().add(0.5, 0.5, 0.5), new org.bukkit.inventory.ItemStack(Material.DIAMOND, 1));
 
         block.setType(Material.COBBLESTONE, true);
 

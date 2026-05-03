@@ -1,7 +1,6 @@
 {
   "pack": {
-    "min_format": [75, 0],
-    "max_format": [85, 0],
+    "pack_format": 34,
     "description": "PeRo Casino Resource Pack"
   }
 }

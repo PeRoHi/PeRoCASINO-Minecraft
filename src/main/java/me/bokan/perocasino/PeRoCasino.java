@@ -2,6 +2,7 @@ package me.bokan.perocasino;
 
 import me.bokan.perocasino.commands.BalanceCommand;
 import me.bokan.perocasino.commands.CasinoCommand;
+import me.bokan.perocasino.commands.CommandBookCommand;
 import me.bokan.perocasino.commands.DepositCommand;
 import me.bokan.perocasino.commands.PerocasinoCommand;
 import me.bokan.perocasino.economy.EconomyManager;
@@ -9,13 +10,19 @@ import me.bokan.perocasino.games.slot.SlotMachineService;
 import me.bokan.perocasino.listeners.CasinoMenuListener;
 import me.bokan.perocasino.listeners.GameMenuListener;
 import me.bokan.perocasino.listeners.LoanMenuListener;
+import me.bokan.perocasino.listeners.CommandBookListener;
+import me.bokan.perocasino.listeners.NetherPortalTeleportListener;
 import me.bokan.perocasino.listeners.QuarryRespawnListener;
+import me.bokan.perocasino.listeners.RouletteBetBoardMenuListener;
+import me.bokan.perocasino.listeners.RuleBookListener;
 import me.bokan.perocasino.listeners.RouletteBetMenuListener;
 import me.bokan.perocasino.listeners.RouletteInteractListener;
 import me.bokan.perocasino.listeners.SlotInteractListener;
 import me.bokan.perocasino.listeners.SlotMenuListener;
 import me.bokan.perocasino.listeners.SlotSessionCleanupListener;
 import me.bokan.perocasino.listeners.WalletListener;
+import me.bokan.perocasino.roulette.RouletteBetBoardService;
+import me.bokan.perocasino.roulette.RouletteDisplayService;
 import me.bokan.perocasino.roulette.RouletteHubService;
 import me.bokan.perocasino.tasks.HudTask;
 import me.bokan.perocasino.tasks.LoanTask;
@@ -26,6 +33,7 @@ public class PeRoCasino extends JavaPlugin {
     private EconomyManager economyManager;
     private RouletteHubService rouletteHubService;
     private SlotMachineService slotMachineService;
+    private RouletteDisplayService rouletteDisplayService;
 
     @Override
     public void onEnable() {
@@ -35,8 +43,13 @@ public class PeRoCasino extends JavaPlugin {
         getCommand("balance").setExecutor(new BalanceCommand(economyManager));
         getCommand("deposit").setExecutor(new DepositCommand(economyManager));
         getCommand("casino").setExecutor(new CasinoCommand());
+        getCommand("commandbook").setExecutor(new CommandBookCommand(this));
 
         slotMachineService = new SlotMachineService(this, economyManager);
+
+        // ルーレット表示（ItemDisplay）
+        RouletteDisplayService rouletteDisplayService = new RouletteDisplayService(this);
+        rouletteDisplayService.reloadFromConfig();
 
         // LOAN GUI リスナー → カジノメインリスナーへ渡す
         LoanMenuListener loanListener = new LoanMenuListener(economyManager, this);
@@ -46,13 +59,24 @@ public class PeRoCasino extends JavaPlugin {
         // 財布システム（スロット8: 引き出し口 / スロット35: 専用バンドル）
         getServer().getPluginManager().registerEvents(new WalletListener(economyManager, this), this);
 
+        // ルールブック（ホットバー左端0に固定）
+        getServer().getPluginManager().registerEvents(new RuleBookListener(this), this);
+
+        // コマンド集ルールブック（固定なし）
+        getServer().getPluginManager().registerEvents(new CommandBookListener(this), this);
+
         // 【追加】ルーレットのリスナーを登録
         RouletteBetMenuListener betListener = new RouletteBetMenuListener(this);
         getServer().getPluginManager().registerEvents(betListener, this);
-        getServer().getPluginManager().registerEvents(new RouletteInteractListener(betListener), this);
+        RouletteBetBoardService betBoardService = new RouletteBetBoardService(this, economyManager);
+        getServer().getPluginManager().registerEvents(new RouletteInteractListener(betListener, betBoardService), this);
+        // 砥石ベットは 54枠GUI（RouletteBetMenuListener）で扱うので列別GUIは無効化
 
-        rouletteHubService = new RouletteHubService(this, economyManager, betListener);
+        rouletteDisplayService = new RouletteDisplayService(this);
+        rouletteHubService = new RouletteHubService(this, economyManager, betListener, rouletteDisplayService, betBoardService);
         rouletteHubService.runTaskTimer(this, 0L, 1L);
+
+        // ※上で登録済み（重複登録しない）
 
         org.bukkit.command.PluginCommand pc = getCommand("perocasino");
         if (pc != null) {
@@ -69,6 +93,7 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SlotMenuListener(), this);
         getServer().getPluginManager().registerEvents(new SlotSessionCleanupListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new GameMenuListener(), this);
+        getServer().getPluginManager().registerEvents(new NetherPortalTeleportListener(this), this);
 
         // HUD 表示（1秒ごと）
         new HudTask(economyManager).runTaskTimer(this, 0L, 20L);
