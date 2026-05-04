@@ -29,46 +29,50 @@ public final class CommandBookFactory {
 
         meta.setPages(List.of(
                 "§0§lコマンド集\n" +
-                        "§7一般に使うコマンドと、\n" +
-                        "§7管理者向けの設定コマンドです。\n\n" +
+                                    "§8一般に使うコマンドと、\n" +
+                                    "§8管理者向けの設定コマンドです。\n\n" +
                         "§8目次\n" +
                         "§1- 一般\n" +
                         "§1- 管理者（設置）\n" +
                         "§1- ブラックジャック / H&L",
                 "§0§l一般\n" +
-                        "§7・/casino\n" +
-                        "§7  カジノメニュー\n\n" +
-                        "§7・/balance（/bal）\n" +
-                        "§7  財布・借金の表示\n\n" +
-                        "§7・/deposit\n" +
-                        "§7  手持ちコインを財布へ\n\n" +
-                        "§7・/hilo select <high|low>\n" +
-                        "§7  H&L進行中の選択（GUIなし）\n\n" +
-                        "§7・/commandbook（/cb）\n" +
-                        "§7  この本を再取得",
+                                    "§8・§f/casino\n" +
+                                    "§8  カジノメニュー\n\n" +
+                                    "§8・§f/balance§8（§f/bal§8）\n" +
+                                    "§8  財布・借金の表示\n\n" +
+                                    "§8・§f/deposit\n" +
+                                    "§8  手持ちコインを財布へ\n\n" +
+                                    "§8・§f/hilo select <high|low>\n" +
+                                    "§8  H&L進行中の選択（GUIなし）\n\n" +
+                                    "§8・§f/commandbook§8（§f/cb§8）\n" +
+                                    "§8  この本を再取得",
                 "§0§l管理者（設置）\n" +
                         "§7権限: perocasino.admin\n\n" +
-                        "§7・/perocasino roulette set\n" +
-                        "§7  見ている砥石をルーレット拠点に\n\n" +
-                        "§7・/perocasino quarry set\n" +
-                        "§7  採石場（2回で角登録）\n\n" +
-                        "§7・/perocasino reload\n" +
-                        "§7  config再読込",
+                                    "§8・§f/perocasino roulette set\n" +
+                                    "§8  見ている砥石をルーレット拠点に\n" +
+                                    "§8  （プレイヤーはその砥石を右クリックでベット）\n\n" +
+                                    "§8・§f/perocasino quarry set\n" +
+                                    "§8  採石場（2回で角登録）\n\n" +
+                                    "§8・§f/perocasino reload\n" +
+                                    "§8  config再読込",
                 "§0§l管理者（続き）\n" +
-                        "§7・/perocasino blackjack dealer set\n" +
-                        "§7  近くの村人をBJディーラーに\n\n" +
-                        "§7・/perocasino hilo dealer set\n" +
-                        "§7  近くの村人をH&Lディーラーに\n\n" +
-                        "§7・/perocasino hilo dealer summon\n" +
-                        "§7  H&Lディーラーを召喚・登録\n" +
-                        "§7  （AI/重力オフで固定）",
+                                    "§8・§f/perocasino blackjack dealer set\n" +
+                                    "§8  近くの村人をBJディーラーに\n\n" +
+                                    "§8・§f/perocasino blackjack dealer summon\n" +
+                                    "§8  BJディーラーを召喚・登録（固定）\n\n" +
+                                    "§8・§f/perocasino hilo dealer set\n" +
+                                    "§8  近くの村人をH&Lディーラーに\n\n" +
+                                    "§8・§f/perocasino hilo dealer summon\n" +
+                                    "§8  H&Lディーラーを召喚・登録（固定）",
                 "§0§lブラックジャック / H&L\n" +
-                        "§7・BJはディーラー村人へ話しかけ\n" +
-                        "§7  Yes/No → ロビー → 掛け金 → START\n\n" +
-                        "§7・H&Lも専用ディーラーへ話しかけ\n" +
-                        "§7  ディーラー戦 or 2人対戦\n" +
-                        "§7  セット数 5 / 7 / 9 を選択\n\n" +
-                        "§7詳細はルールブック参照。"
+                                    "§8・BJはディーラー村人へ話しかけ\n" +
+                                    "§8  Yes/No → ロビー → 掛け金 → START\n" +
+                                    "§8  途中で閉じてもディーラー右クリックで復帰\n\n" +
+                                    "§8・H&Lも専用ディーラーへ話しかけ\n" +
+                                    "§8  ディーラー戦 or 2人対戦\n" +
+                                    "§8  セット数 5 / 7 / 9 を選択\n" +
+                                    "§8  途中で閉じてもディーラー右クリックで復帰\n\n" +
+                                    "§8詳細はルールブック参照。"
         ));
 
         meta.getPersistentDataContainer().set(key(plugin), PersistentDataType.BYTE, (byte) 1);

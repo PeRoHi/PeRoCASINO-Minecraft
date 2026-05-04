@@ -12,6 +12,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -38,8 +39,19 @@ public class WalletListener implements Listener {
     }
 
     public void setupWalletItems(Player player) {
+        if (player.getGameMode() == GameMode.CREATIVE) {
+            // Creative では固定アイテムを置かない（操作の邪魔になりやすいため）
+            clearWalletItems(player);
+            return;
+        }
         player.getInventory().setItem(WITHDRAW_SLOT, createWithdrawItem());
         player.getInventory().setItem(BUNDLE_SLOT,   createBundleItem());
+    }
+
+    private void clearWalletItems(Player player) {
+        PlayerInventory inv = player.getInventory();
+        if (isWalletItem(inv.getItem(WITHDRAW_SLOT))) inv.setItem(WITHDRAW_SLOT, null);
+        if (isWalletItem(inv.getItem(BUNDLE_SLOT))) inv.setItem(BUNDLE_SLOT, null);
     }
 
     @EventHandler
@@ -59,6 +71,16 @@ public class WalletListener implements Listener {
         setupWalletItems(event.getPlayer());
     }
 
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onGameModeChange(PlayerGameModeChangeEvent event) {
+        Player player = event.getPlayer();
+        if (event.getNewGameMode() == GameMode.CREATIVE) {
+            clearWalletItems(player);
+        } else {
+            setupWalletItems(player);
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
@@ -72,9 +94,9 @@ public class WalletListener implements Listener {
         if (!(event.getClickedInventory() instanceof PlayerInventory)) return;
         int slot = event.getSlot();
 
+        // Creativeでは固定アイテム自体を置かないため、この分岐は不要だが念のため残す
         if (player.getGameMode() == GameMode.CREATIVE
                 && (slot == WITHDRAW_SLOT || slot == BUNDLE_SLOT)) {
-            event.setCancelled(true);
             return;
         }
 

@@ -17,6 +17,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
@@ -74,6 +75,22 @@ public final class BlackjackService implements Listener {
         this.ownerKey = new NamespacedKey(plugin, "blackjack_owner");
         this.rankKey = new NamespacedKey(plugin, "blackjack_rank");
         startHud();
+        applyConfiguredDealerNpcSettings();
+    }
+
+    /** config の UUID に一致するディーラー村人がいれば AI/重力を無効化（再起動後も固定）。 */
+    public void applyConfiguredDealerNpcSettings() {
+        String raw = plugin.getConfig().getString("blackjack.dealer.uuid", "");
+        if (raw == null || raw.isBlank()) return;
+        try {
+            UUID id = UUID.fromString(raw.trim());
+            Entity e = Bukkit.getEntity(id);
+            if (e instanceof Villager v) {
+                v.setAI(false);
+                v.setGravity(false);
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     public void shutdown() {
@@ -95,6 +112,9 @@ public final class BlackjackService implements Listener {
         Player player = event.getPlayer();
         if (table != null && table.phase == Phase.PLAYING && !table.players.containsKey(player.getUniqueId())) {
             player.sendMessage("§c現在ブラックジャックは進行中です。次のゲームまでお待ちください。");
+            return;
+        }
+        if (resumeFromDealer(player, villager)) {
             return;
         }
         openConfirm(player, villager);
@@ -246,6 +266,22 @@ public final class BlackjackService implements Listener {
         leaveTable(event.getPlayer(), false);
     }
 
+    /** GUI を閉じてもテーブルは維持する（ディーラー右クリックで復帰）。 */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        String title = event.getView().getTitle();
+        if (!CONFIRM_TITLE.equals(title)
+                && !LOBBY_TITLE.equals(title)
+                && !BET_TITLE.equals(title)
+                && !ACTION_TITLE.equals(title)) {
+            return;
+        }
+        if (table == null) return;
+        if (!table.players.containsKey(player.getUniqueId()) && !CONFIRM_TITLE.equals(title)) return;
+        table.lastGuiTitle.put(player.getUniqueId(), title);
+    }
+
     public void openJoinConfirm(Player player) {
         Entity dealer = findDealerFor(player);
         if (dealer == null) {
@@ -261,6 +297,7 @@ public final class BlackjackService implements Listener {
         inv.setItem(15, icon(Material.RED_CONCRETE, "§c§lNo", List.of("§7参加しません。")));
         inv.setItem(22, icon(Material.BARRIER, "§7閉じる", null));
         player.openInventory(inv);
+        rememberGuiTitle(player, CONFIRM_TITLE);
     }
 
     private void joinLobby(Player player, Entity dealer) {
@@ -291,6 +328,7 @@ public final class BlackjackService implements Listener {
         )));
         inv.setItem(15, icon(Material.BARRIER, "§c退出", null));
         player.openInventory(inv);
+        rememberGuiTitle(player, LOBBY_TITLE);
     }
 
     private List<String> lobbyLore() {
@@ -321,6 +359,7 @@ public final class BlackjackService implements Listener {
         inv.setItem(15, icon(Material.DIAMOND_BLOCK, "§b手持ち全部", List.of("§7現在の手持ち: " + countHandCoins(player))));
         inv.setItem(22, icon(Material.ARROW, "§7ロビーへ戻る", null));
         player.openInventory(inv);
+        rememberGuiTitle(player, BET_TITLE);
     }
 
     private void setBet(Player player, int amount) {
@@ -441,6 +480,32 @@ public final class BlackjackService implements Listener {
         )));
         inv.setItem(22, icon(Material.BARRIER, "§7SURRENDER", List.of("§7掛け金の半分を戻して降ります。")));
         player.openInventory(inv);
+        rememberGuiTitle(player, ACTION_TITLE);
+    }
+
+    private void rememberGuiTitle(Player player, String title) {
+        if (table == null) return;
+        table.lastGuiTitle.put(player.getUniqueId(), title);
+    }
+
+    /** ディーラー右クリックで、中断していたGUIを再表示する。 */
+    private boolean resumeFromDealer(Player player, Villager clickedDealer) {
+        if (table == null) return false;
+        if (!clickedDealer.getUniqueId().equals(table.dealerId)) return false;
+
+        UUID id = player.getUniqueId();
+        if (!table.players.containsKey(id)) {
+            // 未参加者は復帰対象なし（進行中でないなら通常のconfirmへ）
+            return false;
+        }
+        if (table.phase == Phase.PLAYING) {
+            openAction(player);
+            return true;
+        }
+        String last = table.lastGuiTitle.get(id);
+        if (BET_TITLE.equals(last)) openBet(player);
+        else openLobby(player);
+        return true;
     }
 
     private void hit(Player player) {
@@ -933,6 +998,7 @@ public final class BlackjackService implements Listener {
         private UUID host;
         private final UUID dealerId;
         private Phase phase = Phase.LOBBY;
+        private final Map<UUID, String> lastGuiTitle = new HashMap<>();
         private final Map<UUID, PlayerState> players = new HashMap<>();
         private List<Card> deck = new ArrayList<>();
         private final List<Card> dealerHand = new ArrayList<>();
