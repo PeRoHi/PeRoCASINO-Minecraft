@@ -128,9 +128,6 @@ public class WalletListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (player.getGameMode() == GameMode.CREATIVE) return;
 
-        Map<Integer, ItemStack> newItems = event.getNewItems();
-        if (!newItems.containsKey(BUNDLE_SLOT)) return;
-        
         boolean targetsBundleSlot = event.getRawSlots().stream().anyMatch(rawSlot -> {
             try {
                 return event.getView().convertSlot(rawSlot) == BUNDLE_SLOT
@@ -146,10 +143,20 @@ public class WalletListener implements Listener {
 
         event.setCancelled(true);
 
-        int total = newItems.values().stream()
-                .filter(i -> i != null && i.getType() == Material.DIAMOND)
-                .mapToInt(ItemStack::getAmount)
-                .sum();
+        // newItems のキーは「raw slot」なので、convertSlotでBUNDLE_SLOTに当たる分だけ集計する
+        int total = 0;
+        for (Map.Entry<Integer, ItemStack> e : event.getNewItems().entrySet()) {
+            int rawSlot = e.getKey();
+            ItemStack item = e.getValue();
+            if (item == null || item.getType() != Material.DIAMOND) continue;
+            try {
+                if (event.getView().convertSlot(rawSlot) != BUNDLE_SLOT) continue;
+                if (!(event.getView().getInventory(rawSlot) instanceof PlayerInventory)) continue;
+            } catch (Exception ex) {
+                continue;
+            }
+            total += item.getAmount();
+        }
         if (total <= 0) return;
 
         ItemStack cursor = event.getOldCursor().clone();
