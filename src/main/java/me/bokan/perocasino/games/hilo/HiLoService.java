@@ -62,6 +62,7 @@ public final class HiLoService implements Listener {
     private static final String CHOICE_TITLE = "§0§lH&L: High / Low";
 
     private static final int REVERSE_MODEL_DATA = 14;
+    private static final double DEALER_PAYOUT_MULTIPLIER = 1.2d;
 
     private final JavaPlugin plugin;
     private final EconomyManager economy;
@@ -512,8 +513,15 @@ public final class HiLoService implements Listener {
     private void startGame() {
         session.phase = Phase.PLAYING;
         session.deck = buildDeck();
-        session.setIndex = 0;
-        session.parentIndex = 0;
+        // 1ターン = 親子を交換した2勝負
+        session.turnIndex = 0;
+        session.maxTurns = session.maxSets;
+        session.duelIndexInTurn = 0;
+        session.currentTurnParentIndex = 0;
+        session.dealerPoints = 0;
+        session.dealerParentCard = null;
+        session.dealerChildCard = null;
+        session.dealerChildAwaiting = false;
         for (PlayerState ps : session.players.values()) {
             ps.points = 0;
             ps.originalBet = ps.bet;
@@ -522,43 +530,154 @@ public final class HiLoService implements Listener {
             ps.guess = null;
             ps.awaitingChoice = false;
         }
-        broadcast("§aHigh & Low開始！ §e" + session.maxSets + "セット§aで勝負します。");
+        broadcast("§aHigh & Low開始！ §e" + session.maxTurns + "ターン§aで勝負します。");
         nextSet();
     }
 
     private void nextSet() {
         if (session == null || session.phase != Phase.PLAYING) return;
-        if (session.setIndex >= session.maxSets) {
+        if (session.turnIndex >= session.maxTurns) {
             settle();
             return;
         }
         List<UUID> order = new ArrayList<>(session.players.keySet());
-        UUID parentId = order.get(session.parentIndex % order.size());
-        UUID childId = session.mode == Mode.DEALER
-                ? parentId
-                : order.get((session.parentIndex + 1) % order.size());
-        session.currentParent = parentId;
-        session.currentChild = childId;
+        // 1ターン = 親子を交換した2勝負（ディーラー戦は「プレイヤー→ディーラー」の2勝負）
+        session.currentTurnParentIndex = session.turnIndex % order.size();
+        session.duelIndexInTurn = 0;
+        startDuel(order);
+    }
 
-        PlayerState parent = session.players.get(parentId);
-        PlayerState child = session.players.get(childId);
-        parent.parentCard = draw();
-        child.childCard = draw();
-        child.guess = null;
-        child.awaitingChoice = true;
+    private void startDuel(List<UUID> order) {
+        if (session == null || session.phase != Phase.PLAYING) return;
 
-        giveDisplayCard(Bukkit.getPlayer(parentId), parent.parentCard, false);
-        Player childPlayer = Bukkit.getPlayer(childId);
-        giveDisplayCard(childPlayer, child.childCard, true);
-        updateNameDisplays();
+        // PvP: duel0: A(parent)->B(child), duel1: B(parent)->A(child)
+        // Dealer: duel0: Player(parent)->Dealer(child), duel1: Dealer(parent)->Player(child)
+        UUID a = order.get(session.currentTurnParentIndex % order.size());
+        UUID b = session.mode == Mode.DEALER ? null : order.get((session.currentTurnParentIndex + 1) % order.size());
 
-        broadcast("§d[H&L] §fセット §e" + (session.setIndex + 1) + "/" + session.maxSets
-                + " §7親: §f" + playerName(parentId)
-                + " §7表カード: §e" + parent.parentCard.label());
-        if (childPlayer != null) {
-            openChoice(childPlayer);
-            sendClickableHighLow(childPlayer);
+        if (session.mode == Mode.PVP) {
+            session.currentParent = (session.duelIndexInTurn == 0) ? a : b;
+            session.currentChild = (session.duelIndexInTurn == 0) ? b : a;
+            PlayerState parent = session.players.get(session.currentParent);
+            PlayerState child = session.players.get(session.currentChild);
+            if (parent == null || child == null) return;
+
+            parent.parentCard = draw();
+            child.childCard = draw();
+            child.guess = null;
+            child.awaitingChoice = true;
+
+            Player parentPlayer = Bukkit.getPlayer(session.currentParent);
+            Player childPlayer = Bukkit.getPlayer(session.currentChild);
+            // 親カードも子カードもプレイヤーに配布（親は表、子は裏）
+            if (parentPlayer != null) removeCards(parentPlayer);
+            if (childPlayer != null && childPlayer != parentPlayer) removeCards(childPlayer);
+            giveDisplayCard(parentPlayer, parent.parentCard, false);
+            giveDisplayCard(childPlayer, child.childCard, true);
+            updateNameDisplays();
+
+            broadcast("§d[H&L] §fターン §e" + (session.turnIndex + 1) + "/" + session.maxTurns
+                    + " §7勝負 " + (session.duelIndexInTurn + 1) + "/2"
+                    + " §7親: §f" + playerName(session.currentParent)
+                    + " §7表カード: §e" + parent.parentCard.label());
+            if (childPlayer != null) {
+                openChoice(childPlayer);
+                sendClickableHighLow(childPlayer);
+            }
+        } else {
+            // Dealer戦（プレイヤー1人）：1ターン=2勝負（親子交換を含む）
+            // duel0: 親=プレイヤー（表カード） 子=プレイヤー（伏せカード）→プレイヤーが選ぶ（=プレイヤーの勝負）
+            // duel1: 親=ディーラー（表カード） 子=ディーラー（伏せカード）→ディーラーが選ぶ（=ディーラーの勝負）
+            session.currentParent = a;
+            session.currentChild = a; // UI表示対象は常にプレイヤー
+            PlayerState ps = session.players.get(a);
+            Player p = Bukkit.getPlayer(a);
+            if (ps == null || p == null) return;
+
+            removeCards(p);
+            if (session.duelIndexInTurn == 0) {
+                ps.parentCard = draw();
+                ps.childCard = draw();
+                ps.guess = null;
+                ps.awaitingChoice = true;
+                session.dealerChildAwaiting = false;
+                session.dealerParentCard = null;
+                session.dealerChildCard = null;
+
+                // 親カードも「カード」で提示（手元）
+                giveDisplayCard(p, ps.parentCard, false);
+                giveDisplayCard(p, ps.childCard, true);
+                updateNameDisplays();
+                broadcast("§d[H&L] §fターン §e" + (session.turnIndex + 1) + "/" + session.maxTurns
+                        + " §7勝負 1/2 §7親: §fプレイヤー §7表カード: §e" + ps.parentCard.label());
+                openChoice(p);
+                sendClickableHighLow(p);
+            } else {
+                // ディーラー勝負（UIは出さず自動選択）
+                session.dealerParentCard = draw();
+                session.dealerChildCard = draw();
+                session.dealerChildAwaiting = true;
+
+                // 親カードをカードで提示（プレイヤーに表示）
+                giveDisplayCard(p, session.dealerParentCard, false);
+                giveDisplayCard(p, session.dealerChildCard, true);
+                updateNameDisplays();
+                broadcast("§d[H&L] §fターン §e" + (session.turnIndex + 1) + "/" + session.maxTurns
+                        + " §7勝負 2/2 §7親: §6ディーラー §7表カード: §e" + session.dealerParentCard.label());
+                Bukkit.getScheduler().runTaskLater(plugin, () -> dealerAutoChoose(session.dealerParentCard), 10L);
+            }
         }
+    }
+
+    private void dealerAutoChoose(Card parentCard) {
+        if (session == null || session.phase != Phase.PLAYING) return;
+        if (session.mode != Mode.DEALER || session.duelIndexInTurn != 1) return;
+        if (!session.dealerChildAwaiting || session.dealerParentCard == null || session.dealerChildCard == null) return;
+
+        // x = 親のカード数値(1..13). P(high) = (x-7)*0.083 + 0.5
+        double pHigh = (parentCard.rank.value - 7) * 0.083d + 0.5d;
+        pHigh = Math.max(0d, Math.min(1d, pHigh));
+        boolean chooseHigh = Math.random() < pHigh;
+        applyDealerChoice(chooseHigh ? Guess.HIGH : Guess.LOW);
+    }
+
+    private void applyDealerChoice(Guess guess) {
+        if (session == null || session.phase != Phase.PLAYING) return;
+        if (session.mode != Mode.DEALER || session.duelIndexInTurn != 1) return;
+        UUID playerId = session.players.keySet().iterator().next();
+        Player p = Bukkit.getPlayer(playerId);
+        if (p == null) return;
+        if (!session.dealerChildAwaiting || session.dealerParentCard == null || session.dealerChildCard == null) return;
+        session.dealerChildAwaiting = false;
+
+        int parentRank = session.dealerParentCard.rank.value;
+        int childRank = session.dealerChildCard.rank.value;
+        if (childRank == parentRank) {
+            p.sendMessage("§e[H&L] §eDRAW（ディーラー手番） §7親: §f" + session.dealerParentCard.label()
+                    + " §7子: §f" + session.dealerChildCard.label());
+            // 裏カードを表に置換（見た目だけ）
+            revealDealerChildCard(p);
+            afterDuel();
+            return;
+        }
+        boolean hit = (guess == Guess.HIGH && childRank > parentRank)
+                || (guess == Guess.LOW && childRank < parentRank);
+        if (hit) {
+            session.dealerPoints++;
+        }
+        p.sendMessage(hit
+                ? "§c[H&L] ディーラーが当てました。（" + guess.name() + "）"
+                : "§a[H&L] ディーラーが外しました。（" + guess.name() + "）");
+        revealDealerChildCard(p);
+        afterDuel();
+    }
+
+    private void revealDealerChildCard(Player player) {
+        if (player == null || session == null || session.dealerChildCard == null) return;
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (isReverseCard(item)) item.setAmount(0);
+        }
+        player.getInventory().addItem(cardItem(player.getUniqueId(), session.dealerChildCard));
     }
 
     private void openChoice(Player player) {
@@ -611,6 +730,13 @@ public final class HiLoService implements Listener {
 
         int parentRank = parent.parentCard.rank.value;
         int childRank = child.childCard.rank.value;
+        if (childRank == parentRank) {
+            player.sendMessage("§e[H&L] §eDRAW §7親: §f" + parent.parentCard.label()
+                    + " §7子: §f" + child.childCard.label());
+            revealChildCard(player, child);
+            afterDuel();
+            return;
+        }
         boolean hit = (guess == Guess.HIGH && childRank > parentRank)
                 || (guess == Guess.LOW && childRank < parentRank);
         if (hit) {
@@ -622,11 +748,60 @@ public final class HiLoService implements Listener {
                     + " §7子: §f" + child.childCard.label());
         }
         revealChildCard(player, child);
+        afterDuel();
+    }
+
+    private void afterDuel() {
+        // 勝負ごとにポイント表示（自分/相手）
+        if (session == null) return;
+        if (session.mode == Mode.PVP) {
+            List<UUID> ids = new ArrayList<>(session.players.keySet());
+            if (ids.size() == 2) {
+                UUID aId = ids.get(0);
+                UUID bId = ids.get(1);
+                PlayerState a = session.players.get(aId);
+                PlayerState b = session.players.get(bId);
+                Player pa = Bukkit.getPlayer(aId);
+                Player pb = Bukkit.getPlayer(bId);
+                if (pa != null && a != null && b != null) {
+                    pa.sendMessage("§7[H&L] 現在ポイント: §a" + a.points + "§7 - §c" + b.points);
+                }
+                if (pb != null && a != null && b != null) {
+                    pb.sendMessage("§7[H&L] 現在ポイント: §a" + b.points + "§7 - §c" + a.points);
+                }
+            }
+        } else {
+            UUID id = session.players.keySet().iterator().next();
+            PlayerState ps = session.players.get(id);
+            Player p = Bukkit.getPlayer(id);
+            if (p != null && ps != null) {
+                p.sendMessage("§7[H&L] 現在ポイント: §aあなた " + ps.points + " §7/ §cディーラー " + session.dealerPoints);
+            }
+        }
+
+        // ターン終了時にカードを没収（山札には戻さない＝deckからは既に消費済み）
+        if (session.mode == Mode.DEALER) {
+            // Dealer戦は「プレイヤー→ディーラー」の2勝負で1ターン扱い。ここでは duelIndex を進めるだけ。
+        }
+
         updateNameDisplays();
 
-        session.setIndex++;
-        session.parentIndex++;
-        Bukkit.getScheduler().runTaskLater(plugin, this::nextSet, 30L);
+        // 次の勝負 or 次のターン
+        session.duelIndexInTurn++;
+        if (session.duelIndexInTurn < 2) {
+            List<UUID> order = new ArrayList<>(session.players.keySet());
+            // PvPなら親子交換、Dealerならディーラー勝負へ
+            Bukkit.getScheduler().runTaskLater(plugin, () -> startDuel(order), 20L);
+            return;
+        }
+
+        // ターン終了
+        for (UUID id : session.players.keySet()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) removeCards(p);
+        }
+        session.turnIndex++;
+        Bukkit.getScheduler().runTaskLater(plugin, this::nextSet, 20L);
     }
 
     private void settle() {
@@ -688,7 +863,7 @@ public final class HiLoService implements Listener {
     }
 
     private int calcDealerPayout(int bet, int diff) {
-        return (int) Math.floor(bet * (diff + 1) * 1.5d);
+        return (int) Math.floor(bet * (diff + 1) * DEALER_PAYOUT_MULTIPLIER);
     }
 
     private void chargeWalletOrDebt(Player player, int amount) {
@@ -788,8 +963,14 @@ public final class HiLoService implements Listener {
         Entity dealer = getDealerEntity();
         if (dealer != null) {
             if (session.phase == Phase.PLAYING && session.mode == Mode.DEALER) {
-                PlayerState ps = session.players.get(session.currentParent);
-                String card = ps == null || ps.parentCard == null ? "" : " §7[" + ps.parentCard.label() + " vs ?]";
+                // ディーラー戦は「ディーラーが親」の勝負が存在するため、カード表示は専用状態を優先
+                String card = "";
+                if (session.dealerParentCard != null && session.dealerChildAwaiting) {
+                    card = " §7[" + session.dealerParentCard.label() + " vs ?]";
+                } else {
+                    PlayerState ps = session.players.get(session.currentParent);
+                    if (ps != null && ps.parentCard != null) card = " §7[" + ps.parentCard.label() + " vs ?]";
+                }
                 dealer.setCustomName("§6H&L Dealer" + card);
             } else {
                 dealer.setCustomName("§6H&L Dealer");
@@ -810,7 +991,8 @@ public final class HiLoService implements Listener {
                     p.spigot().sendMessage(ChatMessageType.ACTION_BAR,
                             TextComponent.fromLegacyText("§eH&L §7| bet §b" + ps.bet
                                     + " §7| point §a" + ps.points
-                                    + " §7| set §f" + Math.min(session.setIndex + 1, session.maxSets) + "/" + session.maxSets));
+                                    + " §7| turn §f" + Math.min(session.turnIndex + 1, session.maxTurns) + "/" + session.maxTurns
+                                    + (session.mode == Mode.DEALER ? " §7| dealer §c" + session.dealerPoints : "")));
                 }
             }
         }.runTaskTimer(plugin, 0L, 20L);
@@ -1031,6 +1213,16 @@ public final class HiLoService implements Listener {
         private int parentIndex;
         private UUID currentParent;
         private UUID currentChild;
+        // --- turn-based flow (1 turn = parent/child swapped duel pair) ---
+        private int maxTurns;
+        private int turnIndex;
+        private int duelIndexInTurn;
+        private int currentTurnParentIndex;
+        private int dealerPoints;
+        // Dealer duel bookkeeping (when dealer is parent/child)
+        private Card dealerParentCard;
+        private Card dealerChildCard;
+        private boolean dealerChildAwaiting;
 
         private Session(UUID host, UUID dealerId, Mode mode, int maxSets) {
             this.host = host;

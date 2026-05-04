@@ -27,7 +27,12 @@ public final class HiLoSelectCommand implements CommandExecutor {
             player.sendMessage("§c使い方: /hilo select <high|low>");
             return true;
         }
-        String raw = args[0].trim().toLowerCase();
+        // /hilo select high の形式を想定（"select" を省略して /hilo high も許可）
+        int idx = 0;
+        if (args.length >= 2 && "select".equalsIgnoreCase(args[0])) {
+            idx = 1;
+        }
+        String raw = args[idx].trim().toLowerCase();
         HiLoService.GuessSelection sel = switch (raw) {
             case "high", "h", "hi" -> HiLoService.GuessSelection.HIGH;
             case "low", "l", "lo" -> HiLoService.GuessSelection.LOW;
