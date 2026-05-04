@@ -548,11 +548,17 @@ public final class BlackjackService implements Listener {
             player.sendMessage("§c21以上ではダブルダウンできません。");
             return;
         }
-        if (countHandCoins(player) < ps.bet) {
-            player.sendMessage("§cダブルダウンに必要な手持ちビーストコインが足りません（必要: " + ps.bet + "個）。");
+        int need = ps.bet;
+        int hand = countHandCoins(player);
+        int wallet = economy.getWalletBalance(player.getUniqueId());
+        if (hand + wallet < need) {
+            player.sendMessage("§cダブルダウンに必要なビーストコインが足りません（必要: " + need + "個 / 手持ち: " + hand + " / 財布: " + wallet + "）。");
             return;
         }
-        removeCoins(player, ps.bet);
+        int fromHand = Math.min(hand, need);
+        if (fromHand > 0) removeCoins(player, fromHand);
+        int fromWallet = need - fromHand;
+        if (fromWallet > 0) economy.addWalletBalance(player.getUniqueId(), -fromWallet);
         ps.bet *= 2;
         ps.doubled = true;
         giveCard(player, ps, draw());
@@ -605,32 +611,63 @@ public final class BlackjackService implements Listener {
         if (table == null || table.phase != Phase.PLAYING) return false;
         boolean allDone = table.players.values().stream().allMatch(PlayerState::isDone);
         if (!allDone) return false;
-        dealerPlay();
-        settle();
+        startDealerSequence();
         return true;
     }
 
-    private void dealerPlay() {
-        int score = dealerScore();
-        while (score < 21) {
-            boolean draw;
-            if (score <= 15) {
-                draw = true;
-            } else {
-                int chance = switch (score) {
-                    case 16 -> 60;
-                    case 17 -> 20;
-                    case 18 -> 10;
-                    case 19 -> 2;
-                    case 20 -> 0;
-                    default -> 0;
-                };
-                draw = ThreadLocalRandom.current().nextInt(100) < chance;
-            }
-            if (!draw) break;
-            table.dealerHand.add(draw());
-            score = dealerScore();
+    /**
+     * ディーラーの進行をノータイムで終わらせないため、
+     * 「伏せカード開示→引く(繰り返し)→精算」を 1秒刻みで進める。
+     */
+    private void startDealerSequence() {
+        if (table == null || table.phase != Phase.PLAYING) return;
+        Entity dealerEntity = getDealerEntity();
+        if (dealerEntity != null && table.dealerHand.size() >= 2) {
+            dealerEntity.setCustomName("§6Dealer §7[" + table.dealerHand.get(0).label() + " + ?]");
+            dealerEntity.setCustomNameVisible(true);
         }
+        broadcastTable("§d[Blackjack] §fディーラーのターン...");
+        // 1秒後: 伏せカード開示
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (table == null || table.phase != Phase.PLAYING) return;
+            int dealerScore = dealerScore();
+            broadcastTable("§d[Blackjack] §f伏せカード開示: §f" + cardsText(table.dealerHand) + " §7合計: §e" + dealerScore);
+            updateNameDisplays();
+            // さらに1秒後: 引き判断へ
+            Bukkit.getScheduler().runTaskLater(plugin, this::dealerStep, 20L);
+        }, 20L);
+    }
+
+    private void dealerStep() {
+        if (table == null || table.phase != Phase.PLAYING) return;
+        int score = dealerScore();
+        if (score >= 21) {
+            Bukkit.getScheduler().runTaskLater(plugin, this::settle, 20L);
+            return;
+        }
+        boolean draw;
+        if (score <= 15) {
+            draw = true;
+        } else {
+            int chance = switch (score) {
+                case 16 -> 60;
+                case 17 -> 20;
+                case 18 -> 10;
+                case 19 -> 2;
+                case 20 -> 0;
+                default -> 0;
+            };
+            draw = ThreadLocalRandom.current().nextInt(100) < chance;
+        }
+        if (!draw) {
+            Bukkit.getScheduler().runTaskLater(plugin, this::settle, 20L);
+            return;
+        }
+        Card drawn = draw();
+        table.dealerHand.add(drawn);
+        broadcastTable("§d[Blackjack] §fディーラーが引きました: §f" + drawn.label() + " §7合計: §e" + dealerScore());
+        updateNameDisplays();
+        Bukkit.getScheduler().runTaskLater(plugin, this::dealerStep, 20L);
     }
 
     private void settle() {
@@ -661,11 +698,11 @@ public final class BlackjackService implements Listener {
                 } else {
                     payout = ps.bet * multiplier;
                 }
-                addCoins(p, payout);
+                addCoinsOrWallet(p, payout);
                 result = "§a勝ち §7配当: §b" + payout + "個 §7(" + multiplier + "倍)";
             } else if (playerScore == dealer) {
                 payout = ps.bet;
-                addCoins(p, payout);
+                addCoinsOrWallet(p, payout);
                 result = "§e引き分け §7返却: §b" + payout + "個";
             } else {
                 result = "§c負け";
@@ -683,6 +720,22 @@ public final class BlackjackService implements Listener {
         }
         table.phase = Phase.FINISHED;
         table = null;
+    }
+
+    /** 先にインベントリへ、溢れた分は財布へ。 */
+    private void addCoinsOrWallet(Player player, int amount) {
+        if (amount <= 0) return;
+        int remaining = amount;
+        while (remaining > 0) {
+            int stackAmount = Math.min(64, remaining);
+            ItemStack stack = new ItemStack(Material.DIAMOND, stackAmount);
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(stack);
+            if (!leftover.isEmpty()) {
+                int overflow = leftover.values().stream().mapToInt(ItemStack::getAmount).sum();
+                if (overflow > 0) economy.addWalletBalance(player.getUniqueId(), overflow);
+            }
+            remaining -= stackAmount;
+        }
     }
 
     private void giveCard(Player player, PlayerState ps, Card card) {

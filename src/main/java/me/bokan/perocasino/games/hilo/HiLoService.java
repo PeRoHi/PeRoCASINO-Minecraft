@@ -63,6 +63,7 @@ public final class HiLoService implements Listener {
 
     private static final int REVERSE_MODEL_DATA = 14;
     private static final double DEALER_PAYOUT_MULTIPLIER = 1.2d;
+    private static final long STEP_DELAY_TICKS = 20L; // 1秒
 
     private final JavaPlugin plugin;
     private final EconomyManager economy;
@@ -638,7 +639,7 @@ public final class HiLoService implements Listener {
         double pHigh = (parentCard.rank.value - 7) * 0.083d + 0.5d;
         pHigh = Math.max(0d, Math.min(1d, pHigh));
         boolean chooseHigh = Math.random() < pHigh;
-        applyDealerChoice(chooseHigh ? Guess.HIGH : Guess.LOW);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> applyDealerChoice(chooseHigh ? Guess.HIGH : Guess.LOW), STEP_DELAY_TICKS);
     }
 
     private void applyDealerChoice(Guess guess) {
@@ -655,9 +656,9 @@ public final class HiLoService implements Listener {
         if (childRank == parentRank) {
             p.sendMessage("§e[H&L] §eDRAW（ディーラー手番） §7親: §f" + session.dealerParentCard.label()
                     + " §7子: §f" + session.dealerChildCard.label());
-            // 裏カードを表に置換（見た目だけ）
+            // 裏カードを表に置換（見た目だけ）→ 1秒後に次へ
             revealDealerChildCard(p);
-            afterDuel();
+            Bukkit.getScheduler().runTaskLater(plugin, this::afterDuel, STEP_DELAY_TICKS);
             return;
         }
         boolean hit = (guess == Guess.HIGH && childRank > parentRank)
@@ -669,7 +670,7 @@ public final class HiLoService implements Listener {
                 ? "§c[H&L] ディーラーが当てました。（" + guess.name() + "）"
                 : "§a[H&L] ディーラーが外しました。（" + guess.name() + "）");
         revealDealerChildCard(p);
-        afterDuel();
+        Bukkit.getScheduler().runTaskLater(plugin, this::afterDuel, STEP_DELAY_TICKS);
     }
 
     private void revealDealerChildCard(Player player) {
@@ -734,7 +735,7 @@ public final class HiLoService implements Listener {
             player.sendMessage("§e[H&L] §eDRAW §7親: §f" + parent.parentCard.label()
                     + " §7子: §f" + child.childCard.label());
             revealChildCard(player, child);
-            afterDuel();
+            Bukkit.getScheduler().runTaskLater(plugin, this::afterDuel, STEP_DELAY_TICKS);
             return;
         }
         boolean hit = (guess == Guess.HIGH && childRank > parentRank)
@@ -748,7 +749,7 @@ public final class HiLoService implements Listener {
                     + " §7子: §f" + child.childCard.label());
         }
         revealChildCard(player, child);
-        afterDuel();
+        Bukkit.getScheduler().runTaskLater(plugin, this::afterDuel, STEP_DELAY_TICKS);
     }
 
     private void afterDuel() {
@@ -791,7 +792,7 @@ public final class HiLoService implements Listener {
         if (session.duelIndexInTurn < 2) {
             List<UUID> order = new ArrayList<>(session.players.keySet());
             // PvPなら親子交換、Dealerならディーラー勝負へ
-            Bukkit.getScheduler().runTaskLater(plugin, () -> startDuel(order), 20L);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> startDuel(order), STEP_DELAY_TICKS);
             return;
         }
 
@@ -801,7 +802,7 @@ public final class HiLoService implements Listener {
             if (p != null) removeCards(p);
         }
         session.turnIndex++;
-        Bukkit.getScheduler().runTaskLater(plugin, this::nextSet, 20L);
+        Bukkit.getScheduler().runTaskLater(plugin, this::nextSet, STEP_DELAY_TICKS);
     }
 
     private void settle() {
