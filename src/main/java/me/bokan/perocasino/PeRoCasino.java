@@ -6,12 +6,14 @@ import me.bokan.perocasino.commands.DepositCommand;
 import me.bokan.perocasino.commands.PerocasinoCommand;
 import me.bokan.perocasino.economy.EconomyManager;
 import me.bokan.perocasino.games.slot.SlotMachineService;
+import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
 import me.bokan.perocasino.listeners.CasinoMenuListener;
 import me.bokan.perocasino.listeners.GameMenuListener;
 import me.bokan.perocasino.listeners.LoanMenuListener;
 import me.bokan.perocasino.listeners.QuarryRespawnListener;
 import me.bokan.perocasino.listeners.RouletteBetMenuListener;
 import me.bokan.perocasino.listeners.RouletteInteractListener;
+import me.bokan.perocasino.listeners.SlotDisplayInteractListener;
 import me.bokan.perocasino.listeners.SlotInteractListener;
 import me.bokan.perocasino.listeners.SlotMenuListener;
 import me.bokan.perocasino.listeners.SlotSessionCleanupListener;
@@ -26,6 +28,7 @@ public class PeRoCasino extends JavaPlugin {
     private EconomyManager economyManager;
     private RouletteHubService rouletteHubService;
     private SlotMachineService slotMachineService;
+    private SlotDisplayService slotDisplayService;
 
     @Override
     public void onEnable() {
@@ -37,6 +40,9 @@ public class PeRoCasino extends JavaPlugin {
         getCommand("casino").setExecutor(new CasinoCommand());
 
         slotMachineService = new SlotMachineService(this, economyManager);
+
+        slotDisplayService = new SlotDisplayService(this, economyManager);
+        slotDisplayService.reloadFromConfig();
 
         // LOAN GUI リスナー → カジノメインリスナーへ渡す
         LoanMenuListener loanListener = new LoanMenuListener(economyManager, this);
@@ -59,13 +65,15 @@ public class PeRoCasino extends JavaPlugin {
             PerocasinoCommand adminCmd = new PerocasinoCommand(this, () -> {
                 if (rouletteHubService != null) rouletteHubService.reloadFromConfig();
                 if (slotMachineService != null) slotMachineService.reloadFromConfig();
-            });
+                if (slotDisplayService != null) slotDisplayService.reloadFromConfig();
+            }, slotDisplayService);
             pc.setExecutor(adminCmd);
             pc.setTabCompleter(adminCmd);
         }
 
         getServer().getPluginManager().registerEvents(new QuarryRespawnListener(this), this);
         getServer().getPluginManager().registerEvents(new SlotInteractListener(slotMachineService), this);
+        getServer().getPluginManager().registerEvents(new SlotDisplayInteractListener(slotDisplayService), this);
         getServer().getPluginManager().registerEvents(new SlotMenuListener(), this);
         getServer().getPluginManager().registerEvents(new SlotSessionCleanupListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new GameMenuListener(), this);
@@ -83,6 +91,9 @@ public class PeRoCasino extends JavaPlugin {
     public void onDisable() {
         if (rouletteHubService != null) {
             rouletteHubService.shutdown();
+        }
+        if (slotDisplayService != null) {
+            slotDisplayService.shutdown();
         }
         getLogger().info("PeRoCasino が無効化されました。");
     }

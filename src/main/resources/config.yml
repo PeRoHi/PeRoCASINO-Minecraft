@@ -73,3 +73,65 @@ slot-machine:
       x: 0
       y: 0
       z: 0
+
+# 設置型スロット（TextDisplay + Interaction）。リソースパックのグリフは symbols.glyph に後から差し替え可能。
+# /perocasino slot create <id> で現在位置に台を追加し、enabled を true にします。
+slot-display:
+  enabled: false
+  bet-diamonds: 1
+  tick-period: 1
+  reel-step-base-ticks: 2
+  stop-distance-weights:
+    next: 1
+    next-next: 1
+  payouts:
+    three-of-a-kind: 8
+    two-of-a-kind: 2
+  layout:
+    reel-spacing: 0.55
+    reel-y-offset: 1.15
+    button-forward: 0.45
+    button-down: -0.35
+  symbols:
+    mark_a1:
+      glyph: "§c♥"
+      weight: 10
+    mark_a2:
+      glyph: "§c♦"
+      weight: 10
+    mark_b1:
+      glyph: "§9♠"
+      weight: 10
+    mark_b2:
+      glyph: "§9♣"
+      weight: 10
+    mark_c1:
+      glyph: "§e★"
+      weight: 10
+    mark_c2:
+      glyph: "§e☆"
+      weight: 10
+    mark_d1:
+      glyph: "§a●"
+      weight: 10
+    mark_d2:
+      glyph: "§a○"
+      weight: 10
+    mark_bonus:
+      glyph: "§6★"
+      weight: 5
+    mark_rare:
+      glyph: "§5✦"
+      weight: 1
+  strip:
+    - mark_a1
+    - mark_a2
+    - mark_b1
+    - mark_b2
+    - mark_c1
+    - mark_c2
+    - mark_d1
+    - mark_d2
+    - mark_bonus
+    - mark_rare
+  machines: {}

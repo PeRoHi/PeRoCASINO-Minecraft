@@ -22,9 +22,9 @@ public final class HiLoMenu {
     public static void open(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, GUI_TITLE);
         inv.setItem(13, pane(Material.PAPER, "§e§l現在のカード（予定）", List.of("§7このGUIは骨組みです。")));
-        inv.setItem(11, pane(Material.LIME_CONCRETE, "§a§lHIGH（予定）"));
-        inv.setItem(15, pane(Material.RED_CONCRETE, "§c§lLOW（予定）"));
-        inv.setItem(22, pane(Material.BARRIER, "§7閉じる"));
+        inv.setItem(11, pane(Material.LIME_CONCRETE, "§a§lHIGH（予定）", null));
+        inv.setItem(15, pane(Material.RED_CONCRETE, "§c§lLOW（予定）", null));
+        inv.setItem(22, pane(Material.BARRIER, "§7閉じる", null));
         player.openInventory(inv);
     }
 

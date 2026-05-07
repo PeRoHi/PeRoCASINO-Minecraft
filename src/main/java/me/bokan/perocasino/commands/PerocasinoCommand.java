@@ -8,12 +8,16 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * 管理者向けコマンド（ルーレット設置・採石場範囲など）。
@@ -22,10 +26,12 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
 
     private final JavaPlugin plugin;
     private final Runnable onReload;
+    private final SlotDisplayService slotDisplayService;
 
-    public PerocasinoCommand(JavaPlugin plugin, Runnable onReload) {
+    public PerocasinoCommand(JavaPlugin plugin, Runnable onReload, SlotDisplayService slotDisplayService) {
         this.plugin = plugin;
         this.onReload = onReload;
+        this.slotDisplayService = slotDisplayService;
     }
 
     @Override
@@ -37,6 +43,9 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         if (args.length == 0) {
             sender.sendMessage("§e/perocasino roulette set §7… 見ている砥石をルーレット拠点に登録");
             sender.sendMessage("§e/perocasino quarry set §7… 採石場の立方体範囲を現在位置の角として登録（2回実行）");
+            sender.sendMessage("§e/perocasino slot create <id> §7… 設置スロット（TextDisplay）を現在位置に登録");
+            sender.sendMessage("§e/perocasino slot remove <id> §7… 設置スロットを設定から削除");
+            sender.sendMessage("§e/perocasino slot list §7… 設置スロット一覧");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
         }
@@ -127,6 +136,83 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if ("slot".equals(sub)) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
+                return true;
+            }
+            if (slotDisplayService == null) {
+                sender.sendMessage("§c設置スロット機能が初期化されていません。");
+                return true;
+            }
+            if (args.length < 2) {
+                sender.sendMessage("§c使い方: /perocasino slot <create|remove|list> ...");
+                return true;
+            }
+            String op = args[1].toLowerCase(Locale.ROOT);
+            FileConfiguration cfg = plugin.getConfig();
+
+            if ("create".equals(op)) {
+                if (args.length < 3) {
+                    sender.sendMessage("§c使い方: /perocasino slot create <id>");
+                    return true;
+                }
+                String idRaw = args[2];
+                String id = idRaw.toLowerCase(Locale.ROOT);
+                if (!id.matches("[a-z0-9][a-z0-9_-]{0,31}")) {
+                    sender.sendMessage("§cID は英小文字・数字・_- で32文字以内にしてください。");
+                    return true;
+                }
+                Location loc = player.getLocation();
+                World world = loc.getWorld();
+                if (world == null) {
+                    sender.sendMessage("§cワールドが取得できませんでした。");
+                    return true;
+                }
+                String pathBase = "slot-display.machines." + id;
+                cfg.set(pathBase + ".world", world.getName());
+                cfg.set(pathBase + ".x", loc.getBlockX());
+                cfg.set(pathBase + ".y", loc.getBlockY());
+                cfg.set(pathBase + ".z", loc.getBlockZ());
+                cfg.set(pathBase + ".yaw", (double) loc.getYaw());
+                cfg.set(pathBase + ".pitch", (double) loc.getPitch());
+                cfg.set("slot-display.enabled", true);
+                plugin.saveConfig();
+                slotDisplayService.reloadFromConfig();
+                sender.sendMessage("§a設置スロット §f" + id + " §aを登録しました（§7slot-display.enabled=true§a）。");
+                return true;
+            }
+
+            if ("remove".equals(op)) {
+                if (args.length < 3) {
+                    sender.sendMessage("§c使い方: /perocasino slot remove <id>");
+                    return true;
+                }
+                String id = args[2].toLowerCase(Locale.ROOT);
+                cfg.set("slot-display.machines." + id, null);
+                plugin.saveConfig();
+                slotDisplayService.reloadFromConfig();
+                sender.sendMessage("§a設置スロット §f" + id + " §aを削除しました。");
+                return true;
+            }
+
+            if ("list".equals(op)) {
+                ConfigurationSection sec = cfg.getConfigurationSection("slot-display.machines");
+                if (sec == null || sec.getKeys(false).isEmpty()) {
+                    sender.sendMessage("§7登録された設置スロットはありません。");
+                    return true;
+                }
+                sender.sendMessage("§e--- 設置スロット一覧 ---");
+                for (String k : sec.getKeys(false)) {
+                    sender.sendMessage("§7- §f" + k);
+                }
+                return true;
+            }
+
+            sender.sendMessage("§c不明な slot サブコマンドです。");
+            return true;
+        }
+
         sender.sendMessage("§c不明なサブコマンドです。");
         return true;
     }
@@ -138,7 +224,13 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             String a = args[0].toLowerCase();
             if ("roulette".startsWith(a)) out.add("roulette");
             if ("quarry".startsWith(a)) out.add("quarry");
+            if ("slot".startsWith(a)) out.add("slot");
             if ("reload".startsWith(a)) out.add("reload");
+        } else if (args.length == 2 && "slot".equalsIgnoreCase(args[0])) {
+            String a = args[1].toLowerCase();
+            if ("create".startsWith(a)) out.add("create");
+            if ("remove".startsWith(a)) out.add("remove");
+            if ("list".startsWith(a)) out.add("list");
         } else if (args.length == 2 && "roulette".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
