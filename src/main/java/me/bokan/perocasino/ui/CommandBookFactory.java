@@ -25,40 +25,43 @@ public final class CommandBookFactory {
 
         meta.setTitle("PeRoCasino コマンド集");
         meta.setAuthor("PeRoCasino");
-        meta.setDisplayName("§f§lコマンド集");
+        meta.setDisplayName("§0§lコマンド集");
 
         meta.setPages(List.of(
                 "§0§lコマンド集\n" +
                         "§0一般に使うコマンドと、管理者向けの\n" +
                         "§0設定コマンドをまとめています。\n\n" +
                         "§0目次\n" +
-                        "§1- 一般\n" +
-                        "§1- 管理者（設置）\n" +
-                        "§1- 採石場（仕様）",
+                        "§0- 一般\n" +
+                        "§0- 管理者（設置）",
                 "§0§l一般\n" +
                         "§0・/casino\n" +
                         "§0  カジノメニュー\n\n" +
+                        "§0・/casino <プレイヤー名|セレクター>\n" +
+                        "§0  対象プレイヤーにカジノメニューを開く\n\n" +
                         "§0・/balance（/bal）\n" +
                         "§0  財布・借金の表示\n\n" +
                         "§0・/deposit\n" +
                         "§0  手持ちコインを財布へ\n\n" +
+                        "§0・/hilo select <high|low>\n" +
+                        "§0  進行中のH&Lで選択\n" +
+                        "§0  （/hilo high|low|h|l|hi|lo も可）\n\n" +
                         "§0・/commandbook（/cb）\n" +
                         "§0  この本を再取得",
                 "§0§l管理者（設置）\n" +
                         "§0権限: perocasino.admin\n\n" +
+                        "§0・/perocasino（/pc）\n" +
+                        "§0  サブコマンド一覧を表示\n\n" +
                         "§0・/perocasino roulette set\n" +
                         "§0  見ている砥石をルーレット拠点に\n\n" +
+                        "§0・/perocasino blackjack dealer set|summon\n" +
+                        "§0  BJディーラーを設定/召喚\n\n" +
+                        "§0・/perocasino hilo dealer set|summon\n" +
+                        "§0  H&Lディーラーを設定/召喚\n\n" +
                         "§0・/perocasino quarry set\n" +
                         "§0  採石場の角2点を登録（2回実行）\n\n" +
                         "§0・/perocasino reload\n" +
-                        "§0  config再読込",
-                "§0§l採石場（仕様）\n" +
-                        "§0・範囲内のビースト鉱石\n" +
-                        "§0  （ダイヤ鉱石/深層ダイヤ鉱石）を掘ると\n" +
-                        "§0  その座標が丸石に置換されます。\n\n" +
-                        "§0・丸石は採掘できません（没収）。\n\n" +
-                        "§0・一定時間後（config: quarry.respawn-delay-ticks）\n" +
-                        "§0  にビースト鉱石へ戻ります。"
+                        "§0  config再読込"
         ));
 
         meta.getPersistentDataContainer().set(key(plugin), PersistentDataType.BYTE, (byte) 1);
