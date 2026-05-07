@@ -94,33 +94,38 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             }
 
             FileConfiguration cfg = plugin.getConfig();
-            String pathBase = "quarry.";
-            if (!cfg.isSet(pathBase + "min.x")) {
-                cfg.set(pathBase + "world", world.getName());
-                cfg.set(pathBase + "min.x", loc.getBlockX());
-                cfg.set(pathBase + "min.y", loc.getBlockY());
-                cfg.set(pathBase + "min.z", loc.getBlockZ());
+            // 1回目: 一時保存 / 2回目: min/maxへ確定
+            String tmp = "quarry._tmpMin";
+            if (!cfg.isSet(tmp + ".x")) {
+                cfg.set("quarry.world", world.getName());
+                cfg.set(tmp + ".world", world.getName());
+                cfg.set(tmp + ".x", loc.getBlockX());
+                cfg.set(tmp + ".y", loc.getBlockY());
+                cfg.set(tmp + ".z", loc.getBlockZ());
                 plugin.saveConfig();
                 sender.sendMessage("§e採石場の §fMIN §e角を設定しました。もう一度同じコマンドで §fMAX §e角を設定してください。");
                 return true;
             }
 
-            int minX = cfg.getInt(pathBase + "min.x");
-            int minY = cfg.getInt(pathBase + "min.y");
-            int minZ = cfg.getInt(pathBase + "min.z");
+            String minWorld = cfg.getString(tmp + ".world", world.getName());
+            int minX = cfg.getInt(tmp + ".x");
+            int minY = cfg.getInt(tmp + ".y");
+            int minZ = cfg.getInt(tmp + ".z");
             int maxX = loc.getBlockX();
             int maxY = loc.getBlockY();
             int maxZ = loc.getBlockZ();
 
-            cfg.set(pathBase + "world", world.getName());
-            cfg.set(pathBase + "max.x", maxX);
-            cfg.set(pathBase + "max.y", maxY);
-            cfg.set(pathBase + "max.z", maxZ);
-            // 次回セットし直せるように min を一旦消す
-            cfg.set(pathBase + "min", null);
+            cfg.set("quarry.world", minWorld);
+            cfg.set("quarry.min.x", minX);
+            cfg.set("quarry.min.y", minY);
+            cfg.set("quarry.min.z", minZ);
+            cfg.set("quarry.max.x", maxX);
+            cfg.set("quarry.max.y", maxY);
+            cfg.set("quarry.max.z", maxZ);
+            cfg.set(tmp, null);
             plugin.saveConfig();
 
-            sender.sendMessage("§a採石場範囲を登録しました: §f" + world.getName()
+            sender.sendMessage("§a採石場範囲を登録しました: §f" + minWorld
                     + " §7MIN§f(" + minX + "," + minY + "," + minZ + ")"
                     + " §7MAX§f(" + maxX + "," + maxY + "," + maxZ + ")");
             sender.sendMessage("§7※ もう一度 /perocasino quarry set を2回実行すると範囲を作り直せます。");
