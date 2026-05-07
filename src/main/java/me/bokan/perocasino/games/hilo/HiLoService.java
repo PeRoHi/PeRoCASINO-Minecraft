@@ -812,7 +812,7 @@ public final class HiLoService implements Listener {
             UUID id = session.players.keySet().iterator().next();
             Player p = Bukkit.getPlayer(id);
             PlayerState ps = session.players.get(id);
-            int dealerPoints = session.maxSets - ps.points;
+            int dealerPoints = session.dealerPoints;
             int diff = Math.abs(ps.points - dealerPoints);
             if (p != null) {
                 if (ps.points > dealerPoints) {
