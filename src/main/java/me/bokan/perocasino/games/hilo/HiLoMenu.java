@@ -10,8 +10,8 @@ import org.bukkit.inventory.meta.ItemMeta;
 import java.util.List;
 
 /**
- * ハイアンドロー（骨組み）。
- * 今後: カード生成、連勝倍率、支払い、履歴表示をここに集約する。
+ * 旧カジノメニューからの入口用。
+ * 実ゲームはH&Lディーラー村人から開始するため、ここでは案内だけ表示する。
  */
 public final class HiLoMenu {
 
@@ -21,9 +21,16 @@ public final class HiLoMenu {
 
     public static void open(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, GUI_TITLE);
-        inv.setItem(13, pane(Material.PAPER, "§e§l現在のカード（予定）", List.of("§7このGUIは骨組みです。")));
-        inv.setItem(11, pane(Material.LIME_CONCRETE, "§a§lHIGH（予定）"));
-        inv.setItem(15, pane(Material.RED_CONCRETE, "§c§lLOW（予定）"));
+        inv.setItem(13, pane(Material.PAPER, "§e§lHigh and Low", List.of(
+                "§7H&Lディーラー村人に話しかけて",
+                "§7ディーラー戦 / 2人対戦を選択します。",
+                "§f",
+                "§7管理者:",
+                "§e/perocasino hilo dealer set",
+                "§e/perocasino hilo dealer summon"
+        )));
+        inv.setItem(11, pane(Material.LIME_CONCRETE, "§a§lHIGH"));
+        inv.setItem(15, pane(Material.RED_CONCRETE, "§c§lLOW"));
         inv.setItem(22, pane(Material.BARRIER, "§7閉じる"));
         player.openInventory(inv);
     }
