@@ -16,8 +16,15 @@ commands:
   casino:
     description: カジノメニューを開く（コンソール・コマブロからも使用可）
     usage: /casino [プレイヤー名]
+  commandbook:
+    description: コマンド集の本を受け取る（未所持のときだけ追加）
+    usage: /commandbook
+    aliases: [cb]
   perocasino:
     description: 管理者用（ルーレット設置・採石場範囲など）
     usage: /perocasino <subcommand>
     permission: perocasino.admin
     aliases: [pc]
+  hilo:
+    description: High & Low の選択（進行中のセッションがあるときのみ）
+    usage: /hilo select <high|low>

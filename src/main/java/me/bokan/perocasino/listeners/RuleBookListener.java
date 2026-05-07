@@ -13,6 +13,7 @@ import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -39,6 +40,7 @@ public class RuleBookListener implements Listener {
     }
 
     public void setupRuleBook(Player player) {
+        if (player.getGameMode() == GameMode.CREATIVE) return;
         player.getInventory().setItem(RULEBOOK_SLOT, RuleBookFactory.create(plugin));
     }
 
@@ -50,6 +52,27 @@ public class RuleBookListener implements Listener {
     @EventHandler
     public void onRespawn(PlayerRespawnEvent event) {
         setupRuleBook(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onGameModeChange(PlayerGameModeChangeEvent event) {
+        Player player = event.getPlayer();
+        GameMode next = event.getNewGameMode();
+        if (next == GameMode.CREATIVE) {
+            // クリエでは固定しない（消せるようにする）
+            ItemStack it = player.getInventory().getItem(RULEBOOK_SLOT);
+            if (isRuleBook(it)) {
+                player.getInventory().setItem(RULEBOOK_SLOT, null);
+            }
+            return;
+        }
+        // サバイバル復帰時、無ければ補充
+        if (next == GameMode.SURVIVAL) {
+            ItemStack it = player.getInventory().getItem(RULEBOOK_SLOT);
+            if (!isRuleBook(it)) {
+                setupRuleBook(player);
+            }
+        }
     }
 
     @EventHandler
@@ -67,6 +90,7 @@ public class RuleBookListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (player.getGameMode() == GameMode.CREATIVE) return;
 
         // ホットバーキー入替（本がスワップ対象なら禁止）
         if (event.getAction() == InventoryAction.HOTBAR_SWAP && event.getHotbarButton() == RULEBOOK_SLOT) {
@@ -79,7 +103,7 @@ public class RuleBookListener implements Listener {
 
         int slot = event.getSlot();
 
-        // クリエでも動かせない（消失や複製事故を避ける）
+        // サバイバルでは動かせない
         if (slot == RULEBOOK_SLOT) {
             event.setCancelled(true);
             // 右クリックで本を読む動作はバニラ側に任せたいが、クリックイベントでは開かない。
@@ -106,15 +130,12 @@ public class RuleBookListener implements Listener {
             }
         }
 
-        // Creativeのミドルクリック等で生成されるのも抑止
-        if (player.getGameMode() == GameMode.CREATIVE && isRuleBook(current)) {
-            event.setCancelled(true);
-        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onInventoryDrag(InventoryDragEvent event) {
-        if (!(event.getWhoClicked() instanceof Player)) return;
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (player.getGameMode() == GameMode.CREATIVE) return;
 
         // プレイヤーインベントリに対するドラッグで0番を狙っていたら禁止
         Map<Integer, ItemStack> newItems = event.getNewItems();
