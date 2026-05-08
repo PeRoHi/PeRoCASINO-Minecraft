@@ -85,8 +85,11 @@ public final class SlotDisplayService {
         SlotStrip strip = new SlotStrip(stripIds);
 
         int bet = Math.max(0, cfg.getInt("slot-display.bet-diamonds", 1));
-        int wNext = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.next", 1));
-        int wNext2 = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.next-next", 1));
+        int wNext = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.next", 80));
+        int wNext2 = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.next-next", 20));
+        String atariId = cfg.getString("slot-display.atari-symbol-id", "atari");
+        int wNextAtariPrev = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.when-next-is-atari.next", 20));
+        int wNext2AtariPrev = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.when-next-is-atari.next-next", 80));
         int payoutThree = Math.max(0, cfg.getInt("slot-display.payouts.three-of-a-kind", 8));
         int payoutTwo = Math.max(0, cfg.getInt("slot-display.payouts.two-of-a-kind", 2));
         int baseStepTicks = Math.max(1, cfg.getInt("slot-display.reel-step-base-ticks", 2));
@@ -136,6 +139,9 @@ public final class SlotDisplayService {
                     bet,
                     wNext,
                     wNext2,
+                    atariId,
+                    wNextAtariPrev,
+                    wNext2AtariPrev,
                     payoutThree,
                     payoutTwo,
                     baseStepTicks,

@@ -136,9 +136,16 @@ slot-display:
   bet-diamonds: 1
   tick-period: 1
   reel-step-base-ticks: 2
+  # 「当たり」判定に使うシンボルID（strip上のIDと一致させる）
+  atari-symbol-id: "atari"
   stop-distance-weights:
-    next: 1
-    next-next: 1
+    # 基本: 次80% / 次次20%
+    next: 80
+    next-next: 20
+    # 例外: 「当たりの1つ前」（=次がatari）で押したときだけ 次20% / 次次80%
+    when-next-is-atari:
+      next: 20
+      next-next: 80
   payouts:
     three-of-a-kind: 8
     two-of-a-kind: 2
