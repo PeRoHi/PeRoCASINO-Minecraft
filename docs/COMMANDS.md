@@ -36,5 +36,11 @@
   - H&L ディーラー村人を召喚し、登録します。
 - **/perocasino quarry set**
   - 採石場の立方体範囲を、実行した地点の角として登録します（2回実行で確定）。
+- **/perocasino slot create <id>**
+  - 設置スロット（TextDisplay）を現在位置に登録します（`slot-display.enabled` が `true` になります）。
+- **/perocasino slot remove <id>**
+  - 設置スロットを設定から削除します。
+- **/perocasino slot list**
+  - 設置スロットの一覧を表示します。
 - **/perocasino reload**
   - `config.yml` を再読込します。

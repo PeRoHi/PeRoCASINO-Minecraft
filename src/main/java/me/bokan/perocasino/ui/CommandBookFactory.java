@@ -60,6 +60,8 @@ public final class CommandBookFactory {
                         "§0  H&Lディーラーを設定/召喚\n\n" +
                         "§0・/perocasino quarry set\n" +
                         "§0  採石場の角2点を登録（2回実行）\n\n" +
+                        "§0・/perocasino slot create|remove|list\n" +
+                        "§0  設置スロット（TextDisplay）を登録/削除/一覧\n\n" +
                         "§0・/perocasino reload\n" +
                         "§0  config再読込"
         ));
