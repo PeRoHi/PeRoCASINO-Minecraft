@@ -4,18 +4,23 @@ import me.bokan.perocasino.economy.EconomyManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.util.Vector;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -63,6 +68,9 @@ public final class SlotDisplayMachine {
 
     /** 現在のラウンドでベットしたプレイヤー（払戻・ログ用） */
     private UUID roundOwner;
+
+    /** ボタン消失演出用：このラウンドで消したブロックの復元情報 */
+    private final Map<String, BlockData> removedButtons = new HashMap<>();
 
     public SlotDisplayMachine(SlotDisplayKeys keys,
                               EconomyManager economy,
@@ -196,6 +204,7 @@ public final class SlotDisplayMachine {
             }
         }
         roundOwner = null;
+        restoreRemovedButtons();
     }
 
     public boolean trySpin(Player player) {
@@ -255,6 +264,132 @@ public final class SlotDisplayMachine {
         r.requestStop(w1, w2);
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.8f, 1.2f);
         return true;
+    }
+
+    /**
+     * ブロックの「ボタン押下」を役割に解決する。
+     * 位置は base（中心）と yaw（方角）から、カードinal（N/E/S/W）向きに丸めて計算する。
+     *
+     * @return role。spin / stop:0..2 / null（該当なし）
+     */
+    public String resolveBlockButtonRole(Block clicked) {
+        if (clicked == null) return null;
+        if (base.getWorld() == null || clicked.getWorld() != base.getWorld()) return null;
+
+        int bx = base.getBlockX();
+        int by = base.getBlockY();
+        int bz = base.getBlockZ();
+
+        BlockFace facing = yawToFacing(base.getYaw());
+        BlockFace right = rotateRight(facing);
+
+        // ボタンは「スロット正面（facing 方向）に1マス」「リール高さの1マス下」をデフォルトとする。
+        // - stop: 左/中/右それぞれのボタン（3つ）
+        // - spin: 中央ボタンよりさらに前に1マス（合計2マス前）に置く
+        int stopForward = 1;
+        int stopDown = 1;
+        int spinForward = 2;
+        int spinDown = 1;
+
+        // stop buttons
+        for (int i = 0; i < 3; i++) {
+            int ox = i - 1; // -1,0,+1
+            int rx = bx + right.getModX() * ox + facing.getModX() * stopForward;
+            int rz = bz + right.getModZ() * ox + facing.getModZ() * stopForward;
+            int ry = by + (int) Math.floor(reelYOffset) - stopDown;
+            if (clicked.getX() == rx && clicked.getY() == ry && clicked.getZ() == rz) {
+                return SlotDisplayKeys.roleStop(i);
+            }
+        }
+
+        // spin button (center)
+        int sx = bx + facing.getModX() * spinForward;
+        int sz = bz + facing.getModZ() * spinForward;
+        int sy = by + (int) Math.floor(reelYOffset) - spinDown;
+        if (clicked.getX() == sx && clicked.getY() == sy && clicked.getZ() == sz) {
+            return SlotDisplayKeys.roleSpin();
+        }
+
+        return null;
+    }
+
+    /**
+     * 押下したボタンを「その瞬間だけ」消す。
+     * ラウンド終了時に {@link #restoreRemovedButtons()} で復元する。
+     */
+    public void removeButtonBlockForThisRound(Block buttonBlock) {
+        if (buttonBlock == null) return;
+        if (!spinSessionActive) {
+            // spin しない限り復元ポイントが来ないので、未回転時は消さない（誤爆防止）
+            return;
+        }
+        if (!isButtonMaterial(buttonBlock.getType())) return;
+        String key = blockKey(buttonBlock);
+        removedButtons.putIfAbsent(key, buttonBlock.getBlockData().clone());
+        buttonBlock.setType(Material.AIR, false);
+    }
+
+    private void restoreRemovedButtons() {
+        if (removedButtons.isEmpty()) return;
+        World world = base.getWorld();
+        if (world == null) {
+            removedButtons.clear();
+            return;
+        }
+        for (Map.Entry<String, BlockData> e : removedButtons.entrySet()) {
+            Block b = blockFromKey(world, e.getKey());
+            if (b == null) continue;
+            if (b.getType() == Material.AIR) {
+                // ブロックデータから Material を復元する（AIR になることは想定しない）
+                BlockData data = e.getValue();
+                b.setType(data.getMaterial(), false);
+                b.setBlockData(data, false);
+            }
+        }
+        removedButtons.clear();
+    }
+
+    private static boolean isButtonMaterial(Material m) {
+        if (m == null) return false;
+        String name = m.name();
+        return name.endsWith("_BUTTON");
+    }
+
+    private static String blockKey(Block b) {
+        return b.getX() + "," + b.getY() + "," + b.getZ();
+    }
+
+    private static Block blockFromKey(World world, String key) {
+        if (world == null || key == null) return null;
+        String[] p = key.split(",", 3);
+        if (p.length != 3) return null;
+        try {
+            int x = Integer.parseInt(p[0]);
+            int y = Integer.parseInt(p[1]);
+            int z = Integer.parseInt(p[2]);
+            return world.getBlockAt(x, y, z);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static BlockFace yawToFacing(float yaw) {
+        // Bukkit yaw: 0 = South, 90 = West, 180 = North, -90/270 = East
+        float rot = (yaw % 360 + 360) % 360;
+        if (rot >= 45 && rot < 135) return BlockFace.WEST;
+        if (rot >= 135 && rot < 225) return BlockFace.NORTH;
+        if (rot >= 225 && rot < 315) return BlockFace.EAST;
+        return BlockFace.SOUTH;
+    }
+
+    private static BlockFace rotateRight(BlockFace facing) {
+        return switch (facing) {
+            case NORTH -> BlockFace.EAST;
+            case EAST -> BlockFace.SOUTH;
+            case SOUTH -> BlockFace.WEST;
+            case WEST -> BlockFace.NORTH;
+            default -> BlockFace.EAST;
+        };
     }
 
     private void refreshAllDisplays() {
