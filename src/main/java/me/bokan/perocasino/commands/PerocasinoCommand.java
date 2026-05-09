@@ -10,7 +10,9 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Villager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
@@ -42,6 +44,8 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 0) {
             sender.sendMessage("§e/perocasino roulette set §7… 見ている砥石をルーレット拠点に登録");
+            sender.sendMessage("§e/perocasino blackjack dealer set|summon §7… ブラックジャックディーラーを設定/召喚");
+            sender.sendMessage("§e/perocasino hilo dealer set|summon §7… H&Lディーラーを設定/召喚");
             sender.sendMessage("§e/perocasino quarry set §7… 採石場の立方体範囲を現在位置の角として登録（2回実行）");
             sender.sendMessage("§e/perocasino slot create <id> §7… 設置スロット（TextDisplay）を現在位置に登録");
             sender.sendMessage("§e/perocasino slot remove <id> §7… 設置スロットを設定から削除");
@@ -86,6 +90,84 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if ("blackjack".equals(sub)) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
+                return true;
+            }
+            if (args.length < 2 || !"dealer".equalsIgnoreCase(args[1])) {
+                sender.sendMessage("§c使い方: /perocasino blackjack dealer set|summon");
+                return true;
+            }
+
+            if (args.length >= 3 && "summon".equalsIgnoreCase(args[2])) {
+                Villager villager = (Villager) player.getWorld().spawnEntity(player.getLocation(), EntityType.VILLAGER);
+                villager.setCustomName("§6Blackjack Dealer");
+                villager.setCustomNameVisible(true);
+                villager.setProfession(Villager.Profession.CLERIC);
+                configureBlackjackDealerNpc(villager);
+                saveBlackjackDealer(villager);
+                sender.sendMessage("§aブラックジャックディーラーを召喚・登録しました: §f" + villager.getUniqueId());
+                return true;
+            }
+
+            if (args.length >= 3 && "set".equalsIgnoreCase(args[2])) {
+                Villager villager = player.getNearbyEntities(8, 8, 8).stream()
+                        .filter(e -> e instanceof Villager)
+                        .map(e -> (Villager) e)
+                        .min(java.util.Comparator.comparingDouble(e -> e.getLocation().distanceSquared(player.getEyeLocation())))
+                        .orElse(null);
+                if (villager == null) {
+                    sender.sendMessage("§c8ブロック以内の村人を狙ってください。");
+                    return true;
+                }
+                configureBlackjackDealerNpc(villager);
+                saveBlackjackDealer(villager);
+                sender.sendMessage("§aブラックジャックディーラーを登録しました: §f" + villager.getUniqueId());
+                return true;
+            }
+            sender.sendMessage("§c使い方: /perocasino blackjack dealer set|summon");
+            return true;
+        }
+
+        if ("hilo".equals(sub)) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
+                return true;
+            }
+            if (args.length < 2 || !"dealer".equalsIgnoreCase(args[1])) {
+                sender.sendMessage("§c使い方: /perocasino hilo dealer set|summon");
+                return true;
+            }
+            if (args.length >= 3 && "summon".equalsIgnoreCase(args[2])) {
+                Villager villager = (Villager) player.getWorld().spawnEntity(player.getLocation(), EntityType.VILLAGER);
+                villager.setCustomName("§6H&L Dealer");
+                villager.setCustomNameVisible(true);
+                villager.setProfession(Villager.Profession.LIBRARIAN);
+                configureHiLoDealerNpc(villager);
+                saveHiLoDealer(villager);
+                sender.sendMessage("§aH&Lディーラーを召喚・登録しました: §f" + villager.getUniqueId());
+                return true;
+            }
+            if (args.length >= 3 && "set".equalsIgnoreCase(args[2])) {
+                Villager villager = player.getNearbyEntities(8, 8, 8).stream()
+                        .filter(e -> e instanceof Villager)
+                        .map(e -> (Villager) e)
+                        .min(java.util.Comparator.comparingDouble(e -> e.getLocation().distanceSquared(player.getEyeLocation())))
+                        .orElse(null);
+                if (villager == null) {
+                    sender.sendMessage("§c8ブロック以内の村人を狙ってください。");
+                    return true;
+                }
+                configureHiLoDealerNpc(villager);
+                saveHiLoDealer(villager);
+                sender.sendMessage("§aH&Lディーラーを登録しました: §f" + villager.getUniqueId());
+                return true;
+            }
+            sender.sendMessage("§c使い方: /perocasino hilo dealer set|summon");
+            return true;
+        }
+
         if ("quarry".equals(sub)) {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
@@ -103,33 +185,38 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             }
 
             FileConfiguration cfg = plugin.getConfig();
-            String pathBase = "quarry.";
-            if (!cfg.isSet(pathBase + "min.x")) {
-                cfg.set(pathBase + "world", world.getName());
-                cfg.set(pathBase + "min.x", loc.getBlockX());
-                cfg.set(pathBase + "min.y", loc.getBlockY());
-                cfg.set(pathBase + "min.z", loc.getBlockZ());
+            // 1回目: 一時保存 / 2回目: min/maxへ確定
+            String tmp = "quarry._tmpMin";
+            if (!cfg.isSet(tmp + ".x")) {
+                cfg.set("quarry.world", world.getName());
+                cfg.set(tmp + ".world", world.getName());
+                cfg.set(tmp + ".x", loc.getBlockX());
+                cfg.set(tmp + ".y", loc.getBlockY());
+                cfg.set(tmp + ".z", loc.getBlockZ());
                 plugin.saveConfig();
                 sender.sendMessage("§e採石場の §fMIN §e角を設定しました。もう一度同じコマンドで §fMAX §e角を設定してください。");
                 return true;
             }
 
-            int minX = cfg.getInt(pathBase + "min.x");
-            int minY = cfg.getInt(pathBase + "min.y");
-            int minZ = cfg.getInt(pathBase + "min.z");
+            String minWorld = cfg.getString(tmp + ".world", world.getName());
+            int minX = cfg.getInt(tmp + ".x");
+            int minY = cfg.getInt(tmp + ".y");
+            int minZ = cfg.getInt(tmp + ".z");
             int maxX = loc.getBlockX();
             int maxY = loc.getBlockY();
             int maxZ = loc.getBlockZ();
 
-            cfg.set(pathBase + "world", world.getName());
-            cfg.set(pathBase + "max.x", maxX);
-            cfg.set(pathBase + "max.y", maxY);
-            cfg.set(pathBase + "max.z", maxZ);
-            // 次回セットし直せるように min を一旦消す
-            cfg.set(pathBase + "min", null);
+            cfg.set("quarry.world", minWorld);
+            cfg.set("quarry.min.x", minX);
+            cfg.set("quarry.min.y", minY);
+            cfg.set("quarry.min.z", minZ);
+            cfg.set("quarry.max.x", maxX);
+            cfg.set("quarry.max.y", maxY);
+            cfg.set("quarry.max.z", maxZ);
+            cfg.set(tmp, null);
             plugin.saveConfig();
 
-            sender.sendMessage("§a採石場範囲を登録しました: §f" + world.getName()
+            sender.sendMessage("§a採石場範囲を登録しました: §f" + minWorld
                     + " §7MIN§f(" + minX + "," + minY + "," + minZ + ")"
                     + " §7MAX§f(" + maxX + "," + maxY + "," + maxZ + ")");
             sender.sendMessage("§7※ もう一度 /perocasino quarry set を2回実行すると範囲を作り直せます。");
@@ -217,12 +304,52 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /** H&amp;L ディーラー用NPC：移動・重力を無効化（サーバー再起動後は手動で再設定が必要な場合あり）。 */
+    private void configureHiLoDealerNpc(Villager villager) {
+        villager.setAI(false);
+        villager.setGravity(false);
+    }
+
+    /** ブラックジャック ディーラー用NPC：移動・重力を無効化。 */
+    private void configureBlackjackDealerNpc(Villager villager) {
+        villager.setAI(false);
+        villager.setGravity(false);
+    }
+
+    private void saveBlackjackDealer(Villager villager) {
+        FileConfiguration cfg = plugin.getConfig();
+        cfg.set("blackjack.dealer.uuid", villager.getUniqueId().toString());
+        cfg.set("blackjack.dealer.world", villager.getWorld().getName());
+        cfg.set("blackjack.dealer.x", villager.getLocation().getX());
+        cfg.set("blackjack.dealer.y", villager.getLocation().getY());
+        cfg.set("blackjack.dealer.z", villager.getLocation().getZ());
+        plugin.saveConfig();
+        if (onReload != null) {
+            onReload.run();
+        }
+    }
+
+    private void saveHiLoDealer(Villager villager) {
+        FileConfiguration cfg = plugin.getConfig();
+        cfg.set("hilo.dealer.uuid", villager.getUniqueId().toString());
+        cfg.set("hilo.dealer.world", villager.getWorld().getName());
+        cfg.set("hilo.dealer.x", villager.getLocation().getX());
+        cfg.set("hilo.dealer.y", villager.getLocation().getY());
+        cfg.set("hilo.dealer.z", villager.getLocation().getZ());
+        plugin.saveConfig();
+        if (onReload != null) {
+            onReload.run();
+        }
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
         if (args.length == 1) {
             String a = args[0].toLowerCase();
             if ("roulette".startsWith(a)) out.add("roulette");
+            if ("blackjack".startsWith(a)) out.add("blackjack");
+            if ("hilo".startsWith(a)) out.add("hilo");
             if ("quarry".startsWith(a)) out.add("quarry");
             if ("slot".startsWith(a)) out.add("slot");
             if ("reload".startsWith(a)) out.add("reload");
@@ -234,6 +361,20 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         } else if (args.length == 2 && "roulette".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
+        } else if (args.length == 2 && "blackjack".equalsIgnoreCase(args[0])) {
+            String a = args[1].toLowerCase();
+            if ("dealer".startsWith(a)) out.add("dealer");
+        } else if (args.length == 3 && "blackjack".equalsIgnoreCase(args[0]) && "dealer".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+            if ("summon".startsWith(a)) out.add("summon");
+        } else if (args.length == 2 && "hilo".equalsIgnoreCase(args[0])) {
+            String a = args[1].toLowerCase();
+            if ("dealer".startsWith(a)) out.add("dealer");
+        } else if (args.length == 3 && "hilo".equalsIgnoreCase(args[0]) && "dealer".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+            if ("summon".startsWith(a)) out.add("summon");
         } else if (args.length == 2 && "quarry".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("set".startsWith(a)) out.add("set");

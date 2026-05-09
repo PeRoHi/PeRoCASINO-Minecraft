@@ -43,6 +43,9 @@ public final class SlotDisplayMachine {
     private final int betDiamonds;
     private final int weightNext;
     private final int weightNextNext;
+    private final String atariSymbolId;
+    private final int weightNextWhenNextIsAtari;
+    private final int weightNextNextWhenNextIsAtari;
     private final int payoutThree;
     private final int payoutTwo;
     private final double reelSpacing;
@@ -67,6 +70,9 @@ public final class SlotDisplayMachine {
                               int betDiamonds,
                               int weightNext,
                               int weightNextNext,
+                              String atariSymbolId,
+                              int weightNextWhenNextIsAtari,
+                              int weightNextNextWhenNextIsAtari,
                               int payoutThree,
                               int payoutTwo,
                               int baseStepTicks,
@@ -86,6 +92,9 @@ public final class SlotDisplayMachine {
         this.betDiamonds = Math.max(0, betDiamonds);
         this.weightNext = Math.max(0, weightNext);
         this.weightNextNext = Math.max(0, weightNextNext);
+        this.atariSymbolId = atariSymbolId == null ? "" : atariSymbolId;
+        this.weightNextWhenNextIsAtari = Math.max(0, weightNextWhenNextIsAtari);
+        this.weightNextNextWhenNextIsAtari = Math.max(0, weightNextNextWhenNextIsAtari);
         this.payoutThree = Math.max(0, payoutThree);
         this.payoutTwo = Math.max(0, payoutTwo);
 
@@ -212,7 +221,19 @@ public final class SlotDisplayMachine {
             player.sendMessage("§eそのリールは既に止まっています。");
             return false;
         }
-        r.requestStop(weightNext, weightNextNext);
+        int w1 = weightNext;
+        int w2 = weightNextNext;
+
+        if (!atariSymbolId.isBlank()) {
+            String nextId = strip.at(r.pos + 1);
+            if (atariSymbolId.equals(nextId)) {
+                // 当たりの1つ前で押したときだけ、次20%/次次80%（比率は設定値）
+                w1 = weightNextWhenNextIsAtari;
+                w2 = weightNextNextWhenNextIsAtari;
+            }
+        }
+
+        r.requestStop(w1, w2);
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.8f, 1.2f);
         return true;
     }
