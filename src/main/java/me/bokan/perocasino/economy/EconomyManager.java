@@ -40,6 +40,10 @@ public class EconomyManager {
     public long getNextInterestMillis(UUID id) { return getData(id).getNextInterestMillis(); }
     public void setNextInterestMillis(UUID id, long millis) { getData(id).setNextInterestMillis(millis); }
 
+    // --- 設置スロット（掛け金） ---
+    public int getSlotDisplayBet(UUID id) { return getData(id).getSlotDisplayBet(); }
+    public void setSlotDisplayBet(UUID id, int bet) { getData(id).setSlotDisplayBet(bet); }
+
     /**
      * ローンタイマーを完全リセットする（完済時に呼ぶ）。
      * debt は呼び出し元で 0 にしておくこと。

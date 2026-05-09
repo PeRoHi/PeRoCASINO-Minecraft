@@ -17,6 +17,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.type.Switch;
 import org.bukkit.util.Vector;
 
 import java.util.Arrays;
@@ -70,6 +71,8 @@ public final class SlotDisplayMachine {
 
     /** 現在のラウンドでベットしたプレイヤー（払戻・ログ用） */
     private UUID roundOwner;
+    /** 現在のラウンドの掛け金（スピン開始時に確定） */
+    private int roundBet;
 
     /** ボタン消失演出用：このラウンドで消したブロックの復元情報 */
     private final Map<String, BlockData> removedButtons = new HashMap<>();
@@ -188,7 +191,7 @@ public final class SlotDisplayMachine {
         }
 
         UUID owner = roundOwner;
-        int bet = betDiamonds;
+        int bet = roundBet;
 
         String k0 = outcomeKey(symbolTable.get(ids[0]), ids[0]);
         String k1 = outcomeKey(symbolTable.get(ids[1]), ids[1]);
@@ -246,6 +249,7 @@ public final class SlotDisplayMachine {
         }
 
         roundOwner = null;
+        roundBet = 0;
         restoreRemovedButtons();
     }
 
@@ -255,9 +259,22 @@ public final class SlotDisplayMachine {
             player.sendMessage("§eこの台は既に回転中です。");
             return false;
         }
-        if (betDiamonds > 0) {
-            economy.takeBetFromWalletOrDebt(player, betDiamonds);
+        if (economy.getDebt(player.getUniqueId()) > 0) {
+            player.sendMessage("§c借金があるため回せません。先に返済してください。");
+            return false;
         }
+        int bet = economy.getSlotDisplayBet(player.getUniqueId());
+        if (bet <= 0) {
+            player.sendMessage("§e掛け金が未設定です。Slot Dealer から掛け金を設定してください。");
+            return false;
+        }
+        int wallet = economy.getWalletBalance(player.getUniqueId());
+        if (wallet < bet) {
+            player.sendMessage("§c財布のダイヤが足りません（必要: §f" + bet + "§c）。");
+            return false;
+        }
+        economy.addWalletBalance(player.getUniqueId(), -bet);
+        roundBet = bet;
 
         roundOwner = player.getUniqueId();
 
@@ -268,7 +285,7 @@ public final class SlotDisplayMachine {
         spinSessionActive = true;
         refreshAllDisplays();
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, 1.4f);
-        player.sendMessage("§aスピン開始！ §7各ストップでリールを止めてください。");
+        player.sendMessage("§aスピン開始！ §7掛け金: §b" + bet + " §7/ 各ストップでリールを止めてください。");
         return true;
     }
 
@@ -534,9 +551,65 @@ public final class SlotDisplayMachine {
             spawnOrRefreshEntities();
             refreshAllDisplays();
         }
+        // 目に見える操作用ボタン（ブロック）を不足分だけ設置
+        ensureButtonBlocks();
     }
 
     boolean isSpinSessionActive() {
         return spinSessionActive;
+    }
+
+    private void ensureButtonBlocks() {
+        World world = base.getWorld();
+        if (world == null) return;
+
+        BlockFace facing = yawToFacing(base.getYaw());
+        BlockFace right = rotateRight(facing);
+
+        // stop buttons: forward 1 / down 1
+        for (int i = 0; i < 3; i++) {
+            Block b = buttonBlock(world, facing, right, i, false);
+            placeButtonIfEmpty(b, Material.PALE_OAK_BUTTON, facing);
+        }
+        // spin button: center / forward 2 / down 1
+        Block spin = buttonBlock(world, facing, right, 1, true);
+        placeButtonIfEmpty(spin, Material.CHERRY_BUTTON, facing);
+    }
+
+    private Block buttonBlock(World world, BlockFace facing, BlockFace right, int reelIndex, boolean isSpin) {
+        int bx = base.getBlockX();
+        int by = base.getBlockY();
+        int bz = base.getBlockZ();
+
+        int forward = isSpin ? 2 : 1;
+        int down = 1;
+        int ox = reelIndex - 1;
+
+        int x = bx + right.getModX() * ox + facing.getModX() * forward;
+        int z = bz + right.getModZ() * ox + facing.getModZ() * forward;
+        int y = by + (int) Math.floor(reelYOffset) - down;
+        return world.getBlockAt(x, y, z);
+    }
+
+    private static void placeButtonIfEmpty(Block block, Material material, BlockFace slotFacing) {
+        if (block == null) return;
+        Material cur = block.getType();
+        if (cur != Material.AIR && !cur.name().endsWith("_BUTTON")) {
+            return;
+        }
+        if (cur == material) {
+            return;
+        }
+        block.setType(material, false);
+        try {
+            BlockData data = Bukkit.createBlockData(material);
+            if (data instanceof Switch sw) {
+                sw.setFace(Switch.Face.FLOOR);
+                sw.setFacing(slotFacing);
+                block.setBlockData(sw, false);
+            }
+        } catch (Exception ignored) {
+            // no-op（向き設定失敗でもボタン自体は置けていればOK）
+        }
     }
 }
