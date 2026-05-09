@@ -190,7 +190,9 @@ public final class SlotDisplayService {
             String glyph = one.getString("glyph", id);
             int weight = Math.max(0, one.getInt("weight", 1));
             boolean winning = one.getBoolean("winning", false);
-            out.put(id, new SlotSymbol(id, glyph, weight, winning));
+            String mg = one.getString("match-group", "");
+            String matchGroup = (mg == null || mg.isBlank()) ? null : mg.trim();
+            out.put(id, new SlotSymbol(id, glyph, weight, winning, matchGroup));
         }
         return out;
     }

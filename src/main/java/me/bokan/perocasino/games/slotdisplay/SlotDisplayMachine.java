@@ -160,6 +160,16 @@ public final class SlotDisplayMachine {
         }
     }
 
+    /** 3つのうち2つが同じ非 null の match-group なら true（3つ全一致は呼び出し側で先に扱う）。 */
+    private static boolean pairNonNullGroupMatch(String g0, String g1, String g2) {
+        if (g0 != null) {
+            if (g0.equals(g1) || g0.equals(g2)) {
+                return true;
+            }
+        }
+        return g1 != null && g1.equals(g2);
+    }
+
     private void settleRound() {
         spinSessionActive = false;
         String[] ids = new String[3];
@@ -169,11 +179,13 @@ public final class SlotDisplayMachine {
         }
 
         int winCount = 0;
-        for (String id : ids) {
-            SlotSymbol sym = symbolTable.get(id);
+        String[] groups = new String[3];
+        for (int i = 0; i < 3; i++) {
+            SlotSymbol sym = symbolTable.get(ids[i]);
             if (sym != null && sym.winning()) {
                 winCount++;
             }
+            groups[i] = sym != null ? sym.matchGroup() : null;
         }
 
         int mult = 0;
@@ -181,6 +193,15 @@ public final class SlotDisplayMachine {
             mult = payoutThree;
         } else if (winCount >= 2) {
             mult = payoutTwo;
+        } else if (winCount == 0) {
+            String g0 = groups[0];
+            String g1 = groups[1];
+            String g2 = groups[2];
+            if (g0 != null && g0.equals(g1) && g1.equals(g2)) {
+                mult = payoutThree;
+            } else if (pairNonNullGroupMatch(g0, g1, g2)) {
+                mult = payoutTwo;
+            }
         }
 
         int bet = betDiamonds;
