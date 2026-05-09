@@ -10,7 +10,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -72,22 +74,35 @@ public final class SlotDisplayService {
             return;
         }
 
-        java.util.List<String> stripIds = cfg.getStringList("slot-display.strip");
-        if (stripIds == null || stripIds.isEmpty()) {
-            plugin.getLogger().warning("slot-display.strip が空です。設置スロットは無効です。");
-            return;
+        SlotStrip[] reelStrips = loadReelStrips(cfg, symbolTable, plugin);
+        if (reelStrips == null) {
+            List<String> fallback = cfg.getStringList("slot-display.strip");
+            if (fallback == null || fallback.isEmpty()) {
+                plugin.getLogger().warning("slot-display.reel-strips（または旧 strip）が未定義です。");
+                return;
+            }
+            for (String id : fallback) {
+                if (!symbolTable.containsKey(id)) {
+                    plugin.getLogger().warning("strip に未定義のシンボルがあります: " + id);
+                }
+            }
+            SlotStrip one = new SlotStrip(fallback);
+            reelStrips = new SlotStrip[]{one, one, one};
         }
-        for (String id : stripIds) {
-            if (!symbolTable.containsKey(id)) {
-                plugin.getLogger().warning("strip に未定義のシンボルがあります: " + id);
+
+        List<String> atariIds = cfg.getStringList("slot-display.atari-symbol-ids");
+        if (atariIds == null || atariIds.isEmpty()) {
+            String legacy = cfg.getString("slot-display.atari-symbol-id", "");
+            if (legacy != null && !legacy.isBlank()) {
+                atariIds = List.of(legacy.trim());
+            } else {
+                atariIds = List.of();
             }
         }
-        SlotStrip strip = new SlotStrip(stripIds);
 
         int bet = Math.max(0, cfg.getInt("slot-display.bet-diamonds", 1));
         int wNext = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.next", 80));
         int wNext2 = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.next-next", 20));
-        String atariId = cfg.getString("slot-display.atari-symbol-id", "atari");
         int wNextAtariPrev = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.when-next-is-atari.next", 20));
         int wNext2AtariPrev = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.when-next-is-atari.next-next", 80));
         int payoutThree = Math.max(0, cfg.getInt("slot-display.payouts.three-of-a-kind", 8));
@@ -134,12 +149,12 @@ public final class SlotDisplayService {
                     economy,
                     canonicalId,
                     base,
-                    strip,
+                    reelStrips,
                     symbolTable,
                     bet,
                     wNext,
                     wNext2,
-                    atariId,
+                    atariIds,
                     wNextAtariPrev,
                     wNext2AtariPrev,
                     payoutThree,
@@ -174,7 +189,41 @@ public final class SlotDisplayService {
             if (one == null) continue;
             String glyph = one.getString("glyph", id);
             int weight = Math.max(0, one.getInt("weight", 1));
-            out.put(id, new SlotSymbol(id, glyph, weight));
+            boolean winning = one.getBoolean("winning", false);
+            out.put(id, new SlotSymbol(id, glyph, weight, winning));
+        }
+        return out;
+    }
+
+    /**
+     * 左・中・右それぞれのストリップ（YAML のリストのリストで 3 本）。
+     */
+    private static SlotStrip[] loadReelStrips(FileConfiguration cfg, Map<String, SlotSymbol> symbols, JavaPlugin plugin) {
+        List<?> root = cfg.getList("slot-display.reel-strips");
+        if (root == null || root.size() != 3) {
+            return null;
+        }
+        SlotStrip[] out = new SlotStrip[3];
+        for (int i = 0; i < 3; i++) {
+            Object rowObj = root.get(i);
+            if (!(rowObj instanceof List<?> row)) {
+                return null;
+            }
+            List<String> ids = new ArrayList<>();
+            for (Object o : row) {
+                if (o != null) {
+                    ids.add(o.toString());
+                }
+            }
+            if (ids.isEmpty()) {
+                return null;
+            }
+            out[i] = new SlotStrip(ids);
+            for (String sid : ids) {
+                if (!symbols.containsKey(sid)) {
+                    plugin.getLogger().warning("reel-strips に未定義シンボル: " + sid);
+                }
+            }
         }
         return out;
     }

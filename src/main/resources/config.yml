@@ -129,20 +129,22 @@ hilo:
     y: 0
     z: 0
   join-radius: 16
-# 設置型スロット（TextDisplay + Interaction）。リソースパックのグリフは symbols.glyph に後から差し替え可能。
+# 設置型スロット（TextDisplay + Interaction）。マーク画像は resourcepack/.../textures/font/slot_mark_*.png
+# フォント割当は resourcepack/.../font/default.json（Private Use: U+E100〜）
 # /perocasino slot create <id> で現在位置に台を追加し、enabled を true にします。
 slot-display:
   enabled: false
   bet-diamonds: 1
   tick-period: 1
   reel-step-base-ticks: 2
-  # 「当たり」判定に使うシンボルID（strip上のIDと一致させる）
-  atari-symbol-id: "atari"
+  # 各リールで「次が当たり」判定に使うシンボルID（リールa/b/c の当たりマーク）
+  atari-symbol-ids:
+    - a_atari
+    - b_atari
+    - c_atari
   stop-distance-weights:
-    # 基本: 次80% / 次次20%
     next: 80
     next-next: 20
-    # 例外: 「当たりの1つ前」（=次がatari）で押したときだけ 次20% / 次次80%
     when-next-is-atari:
       next: 20
       next-next: 80
@@ -155,45 +157,141 @@ slot-display:
     button-forward: 0.45
     button-down: -0.35
   symbols:
-    mark_a1:
-      glyph: "§c♥"
-      weight: 10
-    mark_a2:
-      glyph: "§c♦"
-      weight: 10
-    mark_b1:
-      glyph: "§9♠"
-      weight: 10
-    mark_b2:
-      glyph: "§9♣"
-      weight: 10
-    mark_c1:
-      glyph: "§e★"
-      weight: 10
-    mark_c2:
-      glyph: "§e☆"
-      weight: 10
-    mark_d1:
-      glyph: "§a●"
-      weight: 10
-    mark_d2:
-      glyph: "§a○"
-      weight: 10
-    mark_bonus:
-      glyph: "§6★"
-      weight: 5
-    mark_rare:
-      glyph: "§5✦"
+    a0:
+      glyph: ""
       weight: 1
+      winning: false
+    a1:
+      glyph: ""
+      weight: 1
+      winning: false
+    a2:
+      glyph: ""
+      weight: 1
+      winning: false
+    a3:
+      glyph: ""
+      weight: 1
+      winning: false
+    a_atari:
+      glyph: ""
+      weight: 1
+      winning: true
+    a_hazure:
+      glyph: ""
+      weight: 1
+      winning: false
+    a6:
+      glyph: ""
+      weight: 1
+      winning: false
+    a7:
+      glyph: ""
+      weight: 1
+      winning: false
+    a8:
+      glyph: ""
+      weight: 1
+      winning: false
+    a9:
+      glyph: ""
+      weight: 1
+      winning: false
+    b0:
+      glyph: ""
+      weight: 1
+      winning: false
+    b1:
+      glyph: ""
+      weight: 1
+      winning: false
+    b2:
+      glyph: ""
+      weight: 1
+      winning: false
+    b_atari:
+      glyph: ""
+      weight: 1
+      winning: true
+    b_hazure:
+      glyph: ""
+      weight: 1
+      winning: false
+    b5:
+      glyph: ""
+      weight: 1
+      winning: false
+    b6:
+      glyph: ""
+      weight: 1
+      winning: false
+    b7:
+      glyph: ""
+      weight: 1
+      winning: false
+    b8:
+      glyph: ""
+      weight: 1
+      winning: false
+    b9:
+      glyph: ""
+      weight: 1
+      winning: false
+    c0:
+      glyph: ""
+      weight: 1
+      winning: false
+    c1:
+      glyph: ""
+      weight: 1
+      winning: false
+    c2:
+      glyph: ""
+      weight: 1
+      winning: false
+    c3:
+      glyph: ""
+      weight: 1
+      winning: false
+    c4:
+      glyph: ""
+      weight: 1
+      winning: false
+    c5:
+      glyph: ""
+      weight: 1
+      winning: false
+    c6:
+      glyph: ""
+      weight: 1
+      winning: false
+    c_atari:
+      glyph: ""
+      weight: 1
+      winning: true
+    c_hazure:
+      glyph: ""
+      weight: 1
+      winning: false
+    c9:
+      glyph: ""
+      weight: 1
+      winning: false
+  # 左・中・右リール（この順で a / b / c のストリップ）
+  reel-strips:
+    - [a0, a1, a2, a3, a_atari, a_hazure, a6, a7, a8, a9]
+    - [b0, b1, b2, b_atari, b_hazure, b5, b6, b7, b8, b9]
+    - [c0, c1, c2, c3, c4, c5, c6, c_atari, c_hazure, c9]
+  # 旧互換: reel-strips が無い場合のみ使われる単一ストリップ
   strip:
-    - mark_a1
-    - mark_a2
-    - mark_b1
-    - mark_b2
-    - mark_c1
-    - mark_c2
-    - mark_d1
-    - mark_d2
-    - mark_bonus
-    - mark_rare
+    - a0
+    - a1
+    - a2
+    - a3
+    - a_atari
+    - a_hazure
+    - a6
+    - a7
+    - a8
+    - a9
   machines: {}

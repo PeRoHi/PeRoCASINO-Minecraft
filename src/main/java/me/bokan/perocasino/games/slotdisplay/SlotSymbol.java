@@ -11,11 +11,18 @@ public final class SlotSymbol {
     private final String id;
     private final String glyph;
     private final int weight;
+    /** 役判定（当たりマーク）。デフォルト false */
+    private final boolean winning;
 
-    public SlotSymbol(String id, String glyph, int weight) {
+    public SlotSymbol(String id, String glyph, int weight, boolean winning) {
         this.id = Objects.requireNonNull(id, "id");
         this.glyph = Objects.requireNonNull(glyph, "glyph");
         this.weight = Math.max(0, weight);
+        this.winning = winning;
+    }
+
+    public SlotSymbol(String id, String glyph, int weight) {
+        this(id, glyph, weight, false);
     }
 
     public String id() {
@@ -28,6 +35,10 @@ public final class SlotSymbol {
 
     public int weight() {
         return weight;
+    }
+
+    public boolean winning() {
+        return winning;
     }
 }
 

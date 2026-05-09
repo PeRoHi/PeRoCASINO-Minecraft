@@ -15,6 +15,8 @@ import org.bukkit.entity.TextDisplay;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -31,7 +33,8 @@ public final class SlotDisplayMachine {
     private final String machineId;
     private final Location base;
 
-    private final SlotStrip strip;
+    /** 左・中・右リールそれぞれのストリップ（通常は a/b/c の 10 コマ） */
+    private final SlotStrip[] reelStrips;
     private final Map<String, SlotSymbol> symbolTable;
 
     private final ReelState[] reels = new ReelState[3];
@@ -43,7 +46,7 @@ public final class SlotDisplayMachine {
     private final int betDiamonds;
     private final int weightNext;
     private final int weightNextNext;
-    private final String atariSymbolId;
+    private final List<String> atariSymbolIds;
     private final int weightNextWhenNextIsAtari;
     private final int weightNextNextWhenNextIsAtari;
     private final int payoutThree;
@@ -65,12 +68,12 @@ public final class SlotDisplayMachine {
                               EconomyManager economy,
                               String machineId,
                               Location base,
-                              SlotStrip strip,
+                              SlotStrip[] reelStrips,
                               Map<String, SlotSymbol> symbolTable,
                               int betDiamonds,
                               int weightNext,
                               int weightNextNext,
-                              String atariSymbolId,
+                              List<String> atariSymbolIds,
                               int weightNextWhenNextIsAtari,
                               int weightNextNextWhenNextIsAtari,
                               int payoutThree,
@@ -85,14 +88,18 @@ public final class SlotDisplayMachine {
         this.economy = economy;
         this.machineId = Objects.requireNonNull(machineId, "machineId");
         this.base = Objects.requireNonNull(base, "base");
-        this.strip = Objects.requireNonNull(strip, "strip");
+        Objects.requireNonNull(reelStrips, "reelStrips");
+        if (reelStrips.length != 3) {
+            throw new IllegalArgumentException("reelStrips must have length 3");
+        }
+        this.reelStrips = Arrays.copyOf(reelStrips, 3);
         this.symbolTable = Map.copyOf(symbolTable);
         this.machineCfg = machineCfg;
 
         this.betDiamonds = Math.max(0, betDiamonds);
         this.weightNext = Math.max(0, weightNext);
         this.weightNextNext = Math.max(0, weightNextNext);
-        this.atariSymbolId = atariSymbolId == null ? "" : atariSymbolId;
+        this.atariSymbolIds = atariSymbolIds == null ? List.of() : List.copyOf(atariSymbolIds);
         this.weightNextWhenNextIsAtari = Math.max(0, weightNextWhenNextIsAtari);
         this.weightNextNextWhenNextIsAtari = Math.max(0, weightNextNextWhenNextIsAtari);
         this.payoutThree = Math.max(0, payoutThree);
@@ -105,7 +112,8 @@ public final class SlotDisplayMachine {
 
         ThreadLocalRandom rng = ThreadLocalRandom.current();
         for (int i = 0; i < 3; i++) {
-            reels[i] = new ReelState(strip, rng.nextInt(strip.size()));
+            SlotStrip rs = this.reelStrips[i];
+            reels[i] = new ReelState(rs, rng.nextInt(rs.size()));
             reels[i].baseStepTicks = Math.max(1, baseStepTicks);
             reels[i].stopped = true;
         }
@@ -148,16 +156,24 @@ public final class SlotDisplayMachine {
         spinSessionActive = false;
         String[] ids = new String[3];
         for (int i = 0; i < 3; i++) {
-            ids[i] = strip.at(reels[i].pos);
+            ids[i] = reelStrips[i].at(reels[i].pos);
             reels[i].stopped = true;
         }
 
-        boolean allEq = ids[0].equals(ids[1]) && ids[1].equals(ids[2]);
-        boolean pair = !allEq && (ids[0].equals(ids[1]) || ids[1].equals(ids[2]) || ids[0].equals(ids[2]));
+        int winCount = 0;
+        for (String id : ids) {
+            SlotSymbol sym = symbolTable.get(id);
+            if (sym != null && sym.winning()) {
+                winCount++;
+            }
+        }
 
         int mult = 0;
-        if (allEq) mult = payoutThree;
-        else if (pair) mult = payoutTwo;
+        if (winCount >= 3) {
+            mult = payoutThree;
+        } else if (winCount >= 2) {
+            mult = payoutTwo;
+        }
 
         int bet = betDiamonds;
         int payout = bet * mult;
@@ -200,7 +216,7 @@ public final class SlotDisplayMachine {
 
         ThreadLocalRandom rng = ThreadLocalRandom.current();
         for (int i = 0; i < 3; i++) {
-            reels[i].resetForSpin(rng.nextInt(strip.size()));
+            reels[i].resetForSpin(rng.nextInt(reelStrips[i].size()));
         }
         spinSessionActive = true;
         refreshAllDisplays();
@@ -224,12 +240,15 @@ public final class SlotDisplayMachine {
         int w1 = weightNext;
         int w2 = weightNextNext;
 
-        if (!atariSymbolId.isBlank()) {
-            String nextId = strip.at(r.pos + 1);
-            if (atariSymbolId.equals(nextId)) {
-                // 当たりの1つ前で押したときだけ、次20%/次次80%（比率は設定値）
-                w1 = weightNextWhenNextIsAtari;
-                w2 = weightNextNextWhenNextIsAtari;
+        SlotStrip st = reelStrips[reelIndex];
+        String nextId = st.at(r.pos + 1);
+        if (!atariSymbolIds.isEmpty()) {
+            for (String aid : atariSymbolIds) {
+                if (aid != null && aid.equals(nextId)) {
+                    w1 = weightNextWhenNextIsAtari;
+                    w2 = weightNextNextWhenNextIsAtari;
+                    break;
+                }
             }
         }
 
@@ -247,7 +266,7 @@ public final class SlotDisplayMachine {
     private void updateDisplay(int reelIndex) {
         TextDisplay td = reelDisplays[reelIndex];
         if (td == null || td.isDead()) return;
-        String symId = strip.at(reels[reelIndex].pos);
+        String symId = reelStrips[reelIndex].at(reels[reelIndex].pos);
         SlotSymbol sym = symbolTable.get(symId);
         String glyph = sym != null ? sym.glyph() : symId;
         td.setText(glyph);

@@ -33,13 +33,7 @@ final class ReelState {
     }
 
     int currentSpeedTicks() {
-        if (!stopRequested || targetPos == null) {
-            return Math.max(1, baseStepTicks);
-        }
-        int d = distanceToTarget();
-        if (d >= 7) return Math.max(1, baseStepTicks);
-        if (d >= 4) return Math.max(1, baseStepTicks + 1);
-        return Math.max(1, baseStepTicks + 3);
+        return Math.max(1, baseStepTicks);
     }
 
     void tick() {
