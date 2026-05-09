@@ -105,8 +105,8 @@ public final class SlotDisplayService {
         int wNext2 = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.next-next", 20));
         int wNextAtariPrev = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.when-next-is-atari.next", 20));
         int wNext2AtariPrev = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.when-next-is-atari.next-next", 80));
-        int payoutThree = Math.max(0, cfg.getInt("slot-display.payouts.three-of-a-kind", 8));
-        int payoutTwo = Math.max(0, cfg.getInt("slot-display.payouts.two-of-a-kind", 2));
+        int payoutTripleAtari = Math.max(0, cfg.getInt("slot-display.payouts.three-atari-multiplier", 20));
+        int payoutTripleSameMark = Math.max(0, cfg.getInt("slot-display.payouts.triple-same-mark-multiplier", 2));
         int baseStepTicks = Math.max(1, cfg.getInt("slot-display.reel-step-base-ticks", 2));
         double reelSpacing = cfg.getDouble("slot-display.layout.reel-spacing", 0.55);
         double reelYOffset = cfg.getDouble("slot-display.layout.reel-y-offset", 1.15);
@@ -157,8 +157,8 @@ public final class SlotDisplayService {
                     atariIds,
                     wNextAtariPrev,
                     wNext2AtariPrev,
-                    payoutThree,
-                    payoutTwo,
+                    payoutTripleAtari,
+                    payoutTripleSameMark,
                     baseStepTicks,
                     spacing,
                     ryOff,
@@ -190,9 +190,10 @@ public final class SlotDisplayService {
             String glyph = one.getString("glyph", id);
             int weight = Math.max(0, one.getInt("weight", 1));
             boolean winning = one.getBoolean("winning", false);
+            boolean hazure = one.getBoolean("hazure", false);
             String mg = one.getString("match-group", "");
             String matchGroup = (mg == null || mg.isBlank()) ? null : mg.trim();
-            out.put(id, new SlotSymbol(id, glyph, weight, winning, matchGroup));
+            out.put(id, new SlotSymbol(id, glyph, weight, winning, matchGroup, hazure));
         }
         return out;
     }

@@ -54,8 +54,10 @@ public final class SlotDisplayMachine {
     private final List<String> atariSymbolIds;
     private final int weightNextWhenNextIsAtari;
     private final int weightNextNextWhenNextIsAtari;
-    private final int payoutThree;
-    private final int payoutTwo;
+    /** 当たりマーク3つの倍率（賭け金×この値を財布へ） */
+    private final int payoutTripleAtari;
+    /** 同一マーク（match-group または同一ID）3つの倍率 */
+    private final int payoutTripleSameMark;
     private final double reelSpacing;
     private final double reelYOffset;
     private final double buttonForward;
@@ -84,8 +86,8 @@ public final class SlotDisplayMachine {
                               List<String> atariSymbolIds,
                               int weightNextWhenNextIsAtari,
                               int weightNextNextWhenNextIsAtari,
-                              int payoutThree,
-                              int payoutTwo,
+                              int payoutTripleAtari,
+                              int payoutTripleSameMark,
                               int baseStepTicks,
                               double reelSpacing,
                               double reelYOffset,
@@ -110,8 +112,8 @@ public final class SlotDisplayMachine {
         this.atariSymbolIds = atariSymbolIds == null ? List.of() : List.copyOf(atariSymbolIds);
         this.weightNextWhenNextIsAtari = Math.max(0, weightNextWhenNextIsAtari);
         this.weightNextNextWhenNextIsAtari = Math.max(0, weightNextNextWhenNextIsAtari);
-        this.payoutThree = Math.max(0, payoutThree);
-        this.payoutTwo = Math.max(0, payoutTwo);
+        this.payoutTripleAtari = Math.max(0, payoutTripleAtari);
+        this.payoutTripleSameMark = Math.max(0, payoutTripleSameMark);
 
         this.reelSpacing = reelSpacing > 0 ? reelSpacing : 0.55;
         this.reelYOffset = reelYOffset;
@@ -160,14 +162,21 @@ public final class SlotDisplayMachine {
         }
     }
 
-    /** 3つのうち2つが同じ非 null の match-group なら true（3つ全一致は呼び出し側で先に扱う）。 */
-    private static boolean pairNonNullGroupMatch(String g0, String g1, String g2) {
-        if (g0 != null) {
-            if (g0.equals(g1) || g0.equals(g2)) {
-                return true;
-            }
+    /** 役判定用キー（当たり／ハズレ／グループ／同一ID）。 */
+    private static String outcomeKey(SlotSymbol sym, String id) {
+        if (sym == null) {
+            return "ID:" + id;
         }
-        return g1 != null && g1.equals(g2);
+        if (sym.hazure()) {
+            return "HAZURE";
+        }
+        if (sym.winning()) {
+            return "ATARI";
+        }
+        if (sym.matchGroup() != null) {
+            return "G:" + sym.matchGroup();
+        }
+        return "ID:" + id;
     }
 
     private void settleRound() {
@@ -178,52 +187,64 @@ public final class SlotDisplayMachine {
             reels[i].stopped = true;
         }
 
-        int winCount = 0;
-        String[] groups = new String[3];
-        for (int i = 0; i < 3; i++) {
-            SlotSymbol sym = symbolTable.get(ids[i]);
-            if (sym != null && sym.winning()) {
-                winCount++;
-            }
-            groups[i] = sym != null ? sym.matchGroup() : null;
-        }
-
-        int mult = 0;
-        if (winCount >= 3) {
-            mult = payoutThree;
-        } else if (winCount >= 2) {
-            mult = payoutTwo;
-        } else if (winCount == 0) {
-            String g0 = groups[0];
-            String g1 = groups[1];
-            String g2 = groups[2];
-            if (g0 != null && g0.equals(g1) && g1.equals(g2)) {
-                mult = payoutThree;
-            } else if (pairNonNullGroupMatch(g0, g1, g2)) {
-                mult = payoutTwo;
-            }
-        }
-
+        UUID owner = roundOwner;
         int bet = betDiamonds;
-        int payout = bet * mult;
 
-        if (roundOwner != null && payout > 0) {
-            economy.addWalletBalance(roundOwner, payout);
-        }
+        String k0 = outcomeKey(symbolTable.get(ids[0]), ids[0]);
+        String k1 = outcomeKey(symbolTable.get(ids[1]), ids[1]);
+        String k2 = outcomeKey(symbolTable.get(ids[2]), ids[2]);
 
-        Player closer = roundOwner == null ? null : Bukkit.getPlayer(roundOwner);
+        boolean triple = k0.equals(k1) && k1.equals(k2);
+        boolean pair = !triple && (k0.equals(k1) || k1.equals(k2) || k0.equals(k2));
 
-        if (closer != null && closer.isOnline()) {
-            if (payout > 0) {
-                closer.sendMessage("§a[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
-                        + " §f| 払戻 §b" + payout + " §7(財布)");
-                closer.playSound(closer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.6f);
+        Player closer = owner == null ? null : Bukkit.getPlayer(owner);
+
+        if (owner != null && bet > 0) {
+            if (triple) {
+                if ("ATARI".equals(k0)) {
+                    int payout = bet * payoutTripleAtari;
+                    economy.addWalletBalance(owner, payout);
+                    if (closer != null && closer.isOnline()) {
+                        closer.sendMessage("§a[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                                + " §f| 当たり3つ §b×" + payoutTripleAtari + " §a→ §b" + payout + " §7(財布)");
+                        closer.playSound(closer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1.6f);
+                    }
+                } else if ("HAZURE".equals(k0)) {
+                    if (closer != null && closer.isOnline()) {
+                        economy.takeBetFromWalletOrDebt(closer, bet);
+                    } else {
+                        economy.takeBetFromWalletOrDebt(owner, bet);
+                    }
+                    if (closer != null && closer.isOnline()) {
+                        closer.sendMessage("§c[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                                + " §c| ハズレ3つ §7追加没収 §c" + bet + " §7(財布・借金)");
+                        closer.playSound(closer.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.8f, 0.8f);
+                    }
+                } else {
+                    int payout = bet * payoutTripleSameMark;
+                    economy.addWalletBalance(owner, payout);
+                    if (closer != null && closer.isOnline()) {
+                        closer.sendMessage("§a[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                                + " §f| 同一マーク3つ §b×" + payoutTripleSameMark + " §a→ §b" + payout + " §7(財布)");
+                        closer.playSound(closer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.4f);
+                    }
+                }
+            } else if (pair) {
+                economy.addWalletBalance(owner, bet);
+                if (closer != null && closer.isOnline()) {
+                    closer.sendMessage("§e[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                            + " §f| 同じマーク2つ §a賭け金返金 §b" + bet);
+                    closer.playSound(closer.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.6f, 1.3f);
+                }
             } else {
-                closer.sendMessage("§c[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
-                        + " §f| はずれ");
-                closer.playSound(closer.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1.0f);
+                if (closer != null && closer.isOnline()) {
+                    closer.sendMessage("§c[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                            + " §7| バラバラ §c賭け金没収（スピン時に支払済み）");
+                    closer.playSound(closer.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1.0f);
+                }
             }
         }
+
         roundOwner = null;
         restoreRemovedButtons();
     }
@@ -234,12 +255,8 @@ public final class SlotDisplayMachine {
             player.sendMessage("§eこの台は既に回転中です。");
             return false;
         }
-        if (betDiamonds > 0 && economy.getWalletBalance(player.getUniqueId()) < betDiamonds) {
-            player.sendMessage("§c財布のダイヤが足りません（必要: §f" + betDiamonds + "§c）。");
-            return false;
-        }
         if (betDiamonds > 0) {
-            economy.addWalletBalance(player.getUniqueId(), -betDiamonds);
+            economy.takeBetFromWalletOrDebt(player, betDiamonds);
         }
 
         roundOwner = player.getUniqueId();

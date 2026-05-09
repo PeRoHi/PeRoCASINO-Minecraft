@@ -137,8 +137,11 @@ slot-display:
   bet-diamonds: 1
   tick-period: 1
   reel-step-base-ticks: 2
-  # ストップ時「次コマがこのIDなら」距離抽選を変える対象。リールに載せないなら空でよい。
-  atari-symbol-ids: []
+  # ストップ時「次コマがこのIDなら」距離抽選を変える対象（各リールの当たりマーク）
+  atari-symbol-ids:
+    - a4
+    - b3
+    - c7
   stop-distance-weights:
     next: 80
     next-next: 20
@@ -146,8 +149,8 @@ slot-display:
       next: 20
       next-next: 80
   payouts:
-    three-of-a-kind: 8
-    two-of-a-kind: 2
+    three-atari-multiplier: 20
+    triple-same-mark-multiplier: 2
   layout:
     reel-spacing: 0.55
     reel-y-offset: 1.15
@@ -174,9 +177,11 @@ slot-display:
     a4:
       glyph: ""
       weight: 1
+      winning: true
     a5:
       glyph: ""
       weight: 1
+      hazure: true
     a6:
       glyph: ""
       weight: 1
@@ -209,9 +214,11 @@ slot-display:
     b3:
       glyph: ""
       weight: 1
+      winning: true
     b4:
       glyph: ""
       weight: 1
+      hazure: true
     b5:
       glyph: ""
       weight: 1
@@ -264,9 +271,11 @@ slot-display:
     c7:
       glyph: ""
       weight: 1
+      winning: true
     c8:
       glyph: ""
       weight: 1
+      hazure: true
     c9:
       glyph: ""
       weight: 1
