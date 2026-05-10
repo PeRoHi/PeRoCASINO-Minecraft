@@ -15,6 +15,24 @@ roulette:
   spin-seconds: 3
   # 次ラウンドまでのクールダウン（秒）
   cooldown-seconds: 5
+  # ルーレット盤面の表示（ItemDisplay）
+  # /perocasino roulette display set|remove で設置・削除します。
+  display:
+    anchor:
+      world: ""
+      x: 0.0
+      y: 0.0
+      z: 0.0
+    # 壁面の向き（表示面）。NORTH/SOUTH/EAST/WEST など
+    face: "NORTH"
+    # 設置した ItemDisplay の UUID（復元用）
+    uuid: ""
+    # 画像の「上(0°)」を針方向に合わせる補正角度（度）
+    angle-offset-deg: 0.0
+    # 停止時に減速する回転距離（度）。最低でも 360° は回す
+    decel-distance-deg: 540.0
+    # 減速に使うtick数
+    decel-ticks: 60
   # ルーレットの当たり判定（上部の針＝角度0°）の角度セグメント定義。
   # - unit は「度」。分解能は 1° 以上にしてください。
   # - 角度の合計は 360° である必要があります。
