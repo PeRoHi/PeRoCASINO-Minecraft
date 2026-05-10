@@ -3,10 +3,10 @@
 roulette:
   # ルーレット拠点（砥石）の座標。未設定なら近接UIは出ません。
   # /perocasino roulette set で現在見ている砥石を登録
-  world: ""
-  x: 0
-  y: 0
-  z: 0
+  world: world
+  x: 167
+  y: 63
+  z: 218
   # ルーレット拠点からこの距離以内のプレイヤーにフェーズ表示（BossBar）
   notify-radius: 40
   # ベット待ち（秒）
@@ -19,14 +19,14 @@ roulette:
   # /perocasino roulette display set|remove で設置・削除します。
   display:
     anchor:
-      world: ""
-      x: 0.0
-      y: 0.0
-      z: 0.0
+      world: world
+      x: 167.5
+      y: 65.5
+      z: 220.5
     # 壁面の向き（表示面）。NORTH/SOUTH/EAST/WEST など
-    face: "NORTH"
+    face: "SOUTH"
     # 設置した ItemDisplay の UUID（復元用）
-    uuid: ""
+    uuid: "cf85c585-a1ff-479b-aa4d-9db10f890b0b"
     # 画像の「上(0°)」を針方向に合わせる補正角度（度）
     angle-offset-deg: 0.0
     # 停止時に減速する回転距離（度）。最低でも 360° は回す
@@ -71,20 +71,22 @@ roulette:
     - { multiplier: 2,  degrees: 15 } # 21
     - { multiplier: 6,  degrees: 15 } # 22
     - { multiplier: 4,  degrees: 15 } # 23
+  # config_1（運用ワールド）由来。ルーレット機能を使う場合は true 推奨
+  enabled: true
 
 quarry:
   enabled: true
   # 採石場として扱うワールド名（空なら全ワールド）
-  world: ""
+  world: world
   # 角2点（含まれる立方体領域）。未設定なら採石場機能は無効
   min:
-    x: 0
-    y: 0
-    z: 0
+    x: 166
+    y: 63
+    z: 194
   max:
-    x: 0
-    y: 0
-    z: 0
+    x: 166
+    y: 63
+    z: 196
   # ダイヤ鉱石を掘ったあと、何tick後に元に戻すか（20tick=1秒）
   respawn-delay-ticks: 6000
 
@@ -151,7 +153,7 @@ hilo:
 # フォント割当は resourcepack/.../font/default.json（Private Use: U+E100〜）
 # /perocasino slot create <id> で現在位置に台を追加し、enabled を true にします。
 slot-display:
-  enabled: false
+  enabled: true
   bet-diamonds: 1
   tick-period: 1
   # 1コマ進むまでの間隔（tick）。大きいほど遅い。
@@ -339,4 +341,18 @@ slot-display:
     - a7
     - a8
     - a9
-  machines: {}
+  # --- 以下は運用環境（config_1）由来：台位置・掛け金ディーラー ---
+  machines:
+    my_slot:
+      world: world
+      x: 157
+      y: 63
+      z: 217
+      yaw: -0.2996128499507904
+      pitch: -13.200028419494629
+  bet-dealer:
+    uuid: f38b65f4-88b0-43c3-9d01-fa9e52ee37d9
+    world: world
+    x: 154
+    y: 63
+    z: 217
