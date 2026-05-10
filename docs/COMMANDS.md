@@ -24,8 +24,12 @@
 
 - **/perocasino**（別名: **/pc**）
   - 管理者向けサブコマンド一覧を表示します。
-- **/perocasino roulette set**
-  - 見ている砥石をルーレット拠点として登録します。
+
+#### ルーレット（砥石）の設置
+
+- **/perocasino roulette set**（別名: **/pc roulette set**）
+  - **6ブロック以内**で見ている **砥石（grindstone）** をルーレット拠点として `config.yml` に登録します。
+  - プレイヤーがその砥石を右クリックしてベット GUI を開きます。
 - **/perocasino blackjack dealer set**
   - 近くの村人をブラックジャック ディーラーとして登録します。
 - **/perocasino blackjack dealer summon**

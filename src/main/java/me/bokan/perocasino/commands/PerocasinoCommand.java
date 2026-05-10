@@ -4,6 +4,8 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -16,6 +18,7 @@ import org.bukkit.entity.Villager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
+import me.bokan.perocasino.roulette.RouletteDisplayService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,12 +47,15 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 0) {
             sender.sendMessage("§e/perocasino roulette set §7… 見ている砥石をルーレット拠点に登録");
+            sender.sendMessage("§e/perocasino roulette display set §7… 見ているブロック面にルーレット表示(ItemDisplay)を設置");
+            sender.sendMessage("§e/perocasino roulette display remove §7… ルーレット表示(ItemDisplay)を削除");
             sender.sendMessage("§e/perocasino blackjack dealer set|summon §7… ブラックジャックディーラーを設定/召喚");
             sender.sendMessage("§e/perocasino hilo dealer set|summon §7… H&Lディーラーを設定/召喚");
             sender.sendMessage("§e/perocasino quarry set §7… 採石場の立方体範囲を現在位置の角として登録（2回実行）");
             sender.sendMessage("§e/perocasino slot create <id> §7… 設置スロット（TextDisplay）を現在位置に登録");
             sender.sendMessage("§e/perocasino slot remove <id> §7… 設置スロットを設定から削除");
             sender.sendMessage("§e/perocasino slot list §7… 設置スロット一覧");
+            sender.sendMessage("§e/perocasino slot dealer set|summon §7… スロット掛け金ディーラーを設定/召喚");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
         }
@@ -69,24 +75,79 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
                 return true;
             }
-            if (args.length < 2 || !"set".equalsIgnoreCase(args[1])) {
+            if (args.length < 2) {
                 sender.sendMessage("§c使い方: /perocasino roulette set");
+                sender.sendMessage("§c使い方: /perocasino roulette display set");
+                sender.sendMessage("§c使い方: /perocasino roulette display remove");
                 return true;
             }
-            Block target = player.getTargetBlockExact(6);
-            if (target == null || target.getType() != Material.GRINDSTONE) {
-                sender.sendMessage("§c6ブロック以内の砥石を狙ってください。");
+
+            String action = args[1].toLowerCase(Locale.ROOT);
+
+            if ("set".equals(action)) {
+                Block target = player.getTargetBlockExact(6);
+                if (target == null || target.getType() != Material.GRINDSTONE) {
+                    sender.sendMessage("§c6ブロック以内の砥石を狙ってください。");
+                    return true;
+                }
+                Location loc = target.getLocation();
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("roulette.world", loc.getWorld().getName());
+                cfg.set("roulette.x", loc.getBlockX());
+                cfg.set("roulette.y", loc.getBlockY());
+                cfg.set("roulette.z", loc.getBlockZ());
+                plugin.saveConfig();
+                sender.sendMessage("§aルーレット拠点を登録しました: §f" + loc.getWorld().getName()
+                        + " " + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
                 return true;
             }
-            Location loc = target.getLocation();
-            FileConfiguration cfg = plugin.getConfig();
-            cfg.set("roulette.world", loc.getWorld().getName());
-            cfg.set("roulette.x", loc.getBlockX());
-            cfg.set("roulette.y", loc.getBlockY());
-            cfg.set("roulette.z", loc.getBlockZ());
-            plugin.saveConfig();
-            sender.sendMessage("§aルーレット拠点を登録しました: §f" + loc.getWorld().getName()
-                    + " " + loc.getBlockX() + " " + loc.getBlockY() + " " + loc.getBlockZ());
+
+            if ("display".equals(action)) {
+                if (args.length < 3) {
+                    sender.sendMessage("§c使い方: /perocasino roulette display set");
+                    sender.sendMessage("§c使い方: /perocasino roulette display remove");
+                    return true;
+                }
+                String subAction = args[2].toLowerCase(Locale.ROOT);
+
+                if ("remove".equals(subAction)) {
+                    RouletteDisplayService display = new RouletteDisplayService(plugin);
+                    display.reloadFromConfig();
+                    display.removeDisplay();
+                    sender.sendMessage("§aルーレット表示(ItemDisplay)を削除しました。");
+                    return true;
+                }
+
+                if (!"set".equals(subAction)) {
+                    sender.sendMessage("§c使い方: /perocasino roulette display set");
+                    sender.sendMessage("§c使い方: /perocasino roulette display remove");
+                    return true;
+                }
+
+                Block target = player.getTargetBlockExact(8, FluidCollisionMode.NEVER);
+                if (target == null || target.getType() == Material.AIR) {
+                    sender.sendMessage("§c8ブロック以内のブロックを狙ってください。");
+                    return true;
+                }
+                // 置く面は「プレイヤー側を向く面」
+                BlockFace face = target.getFace(player.getLocation().getBlock());
+                if (face == null) face = BlockFace.NORTH;
+                face = face.getOppositeFace();
+
+                Location anchor = target.getLocation().add(0.5, 0.5, 0.5);
+
+                RouletteDisplayService display = new RouletteDisplayService(plugin);
+                display.reloadFromConfig();
+                display.removeDisplay();
+                display.setAnchor(anchor, face);
+                sender.sendMessage("§aルーレット表示(ItemDisplay)を設置しました。");
+                sender.sendMessage("§7※ /perocasino reload で確実に復元されます。");
+                return true;
+            }
+
+            sender.sendMessage("§c使い方: /perocasino roulette set");
+            sender.sendMessage("§c使い方: /perocasino roulette display set");
+            sender.sendMessage("§c使い方: /perocasino roulette display remove");
             return true;
         }
 
@@ -233,11 +294,65 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             if (args.length < 2) {
-                sender.sendMessage("§c使い方: /perocasino slot <create|remove|list> ...");
+                sender.sendMessage("§c使い方: /perocasino slot <create|remove|list|dealer> ...");
                 return true;
             }
             String op = args[1].toLowerCase(Locale.ROOT);
             FileConfiguration cfg = plugin.getConfig();
+
+            if ("dealer".equals(op)) {
+                if (args.length < 3) {
+                    sender.sendMessage("§c使い方: /perocasino slot dealer set|summon");
+                    return true;
+                }
+                String dop = args[2].toLowerCase(Locale.ROOT);
+                if ("summon".equals(dop)) {
+                    Villager villager = (Villager) player.getWorld().spawnEntity(player.getLocation(), EntityType.VILLAGER);
+                    villager.setCustomName("§6Slot Dealer");
+                    villager.setCustomNameVisible(true);
+                    villager.setProfession(Villager.Profession.CLERIC);
+                    villager.setAI(false);
+                    villager.setGravity(false);
+
+                    String base = "slot-display.bet-dealer";
+                    cfg.set(base + ".uuid", villager.getUniqueId().toString());
+                    cfg.set(base + ".world", player.getWorld().getName());
+                    cfg.set(base + ".x", player.getLocation().getBlockX());
+                    cfg.set(base + ".y", player.getLocation().getBlockY());
+                    cfg.set(base + ".z", player.getLocation().getBlockZ());
+                    plugin.saveConfig();
+                    sender.sendMessage("§aスロット掛け金ディーラーを召喚・登録しました: §f" + villager.getUniqueId());
+                    return true;
+                }
+                if ("set".equals(dop)) {
+                    Villager villager = player.getNearbyEntities(8, 8, 8).stream()
+                            .filter(e -> e instanceof Villager)
+                            .map(e -> (Villager) e)
+                            .min(java.util.Comparator.comparingDouble(e -> e.getLocation().distanceSquared(player.getEyeLocation())))
+                            .orElse(null);
+                    if (villager == null) {
+                        sender.sendMessage("§c近くに村人が見つかりません。");
+                        return true;
+                    }
+                    villager.setCustomName("§6Slot Dealer");
+                    villager.setCustomNameVisible(true);
+                    villager.setProfession(Villager.Profession.CLERIC);
+                    villager.setAI(false);
+                    villager.setGravity(false);
+
+                    String base = "slot-display.bet-dealer";
+                    cfg.set(base + ".uuid", villager.getUniqueId().toString());
+                    cfg.set(base + ".world", villager.getWorld().getName());
+                    cfg.set(base + ".x", villager.getLocation().getBlockX());
+                    cfg.set(base + ".y", villager.getLocation().getBlockY());
+                    cfg.set(base + ".z", villager.getLocation().getBlockZ());
+                    plugin.saveConfig();
+                    sender.sendMessage("§aスロット掛け金ディーラーを登録しました: §f" + villager.getUniqueId());
+                    return true;
+                }
+                sender.sendMessage("§c使い方: /perocasino slot dealer set|summon");
+                return true;
+            }
 
             if ("create".equals(op)) {
                 if (args.length < 3) {
@@ -361,6 +476,11 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         } else if (args.length == 2 && "roulette".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
+            if ("display".startsWith(a)) out.add("display");
+        } else if (args.length == 3 && "roulette".equalsIgnoreCase(args[0]) && "display".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+            if ("remove".startsWith(a)) out.add("remove");
         } else if (args.length == 2 && "blackjack".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("dealer".startsWith(a)) out.add("dealer");

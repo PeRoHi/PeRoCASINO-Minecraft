@@ -4,18 +4,27 @@ import me.bokan.perocasino.economy.EconomyManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Display;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.type.Switch;
 import org.bukkit.util.Vector;
+import org.bukkit.util.Transformation;
+import org.joml.AxisAngle4f;
+import org.joml.Vector3f;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -23,7 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 設置型スロット（TextDisplay×3 + Interaction 操作）。
+ * 設置型スロット（各リール TextDisplay×5 段 + Interaction 操作）。
  */
 public final class SlotDisplayMachine {
 
@@ -39,7 +48,22 @@ public final class SlotDisplayMachine {
 
     private final ReelState[] reels = new ReelState[3];
 
-    private final TextDisplay[] reelDisplays = new TextDisplay[3];
+    /** 各リール 5 段: Top, TopHalf, Mid, BotHalf, Bot（Y は中段を基準にオフセット） */
+    private static final double[] REEL_LINE_Y = {0.40, 0.20, 0.00, -0.20, -0.40};
+    private static final int RL_TOP = 0;
+    private static final int RL_TOP_HALF = 1;
+    private static final int RL_MID = 2;
+    private static final int RL_BOT_HALF = 3;
+    private static final int RL_BOT = 4;
+
+    private static final Transformation TRANS_FULL =
+            new Transformation(new Vector3f(), new AxisAngle4f(), new Vector3f(1f, 1f, 1f), new AxisAngle4f());
+    private static final Transformation TRANS_HALF =
+            new Transformation(new Vector3f(), new AxisAngle4f(), new Vector3f(0.82f, 0.82f, 0.82f), new AxisAngle4f());
+
+    private final TextDisplay[][] reelLineDisplays = new TextDisplay[3][5];
+    /** 回転中 0..2 の表示フェーズ（物理 pos が進んだら 0 にリセット） */
+    private final int[] reelSpinPhase = new int[3];
     private Interaction spinInteraction;
     private final Interaction[] stopInteractions = new Interaction[3];
 
@@ -49,8 +73,10 @@ public final class SlotDisplayMachine {
     private final List<String> atariSymbolIds;
     private final int weightNextWhenNextIsAtari;
     private final int weightNextNextWhenNextIsAtari;
-    private final int payoutThree;
-    private final int payoutTwo;
+    /** 当たりマーク3つの倍率（賭け金×この値を財布へ） */
+    private final int payoutTripleAtari;
+    /** 同一マーク（match-group または同一ID）3つの倍率 */
+    private final int payoutTripleSameMark;
     private final double reelSpacing;
     private final double reelYOffset;
     private final double buttonForward;
@@ -63,6 +89,11 @@ public final class SlotDisplayMachine {
 
     /** 現在のラウンドでベットしたプレイヤー（払戻・ログ用） */
     private UUID roundOwner;
+    /** 現在のラウンドの掛け金（スピン開始時に確定） */
+    private int roundBet;
+
+    /** ボタン消失演出用：このラウンドで消したブロックの復元情報 */
+    private final Map<String, BlockData> removedButtons = new HashMap<>();
 
     public SlotDisplayMachine(SlotDisplayKeys keys,
                               EconomyManager economy,
@@ -76,8 +107,8 @@ public final class SlotDisplayMachine {
                               List<String> atariSymbolIds,
                               int weightNextWhenNextIsAtari,
                               int weightNextNextWhenNextIsAtari,
-                              int payoutThree,
-                              int payoutTwo,
+                              int payoutTripleAtari,
+                              int payoutTripleSameMark,
                               int baseStepTicks,
                               double reelSpacing,
                               double reelYOffset,
@@ -102,8 +133,8 @@ public final class SlotDisplayMachine {
         this.atariSymbolIds = atariSymbolIds == null ? List.of() : List.copyOf(atariSymbolIds);
         this.weightNextWhenNextIsAtari = Math.max(0, weightNextWhenNextIsAtari);
         this.weightNextNextWhenNextIsAtari = Math.max(0, weightNextNextWhenNextIsAtari);
-        this.payoutThree = Math.max(0, payoutThree);
-        this.payoutTwo = Math.max(0, payoutTwo);
+        this.payoutTripleAtari = Math.max(0, payoutTripleAtari);
+        this.payoutTripleSameMark = Math.max(0, payoutTripleSameMark);
 
         this.reelSpacing = reelSpacing > 0 ? reelSpacing : 0.55;
         this.reelYOffset = reelYOffset;
@@ -142,7 +173,13 @@ public final class SlotDisplayMachine {
         for (int i = 0; i < 3; i++) {
             ReelState r = reels[i];
             if (!r.stopped) {
+                int oldPos = r.pos;
                 r.tick();
+                if (r.pos != oldPos) {
+                    reelSpinPhase[i] = 0;
+                } else {
+                    reelSpinPhase[i] = (reelSpinPhase[i] + 1) % 3;
+                }
                 updateDisplay(i);
                 anyMoving = true;
             }
@@ -150,6 +187,23 @@ public final class SlotDisplayMachine {
         if (!anyMoving && spinSessionActive) {
             settleRound();
         }
+    }
+
+    /** 役判定用キー（当たり／ハズレ／グループ／同一ID）。 */
+    private static String outcomeKey(SlotSymbol sym, String id) {
+        if (sym == null) {
+            return "ID:" + id;
+        }
+        if (sym.hazure()) {
+            return "HAZURE";
+        }
+        if (sym.winning()) {
+            return "ATARI";
+        }
+        if (sym.matchGroup() != null) {
+            return "G:" + sym.matchGroup();
+        }
+        return "ID:" + id;
     }
 
     private void settleRound() {
@@ -160,42 +214,69 @@ public final class SlotDisplayMachine {
             reels[i].stopped = true;
         }
 
-        int winCount = 0;
-        for (String id : ids) {
-            SlotSymbol sym = symbolTable.get(id);
-            if (sym != null && sym.winning()) {
-                winCount++;
-            }
-        }
+        UUID owner = roundOwner;
+        int bet = roundBet;
 
-        int mult = 0;
-        if (winCount >= 3) {
-            mult = payoutThree;
-        } else if (winCount >= 2) {
-            mult = payoutTwo;
-        }
+        String k0 = outcomeKey(symbolTable.get(ids[0]), ids[0]);
+        String k1 = outcomeKey(symbolTable.get(ids[1]), ids[1]);
+        String k2 = outcomeKey(symbolTable.get(ids[2]), ids[2]);
 
-        int bet = betDiamonds;
-        int payout = bet * mult;
+        boolean triple = k0.equals(k1) && k1.equals(k2);
+        boolean pair = !triple && (k0.equals(k1) || k1.equals(k2) || k0.equals(k2));
 
-        if (roundOwner != null && payout > 0) {
-            economy.addWalletBalance(roundOwner, payout);
-        }
+        Player closer = owner == null ? null : Bukkit.getPlayer(owner);
 
-        Player closer = roundOwner == null ? null : Bukkit.getPlayer(roundOwner);
-
-        if (closer != null && closer.isOnline()) {
-            if (payout > 0) {
-                closer.sendMessage("§a[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
-                        + " §f| 払戻 §b" + payout + " §7(財布)");
-                closer.playSound(closer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.6f);
+        if (owner != null && bet > 0) {
+            if (triple) {
+                if ("ATARI".equals(k0)) {
+                    int payout = bet * payoutTripleAtari;
+                    economy.addWalletBalance(owner, payout);
+                    if (closer != null && closer.isOnline()) {
+                        closer.sendMessage("§a[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                                + " §f| 当たり3つ §b×" + payoutTripleAtari + " §a→ §b" + payout + " §7(財布)");
+                        closer.playSound(closer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1.6f);
+                    }
+                } else if ("HAZURE".equals(k0)) {
+                    if (closer != null && closer.isOnline()) {
+                        economy.takeBetFromWalletOrDebt(closer, bet);
+                    } else {
+                        economy.takeBetFromWalletOrDebt(owner, bet);
+                    }
+                    if (closer != null && closer.isOnline()) {
+                        closer.sendMessage("§c[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                                + " §c| ハズレ3つ §7追加没収 §c" + bet + " §7(財布・借金)");
+                        closer.playSound(closer.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.8f, 0.8f);
+                    }
+                } else {
+                    int payout = bet * payoutTripleSameMark;
+                    economy.addWalletBalance(owner, payout);
+                    if (closer != null && closer.isOnline()) {
+                        closer.sendMessage("§a[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                                + " §f| 同一マーク3つ §b×" + payoutTripleSameMark + " §a→ §b" + payout + " §7(財布)");
+                        closer.playSound(closer.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.4f);
+                    }
+                }
+            } else if (pair) {
+                economy.addWalletBalance(owner, bet);
+                if (closer != null && closer.isOnline()) {
+                    closer.sendMessage("§e[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                            + " §f| 同じマーク2つ §a賭け金返金 §b" + bet);
+                    closer.playSound(closer.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.6f, 1.3f);
+                }
             } else {
-                closer.sendMessage("§c[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
-                        + " §f| はずれ");
-                closer.playSound(closer.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1.0f);
+                if (closer != null && closer.isOnline()) {
+                    closer.sendMessage("§c[SLOT·設置] §f" + ids[0] + " §7| §f" + ids[1] + " §7| §f" + ids[2]
+                            + " §7| バラバラ §c賭け金没収（スピン時に支払済み）");
+                    closer.playSound(closer.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 1.0f);
+                }
             }
         }
+
         roundOwner = null;
+        roundBet = 0;
+        Arrays.fill(reelSpinPhase, 0);
+        refreshAllDisplays();
+        restoreRemovedButtons();
     }
 
     public boolean trySpin(Player player) {
@@ -204,13 +285,22 @@ public final class SlotDisplayMachine {
             player.sendMessage("§eこの台は既に回転中です。");
             return false;
         }
-        if (betDiamonds > 0 && economy.getWalletBalance(player.getUniqueId()) < betDiamonds) {
-            player.sendMessage("§c財布のダイヤが足りません（必要: §f" + betDiamonds + "§c）。");
+        if (economy.getDebt(player.getUniqueId()) > 0) {
+            player.sendMessage("§c借金があるため回せません。先に返済してください。");
             return false;
         }
-        if (betDiamonds > 0) {
-            economy.addWalletBalance(player.getUniqueId(), -betDiamonds);
+        int bet = economy.getSlotDisplayBet(player.getUniqueId());
+        if (bet <= 0) {
+            player.sendMessage("§e掛け金が未設定です。Slot Dealer から掛け金を設定してください。");
+            return false;
         }
+        int wallet = economy.getWalletBalance(player.getUniqueId());
+        if (wallet < bet) {
+            player.sendMessage("§c財布のダイヤが足りません（必要: §f" + bet + "§c）。");
+            return false;
+        }
+        economy.addWalletBalance(player.getUniqueId(), -bet);
+        roundBet = bet;
 
         roundOwner = player.getUniqueId();
 
@@ -218,10 +308,11 @@ public final class SlotDisplayMachine {
         for (int i = 0; i < 3; i++) {
             reels[i].resetForSpin(rng.nextInt(reelStrips[i].size()));
         }
+        Arrays.fill(reelSpinPhase, 0);
         spinSessionActive = true;
         refreshAllDisplays();
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, 1.4f);
-        player.sendMessage("§aスピン開始！ §7各ストップでリールを止めてください。");
+        player.sendMessage("§aスピン開始！ §7掛け金: §b" + bet + " §7/ 各ストップでリールを止めてください。");
         return true;
     }
 
@@ -257,24 +348,204 @@ public final class SlotDisplayMachine {
         return true;
     }
 
+    /**
+     * ブロックの「ボタン押下」を役割に解決する。
+     * 位置は base（中心）と yaw（方角）から、カードinal（N/E/S/W）向きに丸めて計算する。
+     *
+     * @return role。spin / stop:0..2 / null（該当なし）
+     */
+    public String resolveBlockButtonRole(Block clicked) {
+        if (clicked == null) return null;
+        if (base.getWorld() == null || clicked.getWorld() != base.getWorld()) return null;
+
+        int bx = base.getBlockX();
+        int by = base.getBlockY();
+        int bz = base.getBlockZ();
+
+        BlockFace facing = yawToFacing(base.getYaw());
+        BlockFace right = rotateRight(facing);
+
+        // ボタンは「スロット正面（facing 方向）に1マス」「リール高さの1マス下」をデフォルトとする。
+        // - stop: 左/中/右それぞれのボタン（3つ）
+        // - spin: 中央ボタンよりさらに前に1マス（合計2マス前）に置く
+        int stopForward = 1;
+        int stopDown = 1;
+        int spinForward = 2;
+        int spinDown = 1;
+
+        // stop buttons（リール列と同じ左右順）
+        for (int i = 0; i < 3; i++) {
+            int ox = 1 - i;
+            int rx = bx + right.getModX() * ox + facing.getModX() * stopForward;
+            int rz = bz + right.getModZ() * ox + facing.getModZ() * stopForward;
+            int ry = by + (int) Math.floor(reelYOffset) - stopDown;
+            if (clicked.getX() == rx && clicked.getY() == ry && clicked.getZ() == rz) {
+                return SlotDisplayKeys.roleStop(i);
+            }
+        }
+
+        // spin button (center)
+        int sx = bx + facing.getModX() * spinForward;
+        int sz = bz + facing.getModZ() * spinForward;
+        int sy = by + (int) Math.floor(reelYOffset) - spinDown;
+        if (clicked.getX() == sx && clicked.getY() == sy && clicked.getZ() == sz) {
+            return SlotDisplayKeys.roleSpin();
+        }
+
+        return null;
+    }
+
+    /**
+     * 押下したボタンを「その瞬間だけ」消す。
+     * ラウンド終了時に {@link #restoreRemovedButtons()} で復元する。
+     */
+    public void removeButtonBlockForThisRound(Block buttonBlock) {
+        if (buttonBlock == null) return;
+        if (!spinSessionActive) {
+            // spin しない限り復元ポイントが来ないので、未回転時は消さない（誤爆防止）
+            return;
+        }
+        if (!isButtonMaterial(buttonBlock.getType())) return;
+        String key = blockKey(buttonBlock);
+        removedButtons.putIfAbsent(key, buttonBlock.getBlockData().clone());
+        buttonBlock.setType(Material.AIR, false);
+    }
+
+    private void restoreRemovedButtons() {
+        if (removedButtons.isEmpty()) return;
+        World world = base.getWorld();
+        if (world == null) {
+            removedButtons.clear();
+            return;
+        }
+        for (Map.Entry<String, BlockData> e : removedButtons.entrySet()) {
+            Block b = blockFromKey(world, e.getKey());
+            if (b == null) continue;
+            if (b.getType() == Material.AIR) {
+                // ブロックデータから Material を復元する（AIR になることは想定しない）
+                BlockData data = e.getValue();
+                b.setType(data.getMaterial(), false);
+                b.setBlockData(data, false);
+            }
+        }
+        removedButtons.clear();
+    }
+
+    private static boolean isButtonMaterial(Material m) {
+        if (m == null) return false;
+        String name = m.name();
+        return name.endsWith("_BUTTON");
+    }
+
+    private static String blockKey(Block b) {
+        return b.getX() + "," + b.getY() + "," + b.getZ();
+    }
+
+    private static Block blockFromKey(World world, String key) {
+        if (world == null || key == null) return null;
+        String[] p = key.split(",", 3);
+        if (p.length != 3) return null;
+        try {
+            int x = Integer.parseInt(p[0]);
+            int y = Integer.parseInt(p[1]);
+            int z = Integer.parseInt(p[2]);
+            return world.getBlockAt(x, y, z);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private static BlockFace yawToFacing(float yaw) {
+        // Bukkit yaw: 0 = South, 90 = West, 180 = North, -90/270 = East
+        float rot = (yaw % 360 + 360) % 360;
+        if (rot >= 45 && rot < 135) return BlockFace.WEST;
+        if (rot >= 135 && rot < 225) return BlockFace.NORTH;
+        if (rot >= 225 && rot < 315) return BlockFace.EAST;
+        return BlockFace.SOUTH;
+    }
+
+    private static BlockFace rotateRight(BlockFace facing) {
+        return switch (facing) {
+            case NORTH -> BlockFace.EAST;
+            case EAST -> BlockFace.SOUTH;
+            case SOUTH -> BlockFace.WEST;
+            case WEST -> BlockFace.NORTH;
+            default -> BlockFace.EAST;
+        };
+    }
+
     private void refreshAllDisplays() {
         for (int i = 0; i < 3; i++) {
             updateDisplay(i);
         }
     }
 
-    private void updateDisplay(int reelIndex) {
-        TextDisplay td = reelDisplays[reelIndex];
-        if (td == null || td.isDead()) return;
-        String symId = reelStrips[reelIndex].at(reels[reelIndex].pos);
+    private String glyphAt(SlotStrip strip, int index) {
+        String symId = strip.at(index);
         SlotSymbol sym = symbolTable.get(symId);
-        String glyph = sym != null ? sym.glyph() : symId;
-        td.setText(glyph);
+        return sym != null ? sym.glyph() : symId;
+    }
+
+    private void updateDisplay(int reelIndex) {
+        SlotStrip strip = reelStrips[reelIndex];
+        ReelState r = reels[reelIndex];
+        TextDisplay[] lines = reelLineDisplays[reelIndex];
+        if (lines[RL_MID] == null || lines[RL_MID].isDead()) {
+            return;
+        }
+
+        int p = r.pos;
+        boolean stopped = r.stopped || !spinSessionActive;
+        int phase = stopped ? 0 : reelSpinPhase[reelIndex];
+
+        String top;
+        String mid;
+        String bot;
+        String th;
+        String bh;
+        if (stopped || phase == 0) {
+            top = glyphAt(strip, p - 1);
+            mid = glyphAt(strip, p);
+            bot = glyphAt(strip, p + 1);
+            th = "";
+            bh = "";
+        } else if (phase == 1) {
+            top = "";
+            mid = "";
+            bot = "";
+            th = glyphAt(strip, p);
+            bh = glyphAt(strip, p + 1);
+        } else {
+            top = glyphAt(strip, p);
+            mid = glyphAt(strip, p + 1);
+            bot = glyphAt(strip, p + 2);
+            th = "";
+            bh = "";
+        }
+
+        setLineDisplay(lines[RL_TOP], top, false);
+        setLineDisplay(lines[RL_TOP_HALF], th, true);
+        setLineDisplay(lines[RL_MID], mid, false);
+        setLineDisplay(lines[RL_BOT_HALF], bh, true);
+        setLineDisplay(lines[RL_BOT], bot, false);
+    }
+
+    private static void setLineDisplay(TextDisplay td, String text, boolean halfLayer) {
+        if (td == null || td.isDead()) {
+            return;
+        }
+        td.setText(text == null ? "" : text);
+        td.setTransformation(halfLayer ? TRANS_HALF : TRANS_FULL);
+        td.setTextOpacity(halfLayer ? (byte) 200 : (byte) -1);
     }
 
     private void removeEntities() {
-        for (TextDisplay td : reelDisplays) {
-            if (td != null && !td.isDead()) td.remove();
+        for (TextDisplay[] row : reelLineDisplays) {
+            for (TextDisplay td : row) {
+                if (td != null && !td.isDead()) {
+                    td.remove();
+                }
+            }
         }
         if (spinInteraction != null && !spinInteraction.isDead()) spinInteraction.remove();
         for (Interaction it : stopInteractions) {
@@ -297,19 +568,21 @@ public final class SlotDisplayMachine {
         double centerY = base.getY() + reelYOffset;
 
         for (int i = 0; i < 3; i++) {
-            double ox = (i - 1) * reelSpacing;
-            Location loc = base.clone().add(right.clone().multiply(ox));
-            loc.setY(centerY);
-            TextDisplay td = world.spawn(loc, TextDisplay.class);
-            td.setBillboard(Display.Billboard.CENTER);
-            td.setAlignment(TextDisplay.TextAlignment.CENTER);
-            td.setSeeThrough(true);
-            td.setShadowed(true);
-            td.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
-            td.setPersistent(false);
-            td.setInvulnerable(true);
-            tagEntity(td, SlotDisplayKeys.roleReel(i));
-            reelDisplays[i] = td;
+            double ox = (1 - i) * reelSpacing;
+            for (int line = 0; line < REEL_LINE_Y.length; line++) {
+                Location loc = base.clone().add(right.clone().multiply(ox));
+                loc.setY(centerY + REEL_LINE_Y[line]);
+                TextDisplay td = world.spawn(loc, TextDisplay.class);
+                td.setBillboard(Display.Billboard.CENTER);
+                td.setAlignment(TextDisplay.TextAlignment.CENTER);
+                td.setSeeThrough(true);
+                td.setShadowed(true);
+                td.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
+                td.setPersistent(false);
+                td.setInvulnerable(true);
+                tagEntity(td, SlotDisplayKeys.roleReel(i) + ":" + line);
+                reelLineDisplays[i][line] = td;
+            }
         }
 
         Location spinLoc = base.clone().add(forward.clone().multiply(buttonForward)).add(0, buttonDown, 0);
@@ -322,7 +595,7 @@ public final class SlotDisplayMachine {
         tagEntity(spinInteraction, SlotDisplayKeys.roleSpin());
 
         for (int i = 0; i < 3; i++) {
-            double ox = (i - 1) * reelSpacing;
+            double ox = (1 - i) * reelSpacing;
             Location loc = base.clone().add(right.clone().multiply(ox)).add(forward.clone().multiply(buttonForward * 0.85))
                     .add(0, buttonDown + 0.05, 0);
             Interaction it = world.spawn(loc, Interaction.class);
@@ -351,8 +624,13 @@ public final class SlotDisplayMachine {
      */
     void ensureEntities() {
         boolean missing = spinInteraction == null || spinInteraction.isDead();
-        for (TextDisplay td : reelDisplays) {
-            if (td == null || td.isDead()) missing = true;
+        for (TextDisplay[] row : reelLineDisplays) {
+            for (TextDisplay td : row) {
+                if (td == null || td.isDead()) {
+                    missing = true;
+                    break;
+                }
+            }
         }
         for (Interaction it : stopInteractions) {
             if (it == null || it.isDead()) missing = true;
@@ -361,9 +639,65 @@ public final class SlotDisplayMachine {
             spawnOrRefreshEntities();
             refreshAllDisplays();
         }
+        // 目に見える操作用ボタン（ブロック）を不足分だけ設置
+        ensureButtonBlocks();
     }
 
     boolean isSpinSessionActive() {
         return spinSessionActive;
+    }
+
+    private void ensureButtonBlocks() {
+        World world = base.getWorld();
+        if (world == null) return;
+
+        BlockFace facing = yawToFacing(base.getYaw());
+        BlockFace right = rotateRight(facing);
+
+        // stop buttons: forward 1 / down 1
+        for (int i = 0; i < 3; i++) {
+            Block b = buttonBlock(world, facing, right, i, false);
+            placeButtonIfEmpty(b, Material.PALE_OAK_BUTTON, facing);
+        }
+        // spin button: center / forward 2 / down 1
+        Block spin = buttonBlock(world, facing, right, 1, true);
+        placeButtonIfEmpty(spin, Material.CHERRY_BUTTON, facing);
+    }
+
+    private Block buttonBlock(World world, BlockFace facing, BlockFace right, int reelIndex, boolean isSpin) {
+        int bx = base.getBlockX();
+        int by = base.getBlockY();
+        int bz = base.getBlockZ();
+
+        int forward = isSpin ? 2 : 1;
+        int down = 1;
+        int ox = 1 - reelIndex;
+
+        int x = bx + right.getModX() * ox + facing.getModX() * forward;
+        int z = bz + right.getModZ() * ox + facing.getModZ() * forward;
+        int y = by + (int) Math.floor(reelYOffset) - down;
+        return world.getBlockAt(x, y, z);
+    }
+
+    private static void placeButtonIfEmpty(Block block, Material material, BlockFace slotFacing) {
+        if (block == null) return;
+        Material cur = block.getType();
+        if (cur != Material.AIR && !cur.name().endsWith("_BUTTON")) {
+            return;
+        }
+        if (cur == material) {
+            return;
+        }
+        block.setType(material, false);
+        try {
+            BlockData data = Bukkit.createBlockData(material);
+            if (data instanceof Switch sw) {
+                sw.setFace(Switch.Face.FLOOR);
+                sw.setFacing(slotFacing);
+                block.setBlockData(sw, false);
+            }
+        } catch (Exception ignored) {
+            // no-op（向き設定失敗でもボタン自体は置けていればOK）
+        }
     }
 }
