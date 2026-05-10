@@ -154,7 +154,9 @@ slot-display:
   enabled: false
   bet-diamonds: 1
   tick-period: 1
-  reel-step-base-ticks: 2
+  # 1コマ進むまでの間隔（tick）。大きいほど遅い。
+  # 既定は以前(2)より約3/4の速度になるよう 3 に調整。
+  reel-step-base-ticks: 3
   # ストップ時「次コマがこのIDなら」距離抽選を変える対象（各リールの当たりマーク）
   atari-symbol-ids:
     - a4
