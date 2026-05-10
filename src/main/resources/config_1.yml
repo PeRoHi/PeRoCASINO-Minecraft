@@ -373,14 +373,15 @@ slot-display:
   - a7
   - a8
   - a9
+  
   machines:
     my_slot:
       world: world
       x: 157
       y: 63
-      z: 217
-      yaw: -0.2996128499507904
-      pitch: -13.200028419494629
+      z: 215
+      yaw: 1.649730920791626
+      pitch: 3.2998666763305664
   bet-dealer:
     uuid: f38b65f4-88b0-43c3-9d01-fa9e52ee37d9
     world: world
