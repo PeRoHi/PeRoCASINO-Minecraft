@@ -155,11 +155,11 @@ slot-display:
   bet-diamonds: 1
   tick-period: 1
   reel-step-base-ticks: 2
-  # 各リールで「次が当たり」判定に使うシンボルID（リールa/b/c の当たりマーク）
+  # ストップ時「次コマがこのIDなら」距離抽選を変える対象（各リールの当たりマーク）
   atari-symbol-ids:
-    - a_atari
-    - b_atari
-    - c_atari
+    - a4
+    - b3
+    - c7
   stop-distance-weights:
     next: 80
     next-next: 20
@@ -167,147 +167,172 @@ slot-display:
       next: 20
       next-next: 80
   payouts:
-    three-of-a-kind: 8
-    two-of-a-kind: 2
+    three-atari-multiplier: 20
+    triple-same-mark-multiplier: 2
   layout:
     reel-spacing: 0.55
     reel-y-offset: 1.15
     button-forward: 0.45
     button-down: -0.35
   symbols:
+    # --- 左リール a0〜a9（ストリップ順 0→9）---
     a0:
       glyph: ""
       weight: 1
-      winning: false
+      match-group: rapi
     a1:
       glyph: ""
       weight: 1
-      winning: false
+      match-group: eme
     a2:
       glyph: ""
       weight: 1
-      winning: false
+      match-group: gold
     a3:
+      glyph: ""
+      weight: 1
+      match-group: rapi
+    a4:
       glyph: ""
       weight: 1
-      winning: false
-    a_atari:
+      winning: true
+    a5:
       glyph: ""
+      weight: 1
+      hazure: true
+    a6:
+      glyph: ""
+      weight: 1
+      match-group: iron
+    a7:
+      glyph: ""
+      weight: 1
+      match-group: eme
+    a8:
+      glyph: ""
+      weight: 1
+      match-group: gold
+    a9:
+      glyph: ""
+      weight: 1
+      match-group: iron
+    # --- 中リール b0〜b9 ---
+    b0:
+      glyph: ""
+      weight: 1
+      match-group: iron
+    b1:
+      glyph: ""
+      weight: 1
+      match-group: rapi
+    b2:
+      glyph: ""
+      weight: 1
+      match-group: eme
+    b3:
+      glyph: ""
+      weight: 1
+      winning: true
+    b4:
+      glyph: ""
+      weight: 1
+      hazure: true
+    b5:
+      glyph: ""
+      weight: 1
+      match-group: gold
+    b6:
+      glyph: ""
+      weight: 1
+      match-group: iron
+    b7:
+      glyph: ""
+      weight: 1
+      match-group: rapi
+    b8:
+      glyph: ""
+      weight: 1
+      match-group: eme
+    b9:
+      glyph: ""
+      weight: 1
+      match-group: gold
+    # --- 右リール c0〜c9 ---
+    c0:
+      glyph: ""
+      weight: 1
+      match-group: rapi
+    c1:
+      glyph: ""
+      weight: 1
+      match-group: eme
+    c2:
+      glyph: ""
+      weight: 1
+      match-group: gold
+    c3:
+      glyph: ""
+      weight: 1
+      match-group: rapi
+    c4:
+      glyph: ""
+      weight: 1
+      match-group: iron
+    c5:
+      glyph: ""
+      weight: 1
+      match-group: eme
+    c6:
+      glyph: ""
+      weight: 1
+      match-group: iron
+    c7:
+      glyph: ""
+      weight: 1
+      winning: true
+    c8:
+      glyph: ""
+      weight: 1
+      hazure: true
+    c9:
+      glyph: ""
+      weight: 1
+      match-group: gold
+    # 旧ストリップ互換（シンボル定義のみ・未使用でも可）
+    a_atari:
+      glyph: ""
       weight: 1
       winning: true
     a_hazure:
-      glyph: ""
-      weight: 1
-      winning: false
-    a6:
-      glyph: ""
-      weight: 1
-      winning: false
-    a7:
-      glyph: ""
-      weight: 1
-      winning: false
-    a8:
-      glyph: ""
-      weight: 1
-      winning: false
-    a9:
-      glyph: ""
-      weight: 1
-      winning: false
-    b0:
-      glyph: ""
-      weight: 1
-      winning: false
-    b1:
       glyph: ""
       weight: 1
-      winning: false
-    b2:
-      glyph: ""
-      weight: 1
-      winning: false
     b_atari:
-      glyph: ""
+      glyph: ""
       weight: 1
       winning: true
     b_hazure:
-      glyph: ""
+      glyph: ""
       weight: 1
-      winning: false
-    b5:
-      glyph: ""
-      weight: 1
-      winning: false
-    b6:
-      glyph: ""
-      weight: 1
-      winning: false
-    b7:
-      glyph: ""
-      weight: 1
-      winning: false
-    b8:
-      glyph: ""
-      weight: 1
-      winning: false
-    b9:
-      glyph: ""
-      weight: 1
-      winning: false
-    c0:
-      glyph: ""
-      weight: 1
-      winning: false
-    c1:
-      glyph: ""
-      weight: 1
-      winning: false
-    c2:
-      glyph: ""
-      weight: 1
-      winning: false
-    c3:
-      glyph: ""
-      weight: 1
-      winning: false
-    c4:
-      glyph: ""
-      weight: 1
-      winning: false
-    c5:
-      glyph: ""
-      weight: 1
-      winning: false
-    c6:
-      glyph: ""
-      weight: 1
-      winning: false
     c_atari:
-      glyph: ""
+      glyph: ""
       weight: 1
       winning: true
     c_hazure:
-      glyph: ""
+      glyph: ""
       weight: 1
-      winning: false
-    c9:
-      glyph: ""
-      weight: 1
-      winning: false
-  # 左・中・右リール（この順で a / b / c のストリップ）
+  # 左=a列・中=b列・右=c列。各10コマを 0→9 の順で一周する。
   reel-strips:
-    - [a0, a1, a2, a3, a_atari, a_hazure, a6, a7, a8, a9]
-    - [b0, b1, b2, b_atari, b_hazure, b5, b6, b7, b8, b9]
-    - [c0, c1, c2, c3, c4, c5, c6, c_atari, c_hazure, c9]
+    - [a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]
+    - [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9]
+    - [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9]
   # 旧互換: reel-strips が無い場合のみ使われる単一ストリップ
   strip:
     - a0
     - a1
     - a2
     - a3
-    - a_atari
-    - a_hazure
+    - a4
+    - a5
     - a6
     - a7
     - a8

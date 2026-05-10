@@ -33,7 +33,8 @@ public final class CommandBookFactory {
                         "§0設定コマンドをまとめています。\n\n" +
                         "§0目次\n" +
                         "§0- 一般\n" +
-                        "§0- 管理者（設置）",
+                        "§0- 管理者（設置）\n" +
+                        "§0  └ルーレットは砥石を見て登録",
                 "§0§l一般\n" +
                         "§0・/casino\n" +
                         "§0  カジノメニュー\n\n" +
@@ -52,8 +53,11 @@ public final class CommandBookFactory {
                         "§0権限: perocasino.admin\n\n" +
                         "§0・/perocasino（/pc）\n" +
                         "§0  サブコマンド一覧を表示\n\n" +
+                        "§0§lルーレット設置\n" +
                         "§0・/perocasino roulette set\n" +
-                        "§0  見ている砥石をルーレット拠点に\n\n" +
+                        "§0  （/pc roulette set）\n" +
+                        "§0  6ブロック以内の砥石を見て実行。\n" +
+                        "§0  その砥石がルーレット拠点になります。\n\n" +
                         "§0・/perocasino blackjack dealer set|summon\n" +
                         "§0  BJディーラーを設定/召喚\n\n" +
                         "§0・/perocasino hilo dealer set|summon\n" +

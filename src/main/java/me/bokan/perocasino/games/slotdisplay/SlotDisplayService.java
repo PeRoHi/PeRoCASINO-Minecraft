@@ -6,6 +6,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
@@ -18,6 +19,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 設置型スロット（TextDisplay）の読み込みと常時 tick。
@@ -68,7 +72,21 @@ public final class SlotDisplayService {
             return;
         }
 
+        FileConfiguration embeddedDefaults = null;
+
         Map<String, SlotSymbol> symbolTable = loadSymbols(cfg.getConfigurationSection("slot-display.symbols"));
+        if (symbolTable.isEmpty()) {
+            embeddedDefaults = loadEmbeddedDefaultConfig(plugin);
+            if (embeddedDefaults != null) {
+                symbolTable = loadSymbols(embeddedDefaults.getConfigurationSection("slot-display.symbols"));
+                if (!symbolTable.isEmpty()) {
+                    plugin.getLogger().warning(
+                            "plugins の config.yml に slot-display.symbols がありません。"
+                                    + "プラグイン JAR 同梱の既定で動作します。"
+                                    + "シンボルを変える場合は config に slot-display.symbols を追記してください。");
+                }
+            }
+        }
         if (symbolTable.isEmpty()) {
             plugin.getLogger().warning("slot-display.symbols が空です。設置スロットは無効です。");
             return;
@@ -76,7 +94,22 @@ public final class SlotDisplayService {
 
         SlotStrip[] reelStrips = loadReelStrips(cfg, symbolTable, plugin);
         if (reelStrips == null) {
+            if (embeddedDefaults == null) {
+                embeddedDefaults = loadEmbeddedDefaultConfig(plugin);
+            }
+            if (embeddedDefaults != null) {
+                reelStrips = loadReelStrips(embeddedDefaults, symbolTable, plugin);
+                if (reelStrips != null) {
+                    plugin.getLogger().warning(
+                            "slot-display.reel-strips が無いか不正です。JAR 同梱の reel-strips を使用します。");
+                }
+            }
+        }
+        if (reelStrips == null) {
             List<String> fallback = cfg.getStringList("slot-display.strip");
+            if ((fallback == null || fallback.isEmpty()) && embeddedDefaults != null) {
+                fallback = embeddedDefaults.getStringList("slot-display.strip");
+            }
             if (fallback == null || fallback.isEmpty()) {
                 plugin.getLogger().warning("slot-display.reel-strips（または旧 strip）が未定義です。");
                 return;
@@ -105,8 +138,8 @@ public final class SlotDisplayService {
         int wNext2 = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.next-next", 20));
         int wNextAtariPrev = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.when-next-is-atari.next", 20));
         int wNext2AtariPrev = Math.max(0, cfg.getInt("slot-display.stop-distance-weights.when-next-is-atari.next-next", 80));
-        int payoutThree = Math.max(0, cfg.getInt("slot-display.payouts.three-of-a-kind", 8));
-        int payoutTwo = Math.max(0, cfg.getInt("slot-display.payouts.two-of-a-kind", 2));
+        int payoutTripleAtari = Math.max(0, cfg.getInt("slot-display.payouts.three-atari-multiplier", 20));
+        int payoutTripleSameMark = Math.max(0, cfg.getInt("slot-display.payouts.triple-same-mark-multiplier", 2));
         int baseStepTicks = Math.max(1, cfg.getInt("slot-display.reel-step-base-ticks", 2));
         double reelSpacing = cfg.getDouble("slot-display.layout.reel-spacing", 0.55);
         double reelYOffset = cfg.getDouble("slot-display.layout.reel-y-offset", 1.15);
@@ -157,8 +190,8 @@ public final class SlotDisplayService {
                     atariIds,
                     wNextAtariPrev,
                     wNext2AtariPrev,
-                    payoutThree,
-                    payoutTwo,
+                    payoutTripleAtari,
+                    payoutTripleSameMark,
                     baseStepTicks,
                     spacing,
                     ryOff,
@@ -190,7 +223,10 @@ public final class SlotDisplayService {
             String glyph = one.getString("glyph", id);
             int weight = Math.max(0, one.getInt("weight", 1));
             boolean winning = one.getBoolean("winning", false);
-            out.put(id, new SlotSymbol(id, glyph, weight, winning));
+            boolean hazure = one.getBoolean("hazure", false);
+            String mg = one.getString("match-group", "");
+            String matchGroup = (mg == null || mg.isBlank()) ? null : mg.trim();
+            out.put(id, new SlotSymbol(id, glyph, weight, winning, matchGroup, hazure));
         }
         return out;
     }
@@ -237,5 +273,20 @@ public final class SlotDisplayService {
             m.shutdown();
         }
         machines.clear();
+    }
+
+    /** plugins の config に無いとき用：JAR 内 {@code config.yml} を読む。 */
+    private static FileConfiguration loadEmbeddedDefaultConfig(JavaPlugin plugin) {
+        try (InputStream in = plugin.getResource("config.yml")) {
+            if (in == null) {
+                return null;
+            }
+            YamlConfiguration yaml = new YamlConfiguration();
+            yaml.load(new InputStreamReader(in, StandardCharsets.UTF_8));
+            return yaml;
+        } catch (Exception e) {
+            plugin.getLogger().warning("同梱 config.yml を読み込めませんでした: " + e.getMessage());
+            return null;
+        }
     }
 }

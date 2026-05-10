@@ -55,6 +55,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e/perocasino slot create <id> §7… 設置スロット（TextDisplay）を現在位置に登録");
             sender.sendMessage("§e/perocasino slot remove <id> §7… 設置スロットを設定から削除");
             sender.sendMessage("§e/perocasino slot list §7… 設置スロット一覧");
+            sender.sendMessage("§e/perocasino slot dealer set|summon §7… スロット掛け金ディーラーを設定/召喚");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
         }
@@ -293,11 +294,65 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             if (args.length < 2) {
-                sender.sendMessage("§c使い方: /perocasino slot <create|remove|list> ...");
+                sender.sendMessage("§c使い方: /perocasino slot <create|remove|list|dealer> ...");
                 return true;
             }
             String op = args[1].toLowerCase(Locale.ROOT);
             FileConfiguration cfg = plugin.getConfig();
+
+            if ("dealer".equals(op)) {
+                if (args.length < 3) {
+                    sender.sendMessage("§c使い方: /perocasino slot dealer set|summon");
+                    return true;
+                }
+                String dop = args[2].toLowerCase(Locale.ROOT);
+                if ("summon".equals(dop)) {
+                    Villager villager = (Villager) player.getWorld().spawnEntity(player.getLocation(), EntityType.VILLAGER);
+                    villager.setCustomName("§6Slot Dealer");
+                    villager.setCustomNameVisible(true);
+                    villager.setProfession(Villager.Profession.CLERIC);
+                    villager.setAI(false);
+                    villager.setGravity(false);
+
+                    String base = "slot-display.bet-dealer";
+                    cfg.set(base + ".uuid", villager.getUniqueId().toString());
+                    cfg.set(base + ".world", player.getWorld().getName());
+                    cfg.set(base + ".x", player.getLocation().getBlockX());
+                    cfg.set(base + ".y", player.getLocation().getBlockY());
+                    cfg.set(base + ".z", player.getLocation().getBlockZ());
+                    plugin.saveConfig();
+                    sender.sendMessage("§aスロット掛け金ディーラーを召喚・登録しました: §f" + villager.getUniqueId());
+                    return true;
+                }
+                if ("set".equals(dop)) {
+                    Villager villager = player.getNearbyEntities(8, 8, 8).stream()
+                            .filter(e -> e instanceof Villager)
+                            .map(e -> (Villager) e)
+                            .min(java.util.Comparator.comparingDouble(e -> e.getLocation().distanceSquared(player.getEyeLocation())))
+                            .orElse(null);
+                    if (villager == null) {
+                        sender.sendMessage("§c近くに村人が見つかりません。");
+                        return true;
+                    }
+                    villager.setCustomName("§6Slot Dealer");
+                    villager.setCustomNameVisible(true);
+                    villager.setProfession(Villager.Profession.CLERIC);
+                    villager.setAI(false);
+                    villager.setGravity(false);
+
+                    String base = "slot-display.bet-dealer";
+                    cfg.set(base + ".uuid", villager.getUniqueId().toString());
+                    cfg.set(base + ".world", villager.getWorld().getName());
+                    cfg.set(base + ".x", villager.getLocation().getBlockX());
+                    cfg.set(base + ".y", villager.getLocation().getBlockY());
+                    cfg.set(base + ".z", villager.getLocation().getBlockZ());
+                    plugin.saveConfig();
+                    sender.sendMessage("§aスロット掛け金ディーラーを登録しました: §f" + villager.getUniqueId());
+                    return true;
+                }
+                sender.sendMessage("§c使い方: /perocasino slot dealer set|summon");
+                return true;
+            }
 
             if ("create".equals(op)) {
                 if (args.length < 3) {

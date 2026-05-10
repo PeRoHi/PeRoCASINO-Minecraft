@@ -19,6 +19,8 @@ import me.bokan.perocasino.listeners.QuarryRespawnListener;
 import me.bokan.perocasino.listeners.RuleBookListener;
 import me.bokan.perocasino.listeners.RouletteBetMenuListener;
 import me.bokan.perocasino.listeners.RouletteInteractListener;
+import me.bokan.perocasino.listeners.SlotDisplayBlockButtonListener;
+import me.bokan.perocasino.listeners.SlotDisplayBetDealerListener;
 import me.bokan.perocasino.listeners.SlotDisplayInteractListener;
 import me.bokan.perocasino.listeners.SlotInteractListener;
 import me.bokan.perocasino.listeners.SlotMenuListener;
@@ -96,6 +98,8 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new QuarryRespawnListener(this), this);
         getServer().getPluginManager().registerEvents(new SlotInteractListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new SlotDisplayInteractListener(slotDisplayService), this);
+        getServer().getPluginManager().registerEvents(new SlotDisplayBlockButtonListener(slotDisplayService), this);
+        getServer().getPluginManager().registerEvents(new SlotDisplayBetDealerListener(this, economyManager), this);
         getServer().getPluginManager().registerEvents(new SlotMenuListener(), this);
         getServer().getPluginManager().registerEvents(new SlotSessionCleanupListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new GameMenuListener(), this);

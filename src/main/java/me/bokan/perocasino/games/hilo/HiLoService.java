@@ -868,18 +868,7 @@ public final class HiLoService implements Listener {
     }
 
     private void chargeWalletOrDebt(Player player, int amount) {
-        UUID id = player.getUniqueId();
-        int wallet = economy.getWalletBalance(id);
-        int fromWallet = Math.min(wallet, amount);
-        if (fromWallet > 0) economy.setWalletBalance(id, wallet - fromWallet);
-        int debt = amount - fromWallet;
-        if (debt > 0) {
-            economy.addDebt(id, debt);
-            long now = System.currentTimeMillis();
-            if (economy.getLoanDeadline(id) <= 0L) economy.setLoanDeadline(id, now + 24L * 60L * 60L * 1000L);
-            if (economy.getNextInterestMillis(id) <= 0L) economy.setNextInterestMillis(id, now + 60L * 60L * 1000L);
-            player.sendMessage("§c財布不足のため §e" + debt + " §cを強制借入しました。");
-        }
+        economy.takeBetFromWalletOrDebt(player, amount);
     }
 
     private List<Card> buildDeck() {
