@@ -5,6 +5,11 @@ api-version: "1.21"
 description: A casino plugin for Minecraft
 authors: [PeRo]
 
+permissions:
+  perocasino.chinchiro.roll:
+    description: チンチロのサイコロを振る
+    default: true
+
 commands:
   balance:
     description: 財布残高と借金額を表示する
@@ -28,3 +33,6 @@ commands:
   hilo:
     description: High & Low の選択（進行中のセッションがあるときのみ）
     usage: /hilo select <high|low>
+  chinchiro:
+    description: チンチロ用サイコロを振る（表示領域が必要）
+    usage: /chinchiro roll

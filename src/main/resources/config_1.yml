@@ -388,3 +388,21 @@ slot-display:
     x: 154
     y: 63
     z: 217
+
+chinchiro:
+  enabled: true
+  dice:
+    custom-model-data: 9020
+    display-scale: 1.0
+    separation: 0.55
+    random-tries: 120
+    region:
+      world: ""
+      min:
+        x: 0
+        y: 0
+        z: 0
+      max:
+        x: 0
+        y: 0
+        z: 0

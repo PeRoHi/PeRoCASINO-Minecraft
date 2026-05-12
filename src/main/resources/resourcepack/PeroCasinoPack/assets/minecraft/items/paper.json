@@ -119,6 +119,13 @@
           "type": "minecraft:model",
           "model": "item/roulette"
         }
+      },
+      {
+        "threshold": 9020.0,
+        "model": {
+          "type": "minecraft:model",
+          "model": "item/dice"
+        }
       }
     ]
   }

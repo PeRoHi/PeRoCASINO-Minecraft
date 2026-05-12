@@ -17,6 +17,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import me.bokan.perocasino.games.chinchiro.ChinchiroDiceService;
 import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
 import me.bokan.perocasino.roulette.RouletteDisplayService;
 
@@ -32,11 +33,14 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
     private final JavaPlugin plugin;
     private final Runnable onReload;
     private final SlotDisplayService slotDisplayService;
+    private final ChinchiroDiceService chinchiroDiceService;
 
-    public PerocasinoCommand(JavaPlugin plugin, Runnable onReload, SlotDisplayService slotDisplayService) {
+    public PerocasinoCommand(JavaPlugin plugin, Runnable onReload, SlotDisplayService slotDisplayService,
+                             ChinchiroDiceService chinchiroDiceService) {
         this.plugin = plugin;
         this.onReload = onReload;
         this.slotDisplayService = slotDisplayService;
+        this.chinchiroDiceService = chinchiroDiceService;
     }
 
     @Override
@@ -56,6 +60,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e/perocasino slot remove <id> §7… 設置スロットを設定から削除");
             sender.sendMessage("§e/perocasino slot list §7… 設置スロット一覧");
             sender.sendMessage("§e/perocasino slot dealer set|summon §7… スロット掛け金ディーラーを設定/召喚");
+            sender.sendMessage("§e/perocasino chinchiro region set §7… サイコロ3個の出現範囲（2回: MIN→MAX 角）");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
         }
@@ -415,6 +420,69 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if ("chinchiro".equals(sub)) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
+                return true;
+            }
+            if (args.length < 2) {
+                sender.sendMessage("§c使い方: /perocasino chinchiro region set");
+                return true;
+            }
+            if (!"region".equalsIgnoreCase(args[1])) {
+                sender.sendMessage("§c使い方: /perocasino chinchiro region set");
+                return true;
+            }
+            if (args.length < 3 || !"set".equalsIgnoreCase(args[2])) {
+                sender.sendMessage("§c使い方: /perocasino chinchiro region set");
+                return true;
+            }
+            Location loc = player.getLocation();
+            World world = loc.getWorld();
+            if (world == null) {
+                sender.sendMessage("§cワールドが取得できませんでした。");
+                return true;
+            }
+            FileConfiguration cfg = plugin.getConfig();
+            String tmp = "chinchiro.dice.region._tmpMin";
+            if (!cfg.isSet(tmp + ".x")) {
+                cfg.set(tmp + ".world", world.getName());
+                cfg.set(tmp + ".x", loc.getBlockX());
+                cfg.set(tmp + ".y", loc.getBlockY());
+                cfg.set(tmp + ".z", loc.getBlockZ());
+                plugin.saveConfig();
+                sender.sendMessage("§eチンチロサイコロ領域の §fMIN §e角を設定しました。もう一度同じコマンドで §fMAX §e角を設定してください。");
+                return true;
+            }
+
+            String minWorld = cfg.getString(tmp + ".world", world.getName());
+            int tminX = cfg.getInt(tmp + ".x");
+            int tminY = cfg.getInt(tmp + ".y");
+            int tminZ = cfg.getInt(tmp + ".z");
+            int maxXb = loc.getBlockX();
+            int maxYb = loc.getBlockY();
+            int maxZb = loc.getBlockZ();
+
+            cfg.set("chinchiro.dice.region.world", minWorld);
+            cfg.set("chinchiro.dice.region.min.x", tminX);
+            cfg.set("chinchiro.dice.region.min.y", tminY);
+            cfg.set("chinchiro.dice.region.min.z", tminZ);
+            cfg.set("chinchiro.dice.region.max.x", maxXb);
+            cfg.set("chinchiro.dice.region.max.y", maxYb);
+            cfg.set("chinchiro.dice.region.max.z", maxZb);
+            cfg.set(tmp, null);
+            plugin.saveConfig();
+
+            if (chinchiroDiceService != null) {
+                chinchiroDiceService.reloadFromConfig();
+            }
+            sender.sendMessage("§aチンチロサイコロ領域を登録しました: §f" + minWorld
+                    + " §7MIN§f(" + tminX + "," + tminY + "," + tminZ + ")"
+                    + " §7MAX§f(" + maxXb + "," + maxYb + "," + maxZb + ")");
+            sender.sendMessage("§7※ プレイヤーは §f/chinchiro roll §7でサイコロを振れます。");
+            return true;
+        }
+
         sender.sendMessage("§c不明なサブコマンドです。");
         return true;
     }
@@ -467,6 +535,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             if ("hilo".startsWith(a)) out.add("hilo");
             if ("quarry".startsWith(a)) out.add("quarry");
             if ("slot".startsWith(a)) out.add("slot");
+            if ("chinchiro".startsWith(a)) out.add("chinchiro");
             if ("reload".startsWith(a)) out.add("reload");
         } else if (args.length == 2 && "slot".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
@@ -497,6 +566,12 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             if ("summon".startsWith(a)) out.add("summon");
         } else if (args.length == 2 && "quarry".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+        } else if (args.length == 2 && "chinchiro".equalsIgnoreCase(args[0])) {
+            String a = args[1].toLowerCase();
+            if ("region".startsWith(a)) out.add("region");
+        } else if (args.length == 3 && "chinchiro".equalsIgnoreCase(args[0]) && "region".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
         }
         return out;

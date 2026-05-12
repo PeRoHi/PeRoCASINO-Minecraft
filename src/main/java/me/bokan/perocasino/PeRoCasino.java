@@ -2,12 +2,14 @@ package me.bokan.perocasino;
 
 import me.bokan.perocasino.commands.BalanceCommand;
 import me.bokan.perocasino.commands.CasinoCommand;
+import me.bokan.perocasino.commands.ChinchiroCommand;
 import me.bokan.perocasino.commands.CommandBookCommand;
 import me.bokan.perocasino.commands.DepositCommand;
 import me.bokan.perocasino.commands.HiLoSelectCommand;
 import me.bokan.perocasino.commands.PerocasinoCommand;
 import me.bokan.perocasino.economy.EconomyManager;
 import me.bokan.perocasino.games.blackjack.BlackjackService;
+import me.bokan.perocasino.games.chinchiro.ChinchiroDiceService;
 import me.bokan.perocasino.games.hilo.HiLoService;
 import me.bokan.perocasino.games.slot.SlotMachineService;
 import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
@@ -39,6 +41,7 @@ public class PeRoCasino extends JavaPlugin {
     private BlackjackService blackjackService;
     private HiLoService hiLoService;
     private SlotDisplayService slotDisplayService;
+    private ChinchiroDiceService chinchiroDiceService;
 
     @Override
     public void onEnable() {
@@ -63,6 +66,13 @@ public class PeRoCasino extends JavaPlugin {
 
         slotDisplayService = new SlotDisplayService(this, economyManager);
         slotDisplayService.reloadFromConfig();
+
+        chinchiroDiceService = new ChinchiroDiceService(this);
+        chinchiroDiceService.reloadFromConfig();
+        org.bukkit.command.PluginCommand chinchiroCmd = getCommand("chinchiro");
+        if (chinchiroCmd != null) {
+            chinchiroCmd.setExecutor(new ChinchiroCommand(this, chinchiroDiceService));
+        }
 
         // LOAN GUI リスナー → カジノメインリスナーへ渡す
         LoanMenuListener loanListener = new LoanMenuListener(economyManager, this);
@@ -90,7 +100,8 @@ public class PeRoCasino extends JavaPlugin {
                 if (rouletteHubService != null) rouletteHubService.reloadFromConfig();
                 if (slotMachineService != null) slotMachineService.reloadFromConfig();
                 if (slotDisplayService != null) slotDisplayService.reloadFromConfig();
-            }, slotDisplayService);
+                if (chinchiroDiceService != null) chinchiroDiceService.reloadFromConfig();
+            }, slotDisplayService, chinchiroDiceService);
             pc.setExecutor(adminCmd);
             pc.setTabCompleter(adminCmd);
         }
@@ -129,6 +140,9 @@ public class PeRoCasino extends JavaPlugin {
         if (slotDisplayService != null) {
             slotDisplayService.shutdown();
         }
+        if (chinchiroDiceService != null) {
+            chinchiroDiceService.removeAllDisplays();
+        }
         getLogger().info("PeRoCasino が無効化されました。");
     }
 
@@ -142,5 +156,9 @@ public class PeRoCasino extends JavaPlugin {
 
     public HiLoService getHiLoService() {
         return hiLoService;
+    }
+
+    public ChinchiroDiceService getChinchiroDiceService() {
+        return chinchiroDiceService;
     }
 }
