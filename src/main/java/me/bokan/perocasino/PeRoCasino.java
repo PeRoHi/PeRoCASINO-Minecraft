@@ -72,6 +72,8 @@ public class PeRoCasino extends JavaPlugin {
         org.bukkit.command.PluginCommand chinchiroCmd = getCommand("chinchiro");
         if (chinchiroCmd != null) {
             chinchiroCmd.setExecutor(new ChinchiroCommand(this, chinchiroDiceService));
+        } else {
+            getLogger().severe("plugin.yml に chinchiro コマンドが定義されていません。ビルド設定を確認してください。");
         }
 
         // LOAN GUI リスナー → カジノメインリスナーへ渡す

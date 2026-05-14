@@ -53,13 +53,18 @@ public final class ChinchiroCommand implements CommandExecutor {
 
         player.sendMessage("§6[チンチロ] §f出目: §e" + tops[0] + " §7| §e" + tops[1] + " §7| §e" + tops[2]);
 
-        TextComponent head = new TextComponent(TextComponent.fromLegacyText("§7もう一度: "));
-        TextComponent link = new TextComponent(TextComponent.fromLegacyText("§a§nサイコロを振る"));
-        link.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chinchiro roll"));
-        link.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                new ComponentBuilder("§aクリックで /chinchiro roll").create()));
-        TextComponent tail = new TextComponent(TextComponent.fromLegacyText(" §7（チャットから）"));
-        player.spigot().sendMessage(head, link, tail);
+        try {
+            TextComponent head = new TextComponent(TextComponent.fromLegacyText("§7もう一度: "));
+            TextComponent link = new TextComponent(TextComponent.fromLegacyText("§a§nサイコロを振る"));
+            link.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/chinchiro roll"));
+            link.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                    new ComponentBuilder("§aクリックで /chinchiro roll").create()));
+            TextComponent tail = new TextComponent(TextComponent.fromLegacyText(" §7（チャットから）"));
+            player.spigot().sendMessage(head, link, tail);
+        } catch (Throwable t) {
+            plugin.getLogger().warning("[Chinchiro] クリック用チャット送信に失敗: " + t.getMessage());
+            player.sendMessage("§7もう一度: §f/chinchiro roll");
+        }
 
         return true;
     }

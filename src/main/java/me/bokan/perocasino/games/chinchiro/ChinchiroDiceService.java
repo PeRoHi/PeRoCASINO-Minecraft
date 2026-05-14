@@ -127,7 +127,8 @@ public final class ChinchiroDiceService {
         double maxCx = hiX + 1.0 - inset;
         double minCz = loZ + inset;
         double maxCz = hiZ + 1.0 - inset;
-        if (minCx > maxCx || minCz > maxCz) {
+        // ThreadLocalRandom#nextDouble は origin < bound が必須
+        if (!(maxCx > minCx) || !(maxCz > minCz)) {
             player.sendMessage("§c[チンチロ] 領域が狭すぎます（separation か範囲を見直してください）。");
             return new int[0];
         }
@@ -160,16 +161,32 @@ public final class ChinchiroDiceService {
             tops[i] = rnd.nextInt(1, 7);
             float yaw = rnd.nextFloat((float) (Math.PI * 2.0));
             Location loc = new Location(world, x[i], cy, z[i]);
-            ItemDisplay display = (ItemDisplay) world.spawnEntity(loc, EntityType.ITEM_DISPLAY);
-            display.setItemStack(diceItem());
-            display.setBillboard(Display.Billboard.FIXED);
-            display.setShadowRadius(0f);
-            display.setShadowStrength(0f);
-            display.setBrightness(new Display.Brightness(15, 15));
-            display.setInterpolationDelay(0);
-            display.setInterpolationDuration(2);
-            display.setTransformation(transformationForDice(tops[i], yaw));
-            displayUuids.add(display.getUniqueId());
+            try {
+                int cx = loc.getBlockX() >> 4;
+                int cz = loc.getBlockZ() >> 4;
+                if (!world.isChunkLoaded(cx, cz)) {
+                    world.loadChunk(cx, cz);
+                }
+                ItemDisplay display = (ItemDisplay) world.spawnEntity(loc, EntityType.ITEM_DISPLAY);
+                display.setItemStack(diceItem());
+                // 手に持ったとき用の変形を掛けず、Transformation のみで見た目を決める
+                display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
+                display.setBillboard(Display.Billboard.FIXED);
+                display.setShadowRadius(0f);
+                display.setShadowStrength(0f);
+                display.setBrightness(new Display.Brightness(15, 15));
+                display.setInterpolationDelay(0);
+                display.setInterpolationDuration(2);
+                display.setInvulnerable(true);
+                display.setPersistent(false);
+                display.setTransformation(transformationForDice(tops[i], yaw));
+                displayUuids.add(display.getUniqueId());
+            } catch (Throwable t) {
+                plugin.getLogger().warning("[Chinchiro] サイコロ表示のスポーンに失敗: " + t.getMessage());
+                removeAllDisplays();
+                player.sendMessage("§c[チンチロ] サイコロを表示できませんでした。サーバーログを確認してください。");
+                return new int[0];
+            }
         }
 
         return tops;
@@ -206,7 +223,7 @@ public final class ChinchiroDiceService {
     private Transformation transformationForDice(int top1to6, float yawRad) {
         Quaternionf face = topFaceQuaternion(top1to6);
         Quaternionf yawQ = new Quaternionf().rotateY(yawRad);
-        Quaternionf rot = yawQ.mul(face, new Quaternionf());
+        Quaternionf rot = yawQ.mul(face, new Quaternionf()).normalize();
         float s = displayScale;
         return new Transformation(
                 new Vector3f(0f, 0f, 0f),
