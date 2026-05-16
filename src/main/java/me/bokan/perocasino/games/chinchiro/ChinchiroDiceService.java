@@ -56,7 +56,7 @@ public final class ChinchiroDiceService {
         FileConfiguration cfg = plugin.getConfig();
         enabled = cfg.getBoolean("chinchiro.enabled", true);
         customModelData = cfg.getInt("chinchiro.dice.custom-model-data", DEFAULT_CMD);
-        displayScale = (float) cfg.getDouble("chinchiro.dice.display-scale", 1.0);
+        displayScale = (float) cfg.getDouble("chinchiro.dice.display-scale", 2.0);
         separation = cfg.getDouble("chinchiro.dice.separation", 0.55);
         randomTries = Math.max(20, cfg.getInt("chinchiro.dice.random-tries", 120));
 
@@ -122,18 +122,21 @@ public final class ChinchiroDiceService {
         int loZ = Math.min(minZ, maxZ);
         int hiZ = Math.max(minZ, maxZ);
 
-        double inset = separation * 0.5;
-        double minCx = loX + inset;
-        double maxCx = hiX + 1.0 - inset;
-        double minCz = loZ + inset;
-        double maxCz = hiZ + 1.0 - inset;
+        // モデル dice.json は 16³ 要素（ワールドで約 1×1×1）を display-scale 倍で表示する想定
+        float s = displayScale;
+        // 床ブロック上面より上に中心を置く（旧 loY+0.25 は床ブロック内に埋まりクリップしやすかった）
+        double cy = loY + 1.0 + 0.5 * s;
+        double margin = Math.max(separation * 0.5, s * 0.52);
+        double minCx = loX + margin;
+        double maxCx = hiX + 1.0 - margin;
+        double minCz = loZ + margin;
+        double maxCz = hiZ + 1.0 - margin;
+        double minCenterDist = Math.max(separation, s * 1.08);
         // ThreadLocalRandom#nextDouble は origin < bound が必須
         if (!(maxCx > minCx) || !(maxCz > minCz)) {
-            player.sendMessage("§c[チンチロ] 領域が狭すぎます（separation か範囲を見直してください）。");
+            player.sendMessage("§c[チンチロ] 領域が狭すぎます。display-scale や chinchiro.dice.region を広げてください。");
             return new int[0];
         }
-
-        double cy = loY + 0.25;
 
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
         double[] x = new double[3];
@@ -144,7 +147,7 @@ public final class ChinchiroDiceService {
                 x[i] = rnd.nextDouble(minCx, maxCx);
                 z[i] = rnd.nextDouble(minCz, maxCz);
             }
-            if (pairwiseOk(x, z, separation)) {
+            if (pairwiseOk(x, z, minCenterDist)) {
                 ok = true;
                 break;
             }
@@ -169,8 +172,8 @@ public final class ChinchiroDiceService {
                 }
                 ItemDisplay display = (ItemDisplay) world.spawnEntity(loc, EntityType.ITEM_DISPLAY);
                 display.setItemStack(diceItem());
-                // 手に持ったとき用の変形を掛けず、Transformation のみで見た目を決める
-                display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
+                // NONE は環境によって薄い平面に見えることがある。展示用は FIXED が無難
+                display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
                 display.setBillboard(Display.Billboard.FIXED);
                 display.setShadowRadius(0f);
                 display.setShadowStrength(0f);

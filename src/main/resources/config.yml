@@ -389,9 +389,9 @@ chinchiro:
   dice:
     # paper の custom_model_data（resourcepack items/paper.json の threshold 9020 と一致）
     custom-model-data: 9020
-    # ItemDisplay の一様スケール（見た目調整）
-    display-scale: 1.0
-    # XZ 上でサイコロ中心同士の最低距離（ブロック）。重なり防止用
+    # ItemDisplay の一様スケール。モデル dice.json は 16³（見た目約1ブロック）基準（既定 2.0）
+    display-scale: 2.0
+    # XZ 上でサイコロ中心同士の最低距離の下限。拡大時は自動的に display-scale に比例して広げる
     separation: 0.55
     random-tries: 120
     region:
