@@ -78,30 +78,29 @@ quarry:
   enabled: true
   # 採石場として扱うワールド名（空なら全ワールド）
   world: world
-  # 角2点（含まれる立方体領域）。未設定なら採石場機能は無効
-  min:
-    x: 166
-    y: 63
-    z: 194
   max:
     x: 166
     y: 63
     z: 196
   # ダイヤ鉱石を掘ったあと、何tick後に元に戻すか（20tick=1秒）
   respawn-delay-ticks: 6000
+  min:
+    x: 166
+    y: 63
+    z: 194
 
 slot-machine:
   # スロットの鉱石シンボル（上から順に回転表示）
   symbols:
-    - COAL_ORE
-    - COPPER_ORE
-    - IRON_ORE
-    - GOLD_ORE
-    - REDSTONE_ORE
-    - LAPIS_ORE
-    - EMERALD_ORE
-    - DIAMOND_ORE
-    - NETHERITE_SCRAP
+  - COAL_ORE
+  - COPPER_ORE
+  - IRON_ORE
+  - GOLD_ORE
+  - REDSTONE_ORE
+  - LAPIS_ORE
+  - EMERALD_ORE
+  - DIAMOND_ORE
+  - NETHERITE_SCRAP
   # スピン開始後、各リールが止まるまでのランダムtick（最小〜最大）
   spin-min-ticks: 40
   spin-max-ticks: 120
@@ -112,30 +111,30 @@ slot-machine:
   # スロット操作ボタン（ブロック座標）。右クリックで検知します。
   buttons:
     spin:
-      world: ""
+      world: ''
       x: 0
       y: 0
       z: 0
     stop1:
-      world: ""
+      world: ''
       x: 0
       y: 0
       z: 0
     stop2:
-      world: ""
+      world: ''
       x: 0
       y: 0
       z: 0
     stop3:
-      world: ""
+      world: ''
       x: 0
       y: 0
       z: 0
 
 blackjack:
   dealer:
-    world: ""
-    uuid: ""
+    world: ''
+    uuid: ''
     x: 0
     y: 0
     z: 0
@@ -143,8 +142,8 @@ blackjack:
 
 hilo:
   dealer:
-    world: ""
-    uuid: ""
+    world: ''
+    uuid: ''
     x: 0
     y: 0
     z: 0
@@ -156,14 +155,12 @@ slot-display:
   enabled: true
   bet-diamonds: 1
   tick-period: 1
-  # 1コマ進むまでの間隔（tick）。大きいほど遅い。
-  # 既定は以前(2)より約3/4の速度になるよう 3 に調整。
-  reel-step-base-ticks: 3
+  reel-step-base-ticks: 2
   # ストップ時「次コマがこのIDなら」距離抽選を変える対象（各リールの当たりマーク）
   atari-symbol-ids:
-    - a4
-    - b3
-    - c7
+  - a4
+  - b3
+  - c7
   stop-distance-weights:
     next: 80
     next-next: 20
@@ -181,157 +178,152 @@ slot-display:
   symbols:
     # --- 左リール a0〜a9（ストリップ順 0→9）---
     a0:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: rapi
     a1:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: eme
     a2:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: gold
     a3:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: rapi
     a4:
-      glyph: ""
+      glyph: 
       weight: 1
       winning: true
     a5:
-      glyph: ""
+      glyph: 
       weight: 1
       hazure: true
     a6:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: iron
     a7:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: eme
     a8:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: gold
     a9:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: iron
     # --- 中リール b0〜b9 ---
     b0:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: iron
     b1:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: rapi
     b2:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: eme
     b3:
-      glyph: ""
+      glyph: 
       weight: 1
       winning: true
     b4:
-      glyph: ""
+      glyph: 
       weight: 1
       hazure: true
     b5:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: gold
     b6:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: iron
     b7:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: rapi
     b8:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: eme
     b9:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: gold
     # --- 右リール c0〜c9 ---
     c0:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: rapi
     c1:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: eme
     c2:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: gold
     c3:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: rapi
     c4:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: iron
     c5:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: eme
     c6:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: iron
     c7:
-      glyph: ""
+      glyph: 
       weight: 1
       winning: true
     c8:
-      glyph: ""
+      glyph: 
       weight: 1
       hazure: true
     c9:
-      glyph: ""
+      glyph: 
       weight: 1
       match-group: gold
     # 旧ストリップ互換（シンボル定義のみ・未使用でも可）
     a_atari:
-      glyph: ""
+      glyph: 
       weight: 1
       winning: true
     a_hazure:
-      glyph: ""
+      glyph: 
       weight: 1
     b_atari:
-      glyph: ""
+      glyph: 
       weight: 1
       winning: true
     b_hazure:
-      glyph: ""
+      glyph: 
       weight: 1
     c_atari:
-      glyph: ""
+      glyph: 
       weight: 1
       winning: true
     c_hazure:
-      glyph: ""
+      glyph: 
       weight: 1
   # 左=a列・中=b列・右=c列。各10コマを 0→9 の順で一周する。
   reel-strips:
-    - [a0, a1, a2, a3, a4, a5, a6, a7, a8, a9]
-    - [b0, b1, b2, b3, b4, b5, b6, b7, b8, b9]
-    - [c0, c1, c2, c3, c4, c5, c6, c7, c8, c9]
-  # 旧互換: reel-strips が無い場合のみ使われる単一ストリップ
-  strip:
-    - a0
+  - - a0
     - a1
     - a2
     - a3
@@ -341,15 +333,47 @@ slot-display:
     - a7
     - a8
     - a9
-  # --- 以下は運用環境（config_1）由来：台位置・掛け金ディーラー ---
+  - - b0
+    - b1
+    - b2
+    - b3
+    - b4
+    - b5
+    - b6
+    - b7
+    - b8
+    - b9
+  - - c0
+    - c1
+    - c2
+    - c3
+    - c4
+    - c5
+    - c6
+    - c7
+    - c8
+    - c9
+  # 旧互換: reel-strips が無い場合のみ使われる単一ストリップ
+  strip:
+  - a0
+  - a1
+  - a2
+  - a3
+  - a4
+  - a5
+  - a6
+  - a7
+  - a8
+  - a9
+  
   machines:
     my_slot:
       world: world
       x: 157
       y: 63
-      z: 217
-      yaw: -0.2996128499507904
-      pitch: -13.200028419494629
+      z: 215
+      yaw: 1.649730920791626
+      pitch: 3.2998666763305664
   bet-dealer:
     uuid: f38b65f4-88b0-43c3-9d01-fa9e52ee37d9
     world: world
@@ -357,6 +381,7 @@ slot-display:
     y: 63
     z: 217
 
+    
 # チンチロ（サイコロ表示のみ。領域は /perocasino chinchiro region set を2回）
 chinchiro:
   enabled: true
@@ -369,12 +394,12 @@ chinchiro:
     separation: 0.55
     random-tries: 120
     region:
-      world: ""
+      world: world
       min:
-        x: 0
-        y: 0
-        z: 0
+        x: 149
+        y: 63
+        z: 219
       max:
-        x: 0
-        y: 0
-        z: 0
+        x: 151
+        y: 63
+        z: 221
