@@ -382,9 +382,8 @@ slot-display:
     y: 63
     z: 217
 
-    
-# チンチロ（サイコロ表示のみ。領域は /perocasino chinchiro region set を2回）
-# 下記 region が初期値のまま（world 空・角0）のときはゲーム内コマンドで登録するまで振れません。
+
+# チンチロ（サイコロ表示のみ。領域は下記か、/perocasino chinchiro region set を角2回）
 chinchiro:
   enabled: true
   dice:
