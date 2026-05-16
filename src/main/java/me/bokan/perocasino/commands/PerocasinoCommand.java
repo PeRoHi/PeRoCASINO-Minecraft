@@ -65,6 +65,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e/perocasino slot remove <id> §7… 設置スロットを設定から削除");
             sender.sendMessage("§e/perocasino slot list §7… 設置スロット一覧");
             sender.sendMessage("§e/perocasino slot dealer set|summon §7… スロット掛け金ディーラーを設定/召喚");
+            sender.sendMessage("§e/perocasino chinchiro dealer set|summon §7… チンチロ卓ディーラー");
             sender.sendMessage("§e/perocasino chinchiro region set §7… サイコロ3個の出現範囲（2回: MIN→MAX 角）");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
@@ -481,10 +482,46 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             if (args.length < 2) {
+                sender.sendMessage("§c使い方: /perocasino chinchiro dealer set|summon");
                 sender.sendMessage("§c使い方: /perocasino chinchiro region set");
                 return true;
             }
-            if (!"region".equalsIgnoreCase(args[1])) {
+            String branch = args[1].toLowerCase(Locale.ROOT);
+            if ("dealer".equals(branch)) {
+                if (args.length < 3) {
+                    sender.sendMessage("§c使い方: /perocasino chinchiro dealer set|summon");
+                    return true;
+                }
+                if ("summon".equalsIgnoreCase(args[2])) {
+                    Villager villager = (Villager) player.getWorld().spawnEntity(player.getLocation(), EntityType.VILLAGER);
+                    villager.setCustomName("§6Chinchiro Dealer");
+                    villager.setCustomNameVisible(true);
+                    villager.setProfession(Villager.Profession.MASON);
+                    configureChinchiroDealerNpc(villager);
+                    saveChinchiroDealer(villager);
+                    sender.sendMessage("§aチンチロディーラーを召喚・登録しました: §f" + villager.getUniqueId());
+                    return true;
+                }
+                if ("set".equalsIgnoreCase(args[2])) {
+                    Villager villager = player.getNearbyEntities(8, 8, 8).stream()
+                            .filter(e -> e instanceof Villager)
+                            .map(e -> (Villager) e)
+                            .min(java.util.Comparator.comparingDouble(e -> e.getLocation().distanceSquared(player.getEyeLocation())))
+                            .orElse(null);
+                    if (villager == null) {
+                        sender.sendMessage("§c8ブロック以内の村人を狙ってください。");
+                        return true;
+                    }
+                    configureChinchiroDealerNpc(villager);
+                    saveChinchiroDealer(villager);
+                    sender.sendMessage("§aチンチロディーラーを登録しました: §f" + villager.getUniqueId());
+                    return true;
+                }
+                sender.sendMessage("§c使い方: /perocasino chinchiro dealer set|summon");
+                return true;
+            }
+            if (!"region".equals(branch)) {
+                sender.sendMessage("§c使い方: /perocasino chinchiro dealer set|summon");
                 sender.sendMessage("§c使い方: /perocasino chinchiro region set");
                 return true;
             }
@@ -534,12 +571,30 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§aチンチロサイコロ領域を登録しました: §f" + minWorld
                     + " §7MIN§f(" + tminX + "," + tminY + "," + tminZ + ")"
                     + " §7MAX§f(" + maxXb + "," + maxYb + "," + maxZb + ")");
-            sender.sendMessage("§7※ プレイヤーは §f/chinchiro roll §7でサイコロを振れます。");
+            sender.sendMessage("§7※ 卓は村人ディーラーから。単体練習は §f/chinchiro roll §7も利用できます。");
             return true;
         }
 
         sender.sendMessage("§c不明なサブコマンドです。");
         return true;
+    }
+
+    private void configureChinchiroDealerNpc(Villager villager) {
+        villager.setAI(false);
+        villager.setGravity(false);
+    }
+
+    private void saveChinchiroDealer(Villager villager) {
+        FileConfiguration cfg = plugin.getConfig();
+        cfg.set("chinchiro.dealer.uuid", villager.getUniqueId().toString());
+        cfg.set("chinchiro.dealer.world", villager.getWorld().getName());
+        cfg.set("chinchiro.dealer.x", villager.getLocation().getX());
+        cfg.set("chinchiro.dealer.y", villager.getLocation().getY());
+        cfg.set("chinchiro.dealer.z", villager.getLocation().getZ());
+        plugin.saveConfig();
+        if (onReload != null) {
+            onReload.run();
+        }
     }
 
     /** H&amp;L ディーラー用NPC：移動・重力を無効化（サーバー再起動後は手動で再設定が必要な場合あり）。 */
@@ -637,9 +692,14 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         } else if (args.length == 2 && "chinchiro".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("region".startsWith(a)) out.add("region");
+            if ("dealer".startsWith(a)) out.add("dealer");
         } else if (args.length == 3 && "chinchiro".equalsIgnoreCase(args[0]) && "region".equalsIgnoreCase(args[1])) {
             String a = args[2].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
+        } else if (args.length == 3 && "chinchiro".equalsIgnoreCase(args[0]) && "dealer".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+            if ("summon".startsWith(a)) out.add("summon");
         }
         return out;
     }

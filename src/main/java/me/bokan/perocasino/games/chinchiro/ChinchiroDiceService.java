@@ -32,7 +32,10 @@ public final class ChinchiroDiceService {
 
     private boolean enabled = true;
     private int customModelData = DEFAULT_CMD;
-    private float displayScale = 1.0f;
+    /** ワールドでの立方体モデルの辺の長さ（ブロック）。dice.json は 16³＝モデルとして 1 を想定する。ItemDisplay で NONE と併せるための実寸。 */
+    private float edgeLengthBlocks = 0.5f;
+    /** Paper/MC 1.21系の ItemDisplay で見た目だけ小さくなる場合の描画補正。配置判定には使わない。 */
+    private float modelScaleCorrection = 10.0f;
     /** XZ 平面上の中心同士の最低距離（ブロック） */
     private double separation = 0.55;
     private int randomTries = 120;
@@ -56,7 +59,12 @@ public final class ChinchiroDiceService {
         FileConfiguration cfg = plugin.getConfig();
         enabled = cfg.getBoolean("chinchiro.enabled", true);
         customModelData = cfg.getInt("chinchiro.dice.custom-model-data", DEFAULT_CMD);
-        displayScale = (float) cfg.getDouble("chinchiro.dice.display-scale", 1.0);
+        if (cfg.isSet("chinchiro.dice.edge-length-blocks")) {
+            edgeLengthBlocks = clampEdge((float) cfg.getDouble("chinchiro.dice.edge-length-blocks", 0.5));
+        } else {
+            edgeLengthBlocks = clampEdge((float) cfg.getDouble("chinchiro.dice.display-scale", 0.5));
+        }
+        modelScaleCorrection = clampCorrection((float) cfg.getDouble("chinchiro.dice.model-scale-correction", 10.0));
         separation = cfg.getDouble("chinchiro.dice.separation", 0.55);
         randomTries = Math.max(20, cfg.getInt("chinchiro.dice.random-tries", 120));
 
@@ -100,19 +108,32 @@ public final class ChinchiroDiceService {
         return hiX >= loX && hiZ >= loZ && hiY >= loY;
     }
 
+    /** サイコロ表示が有効で領域が使えるとき true（テーブル開始前のチェック用）。 */
+    public boolean canRollDice() {
+        return enabled && hasValidRegion() && regionWorld != null && !regionWorld.isBlank()
+                && Bukkit.getWorld(regionWorld) != null;
+    }
+
     /**
      * 領域内に 3 個のサイコロを出し直す。メインスレッドから呼ぶこと。
      *
      * @return 各サイコロの上面の目（1〜6）、失敗時は空
      */
     public int[] rollThreeDice(Player player) {
+        return rollThreeDice(player, false);
+    }
+
+    /**
+     * @param quiet true のときプレイヤーへチャットせずログのみ（テーブル進行用）
+     */
+    public int[] rollThreeDice(Player player, boolean quiet) {
         if (!enabled) {
-            player.sendMessage("§e[チンチロ] サイコロ表示は無効です。");
+            msg(player, quiet, "§e[チンチロ] サイコロ表示は無効です。");
             return new int[0];
         }
         World world = Bukkit.getWorld(regionWorld);
         if (world == null || !hasValidRegion()) {
-            player.sendMessage("§c[チンチロ] サイコロ領域が未設定です。§7管理者: §f/perocasino chinchiro region set");
+            msg(player, quiet, "§c[チンチロ] サイコロ領域が未設定です。§7管理者: §f/perocasino chinchiro region set");
             return new int[0];
         }
 
@@ -122,18 +143,20 @@ public final class ChinchiroDiceService {
         int loZ = Math.min(minZ, maxZ);
         int hiZ = Math.max(minZ, maxZ);
 
-        double inset = separation * 0.5;
-        double minCx = loX + inset;
-        double maxCx = hiX + 1.0 - inset;
-        double minCz = loZ + inset;
-        double maxCz = hiZ + 1.0 - inset;
+        // edge は配置判定と床からの高さ用。描画だけ小さい環境は model-scale-correction で別途補正する。
+        float edge = edgeLengthBlocks;
+        double cy = loY + 1.0 + 0.5 * edge;
+        double margin = Math.max(separation * 0.5, edge * 0.52);
+        double minCx = loX + margin;
+        double maxCx = hiX + 1.0 - margin;
+        double minCz = loZ + margin;
+        double maxCz = hiZ + 1.0 - margin;
+        double minCenterDist = Math.max(separation, edge * 1.08);
         // ThreadLocalRandom#nextDouble は origin < bound が必須
         if (!(maxCx > minCx) || !(maxCz > minCz)) {
-            player.sendMessage("§c[チンチロ] 領域が狭すぎます（separation か範囲を見直してください）。");
+            msg(player, quiet, "§c[チンチロ] 領域が狭すぎます。edge-length-blocks を下げるか chinchiro.dice.region を広げてください。");
             return new int[0];
         }
-
-        double cy = loY + 0.25;
 
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
         double[] x = new double[3];
@@ -144,13 +167,13 @@ public final class ChinchiroDiceService {
                 x[i] = rnd.nextDouble(minCx, maxCx);
                 z[i] = rnd.nextDouble(minCz, maxCz);
             }
-            if (pairwiseOk(x, z, separation)) {
+            if (pairwiseOk(x, z, minCenterDist)) {
                 ok = true;
                 break;
             }
         }
         if (!ok) {
-            player.sendMessage("§c[チンチロ] 重ならない配置が見つかりませんでした（random-tries を増やすか領域を広げてください）。");
+            msg(player, quiet, "§c[チンチロ] 重ならない配置が見つかりませんでした（random-tries を増やすか領域を広げてください）。");
             return new int[0];
         }
 
@@ -169,7 +192,7 @@ public final class ChinchiroDiceService {
                 }
                 ItemDisplay display = (ItemDisplay) world.spawnEntity(loc, EntityType.ITEM_DISPLAY);
                 display.setItemStack(diceItem());
-                // 手に持ったとき用の変形を掛けず、Transformation のみで見た目を決める
+                // FIXED は ItemDisplay 側の極小スケールが乗りやすいので、立方体は NONE + Transformation のみで制御する
                 display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
                 display.setBillboard(Display.Billboard.FIXED);
                 display.setShadowRadius(0f);
@@ -184,12 +207,20 @@ public final class ChinchiroDiceService {
             } catch (Throwable t) {
                 plugin.getLogger().warning("[Chinchiro] サイコロ表示のスポーンに失敗: " + t.getMessage());
                 removeAllDisplays();
-                player.sendMessage("§c[チンチロ] サイコロを表示できませんでした。サーバーログを確認してください。");
+                msg(player, quiet, "§c[チンチロ] サイコロを表示できませんでした。サーバーログを確認してください。");
                 return new int[0];
             }
         }
 
         return tops;
+    }
+
+    private void msg(Player player, boolean quiet, String text) {
+        if (quiet) {
+            plugin.getLogger().info("[Chinchiro] " + org.bukkit.ChatColor.stripColor(text));
+        } else if (player != null) {
+            player.sendMessage(text);
+        }
     }
 
     private static boolean pairwiseOk(double[] x, double[] z, double minDist) {
@@ -224,7 +255,7 @@ public final class ChinchiroDiceService {
         Quaternionf face = topFaceQuaternion(top1to6);
         Quaternionf yawQ = new Quaternionf().rotateY(yawRad);
         Quaternionf rot = yawQ.mul(face, new Quaternionf()).normalize();
-        float s = displayScale;
+        float s = edgeLengthBlocks * modelScaleCorrection;
         return new Transformation(
                 new Vector3f(0f, 0f, 0f),
                 rot,
@@ -237,11 +268,24 @@ public final class ChinchiroDiceService {
         return switch (top1to6) {
             case 1 -> new Quaternionf();
             case 6 -> new Quaternionf().rotateX((float) Math.PI);
-            case 2 -> new Quaternionf().rotateX((float) (Math.PI / 2.0));
-            case 5 -> new Quaternionf().rotateX((float) (-Math.PI / 2.0));
-            case 3 -> new Quaternionf().rotateZ((float) (Math.PI / 2.0));
-            case 4 -> new Quaternionf().rotateZ((float) (-Math.PI / 2.0));
+            // dice.json: north=dice2 / south=dice5 / east=dice3 / west=dice4。モデルの ±Z と ±X がワールド軸と逆だったため 2↔5 と 3↔4 を入れ替え
+            case 2 -> new Quaternionf().rotateX((float) (-Math.PI / 2.0));
+            case 5 -> new Quaternionf().rotateX((float) (Math.PI / 2.0));
+            case 3 -> new Quaternionf().rotateZ((float) (-Math.PI / 2.0));
+            case 4 -> new Quaternionf().rotateZ((float) (Math.PI / 2.0));
             default -> new Quaternionf();
         };
+    }
+
+    private static float clampEdge(float blocks) {
+        if (blocks < 0.05f) return 0.05f;
+        if (blocks > 32f) return 32f;
+        return blocks;
+    }
+
+    private static float clampCorrection(float correction) {
+        if (correction < 0.1f) return 0.1f;
+        if (correction > 100f) return 100f;
+        return correction;
     }
 }

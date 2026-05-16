@@ -1,20 +1,25 @@
 {
-  "parent": "minecraft:block/block",
+  "ambientocclusion": false,
   "textures": {
-    "particle": "minecraft:item/dice",
-    "atlas": "minecraft:item/dice"
+    "particle": "minecraft:item/dice1",
+    "tex_up": "minecraft:item/dice1",
+    "tex_down": "minecraft:item/dice6",
+    "tex_north": "minecraft:item/dice2",
+    "tex_south": "minecraft:item/dice5",
+    "tex_east": "minecraft:item/dice3",
+    "tex_west": "minecraft:item/dice4"
   },
   "elements": [
     {
-      "from": [4, 4, 4],
-      "to": [12, 12, 12],
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
       "faces": {
-        "north": { "uv": [256, 0, 512, 256], "texture": "#atlas" },
-        "south": { "uv": [1024, 0, 1280, 256], "texture": "#atlas" },
-        "east": { "uv": [512, 0, 768, 256], "texture": "#atlas" },
-        "west": { "uv": [768, 0, 1024, 256], "texture": "#atlas" },
-        "up": { "uv": [0, 0, 256, 256], "texture": "#atlas" },
-        "down": { "uv": [1280, 0, 1536, 256], "texture": "#atlas" }
+        "up": { "uv": [0, 0, 16, 16], "texture": "#tex_up" },
+        "down": { "uv": [0, 0, 16, 16], "texture": "#tex_down" },
+        "north": { "uv": [0, 0, 16, 16], "texture": "#tex_north" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#tex_south" },
+        "east": { "uv": [0, 0, 16, 16], "texture": "#tex_east" },
+        "west": { "uv": [0, 0, 16, 16], "texture": "#tex_west" }
       }
     }
   ]

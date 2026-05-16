@@ -47,6 +47,8 @@ public final class CommandBookFactory {
                         "§0・/hilo select <high|low>\n" +
                         "§0  進行中のH&Lで選択\n" +
                         "§0  （/hilo high|low|h|l|hi|lo も可）\n\n" +
+                        "§0・/chinchiro roll\n" +
+                        "§0  チンチロ3個を振る（表示領域が必要）\n\n" +
                         "§0・/commandbook（/cb）\n" +
                         "§0  この本を再取得",
                 "§0§l管理者（設置）\n" +
@@ -62,6 +64,8 @@ public final class CommandBookFactory {
                         "§0  BJディーラーを設定/召喚\n\n" +
                         "§0・/perocasino hilo dealer set|summon\n" +
                         "§0  H&Lディーラーを設定/召喚\n\n" +
+                        "§0・/perocasino chinchiro region set\n" +
+                        "§0  チンチロサイコロの範囲（角2回）\n\n" +
                         "§0・/perocasino quarry set\n" +
                         "§0  採石場の角2点を登録（2回実行）\n\n" +
                         "§0・/perocasino slot create|remove|list\n" +

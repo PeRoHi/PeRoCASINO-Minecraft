@@ -208,7 +208,10 @@ public class RouletteHubService extends BukkitRunnable {
                     displayService.stopAtAngle(pendingResult.stopAngleDeg());
                     // 表示が止まるまで待ってから、結果通知＋精算へ
                     pendingSettlement = true;
+                    phase = RoulettePhase.STOPPING;
                     phaseTicksRemaining = settleDelayTicks;
+                    RouletteBetMenuListener.setHubPhase(phase);
+                    updateBossBarForPhase();
                     return;
                 }
                 phase = RoulettePhase.COOLDOWN;
@@ -271,6 +274,9 @@ public class RouletteHubService extends BukkitRunnable {
                 bossBar.setColor(BarColor.GREEN);
             }
             case SPINNING -> {
+                bossBar.setColor(BarColor.YELLOW);
+            }
+            case STOPPING -> {
                 bossBar.setColor(BarColor.YELLOW);
             }
             case COOLDOWN -> {

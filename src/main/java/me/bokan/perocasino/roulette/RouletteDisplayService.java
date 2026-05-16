@@ -9,7 +9,6 @@ import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.ItemDisplay;
-import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.Plugin;
@@ -55,6 +54,13 @@ public final class RouletteDisplayService {
     private int decelTicks = 60;
 
     public void reloadFromConfig() {
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
+        targetDeg = null;
+        targetDegAbsolute = null;
+
         FileConfiguration cfg = plugin.getConfig();
         String worldName = cfg.getString("roulette.display.anchor.world", "");
         String uuidStr = cfg.getString("roulette.display.uuid", "");
@@ -105,6 +111,7 @@ public final class RouletteDisplayService {
             task = null;
         }
         targetDeg = null;
+        targetDegAbsolute = null;
 
         // entity削除
         ItemDisplay d = getDisplay();
@@ -237,12 +244,10 @@ public final class RouletteDisplayService {
     }
 
     private ItemDisplay getDisplay() {
-        if (anchor == null || anchor.getWorld() == null) return null;
         if (displayUuid != null) {
-            for (Entity e : anchor.getWorld().getEntities()) {
-                if (e.getUniqueId().equals(displayUuid) && e instanceof ItemDisplay d) {
-                    return d;
-                }
+            Entity e = Bukkit.getEntity(displayUuid);
+            if (e instanceof ItemDisplay d) {
+                return d;
             }
         }
         return null;
@@ -337,15 +342,6 @@ public final class RouletteDisplayService {
     private static float easeOutCubic(float t) {
         float x = 1.0f - Math.max(0.0f, Math.min(1.0f, t));
         return 1.0f - x * x * x;
-    }
-
-    private static float shortestDiffDeg(float from, float to) {
-        float a = normalizeDeg(from);
-        float b = normalizeDeg(to);
-        float diff = b - a;
-        if (diff > 180f) diff -= 360f;
-        if (diff < -180f) diff += 360f;
-        return diff;
     }
 
     private static UUID tryParseUuid(String s) {

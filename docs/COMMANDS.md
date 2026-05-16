@@ -15,6 +15,9 @@
 - **/hilo select <high|low>**
   - 進行中の High & Low で High/Low を選択します。
   - 実装上、次も同じ意味で使えます: **/hilo high|low|h|l|hi|lo**
+- **/chinchiro roll**
+  - チンチロ用のサイコロを3個振り、設定された表示領域に出目を表示します（ルール判定や賭けは含みません）。
+  - 権限: **perocasino.chinchiro.roll**（`plugin.yml` ではデフォルトで付与）
 - **/commandbook**（別名: **/cb**）
   - コマンド集ブックを受け取ります（未所持のときだけ追加）。
 
@@ -38,6 +41,9 @@
   - 近くの村人を H&L ディーラーとして登録します。
 - **/perocasino hilo dealer summon**
   - H&L ディーラー村人を召喚し、登録します。
+- **/perocasino chinchiro region set**（別名: **/pc chinchiro region set**）
+  - チンチロ用サイコロ3個の出現範囲（AABB）を、実行した地点の角として登録します（2回実行: 1回目がMIN角、2回目がMAX角）。
+  - 登録後、プレイヤーは **/chinchiro roll** でサイコロを振れます。
 - **/perocasino quarry set**
   - 採石場の立方体範囲を、実行した地点の角として登録します（2回実行で確定）。
 - **/perocasino slot create <id>**
