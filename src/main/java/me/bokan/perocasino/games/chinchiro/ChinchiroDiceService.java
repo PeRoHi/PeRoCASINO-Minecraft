@@ -247,10 +247,11 @@ public final class ChinchiroDiceService {
         return switch (top1to6) {
             case 1 -> new Quaternionf();
             case 6 -> new Quaternionf().rotateX((float) Math.PI);
-            case 2 -> new Quaternionf().rotateX((float) (Math.PI / 2.0));
-            case 5 -> new Quaternionf().rotateX((float) (-Math.PI / 2.0));
-            case 3 -> new Quaternionf().rotateZ((float) (Math.PI / 2.0));
-            case 4 -> new Quaternionf().rotateZ((float) (-Math.PI / 2.0));
+            // dice.json: north=dice2 / south=dice5 / east=dice3 / west=dice4。モデルの ±Z と ±X がワールド軸と逆だったため 2↔5 と 3↔4 を入れ替え
+            case 2 -> new Quaternionf().rotateX((float) (-Math.PI / 2.0));
+            case 5 -> new Quaternionf().rotateX((float) (Math.PI / 2.0));
+            case 3 -> new Quaternionf().rotateZ((float) (-Math.PI / 2.0));
+            case 4 -> new Quaternionf().rotateZ((float) (Math.PI / 2.0));
             default -> new Quaternionf();
         };
     }
