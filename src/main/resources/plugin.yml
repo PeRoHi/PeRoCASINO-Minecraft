@@ -6,8 +6,8 @@ description: A casino plugin for Minecraft
 authors: [PeRo]
 
 permissions:
-  perocasino.chinchiro.roll:
-    description: チンチロのサイコロを振る
+  perocasino.chinchiro.table:
+    description: チンチロ卓（村人ディーラー）に参加する
     default: true
 
 commands:

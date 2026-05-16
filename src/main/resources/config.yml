@@ -383,9 +383,19 @@ slot-display:
     z: 217
 
 
-# チンチロ（サイコロ表示のみ。領域は下記か、/perocasino chinchiro region set を角2回）
+# チンチロ（サイコロ表示 + 卓）。領域は下記か、/perocasino chinchiro region set を角2回
 chinchiro:
   enabled: true
+  dealer:
+    uuid: ''
+    world: ''
+    x: 0
+    y: 0
+    z: 0
+  table:
+    join-radius: 16
+    max-players: 8
+    roll-delay-ticks: 40
   dice:
     # paper の custom_model_data（resourcepack items/paper.json の threshold 9020 と一致）
     custom-model-data: 9020
