@@ -33,7 +33,8 @@ public final class CommandBookFactory {
                         "§0設定コマンドをまとめています。\n\n" +
                         "§0目次\n" +
                         "§0- 一般\n" +
-                        "§0- 管理者（設置）",
+                        "§0- 管理者（設置）\n" +
+                        "§0  └ルーレットは砥石を見て登録",
                 "§0§l一般\n" +
                         "§0・/casino\n" +
                         "§0  カジノメニュー\n\n" +
@@ -46,18 +47,25 @@ public final class CommandBookFactory {
                         "§0・/hilo select <high|low>\n" +
                         "§0  進行中のH&Lで選択\n" +
                         "§0  （/hilo high|low|h|l|hi|lo も可）\n\n" +
+                        "§0・/chinchiro roll\n" +
+                        "§0  チンチロ3個を振る（表示領域が必要）\n\n" +
                         "§0・/commandbook（/cb）\n" +
                         "§0  この本を再取得",
                 "§0§l管理者（設置）\n" +
                         "§0権限: perocasino.admin\n\n" +
                         "§0・/perocasino（/pc）\n" +
                         "§0  サブコマンド一覧を表示\n\n" +
+                        "§0§lルーレット設置\n" +
                         "§0・/perocasino roulette set\n" +
-                        "§0  見ている砥石をルーレット拠点に\n\n" +
+                        "§0  （/pc roulette set）\n" +
+                        "§0  6ブロック以内の砥石を見て実行。\n" +
+                        "§0  その砥石がルーレット拠点になります。\n\n" +
                         "§0・/perocasino blackjack dealer set|summon\n" +
                         "§0  BJディーラーを設定/召喚\n\n" +
                         "§0・/perocasino hilo dealer set|summon\n" +
                         "§0  H&Lディーラーを設定/召喚\n\n" +
+                        "§0・/perocasino chinchiro region set\n" +
+                        "§0  チンチロサイコロの範囲（角2回）\n\n" +
                         "§0・/perocasino quarry set\n" +
                         "§0  採石場の角2点を登録（2回実行）\n\n" +
                         "§0・/perocasino slot create|remove|list\n" +

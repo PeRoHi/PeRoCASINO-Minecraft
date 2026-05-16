@@ -26,6 +26,7 @@ public final class CommandBookListener implements Listener {
 
     private boolean hasCommandBook(Player p) {
         for (ItemStack it : p.getInventory().getContents()) {
+            if (it == null) continue;
             if (CommandBookFactory.isCommandBook(it, plugin)) return true;
         }
         return false;

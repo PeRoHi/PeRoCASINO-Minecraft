@@ -3,10 +3,10 @@
 roulette:
   # ルーレット拠点（砥石）の座標。未設定なら近接UIは出ません。
   # /perocasino roulette set で現在見ている砥石を登録
-  world: ""
-  x: 0
-  y: 0
-  z: 0
+  world: world
+  x: 167
+  y: 63
+  z: 218
   # ルーレット拠点からこの距離以内のプレイヤーにフェーズ表示（BossBar）
   notify-radius: 40
   # ベット待ち（秒）
@@ -15,6 +15,32 @@ roulette:
   spin-seconds: 3
   # 次ラウンドまでのクールダウン（秒）
   cooldown-seconds: 5
+  # 砥石ベット盤（左→右が 2x/4x/6x/10x/20x）。未登録ならGUI方式のままです。
+  # /perocasino roulette board set で「左端の砥石」を登録
+  board:
+    world: ""
+    x: 0
+    y: 0
+    z: 0
+    facing: "NORTH"
+  # ルーレット盤面の表示（ItemDisplay）
+  # /perocasino roulette display set|remove で設置・削除します。
+  display:
+    anchor:
+      world: world
+      x: 167.5
+      y: 65.5
+      z: 220.5
+    # 壁面の向き（表示面）。NORTH/SOUTH/EAST/WEST など
+    face: "SOUTH"
+    # 設置した ItemDisplay の UUID（復元用）
+    uuid: "cf85c585-a1ff-479b-aa4d-9db10f890b0b"
+    # 画像の「上(0°)」を針方向に合わせる補正角度（度）
+    angle-offset-deg: 0.0
+    # 停止時に減速する回転距離（度）。最低でも 360° は回す
+    decel-distance-deg: 540.0
+    # 減速に使うtick数
+    decel-ticks: 60
   # ルーレットの当たり判定（上部の針＝角度0°）の角度セグメント定義。
   # - unit は「度」。分解能は 1° 以上にしてください。
   # - 角度の合計は 360° である必要があります。
@@ -53,35 +79,46 @@ roulette:
     - { multiplier: 2,  degrees: 15 } # 21
     - { multiplier: 6,  degrees: 15 } # 22
     - { multiplier: 4,  degrees: 15 } # 23
+  # 注: 「roulette.enabled」のような全体ON/OFFは現行プラグイン未対応（Hubタスクは常時起動）。
+
+nether-portal:
+  # ネザーポータルに触れた瞬間、固定座標へテレポートさせる
+  enabled: false
+  to:
+    world: ""
+    x: 0
+    y: 0
+    z: 0
 
 quarry:
   enabled: true
   # 採石場として扱うワールド名（空なら全ワールド）
-  world: ""
-  # 角2点（含まれる立方体領域）。未設定なら採石場機能は無効
+  world: world
+  # 角2点（含まれる立方体領域）。quarry.min.* / quarry.max.* が欠けると採石場は無効。
+  # 現在の角は X と Y が同一のため、実効は Z 方向 3 ブロックの細い帯です。面で覆う場合は対角に取り直してください。
   min:
-    x: 0
-    y: 0
-    z: 0
+    x: 166
+    y: 63
+    z: 194
   max:
-    x: 0
-    y: 0
-    z: 0
+    x: 166
+    y: 63
+    z: 196
   # ダイヤ鉱石を掘ったあと、何tick後に元に戻すか（20tick=1秒）
   respawn-delay-ticks: 6000
 
 slot-machine:
   # スロットの鉱石シンボル（上から順に回転表示）
   symbols:
-    - COAL_ORE
-    - COPPER_ORE
-    - IRON_ORE
-    - GOLD_ORE
-    - REDSTONE_ORE
-    - LAPIS_ORE
-    - EMERALD_ORE
-    - DIAMOND_ORE
-    - NETHERITE_SCRAP
+  - COAL_ORE
+  - COPPER_ORE
+  - IRON_ORE
+  - GOLD_ORE
+  - REDSTONE_ORE
+  - LAPIS_ORE
+  - EMERALD_ORE
+  - DIAMOND_ORE
+  - NETHERITE_SCRAP
   # スピン開始後、各リールが止まるまでのランダムtick（最小〜最大）
   spin-min-ticks: 40
   spin-max-ticks: 120
@@ -92,30 +129,30 @@ slot-machine:
   # スロット操作ボタン（ブロック座標）。右クリックで検知します。
   buttons:
     spin:
-      world: ""
+      world: ''
       x: 0
       y: 0
       z: 0
     stop1:
-      world: ""
+      world: ''
       x: 0
       y: 0
       z: 0
     stop2:
-      world: ""
+      world: ''
       x: 0
       y: 0
       z: 0
     stop3:
-      world: ""
+      world: ''
       x: 0
       y: 0
       z: 0
 
 blackjack:
   dealer:
-    world: ""
-    uuid: ""
+    world: ''
+    uuid: ''
     x: 0
     y: 0
     z: 0
@@ -123,8 +160,8 @@ blackjack:
 
 hilo:
   dealer:
-    world: ""
-    uuid: ""
+    world: ''
+    uuid: ''
     x: 0
     y: 0
     z: 0
@@ -133,15 +170,15 @@ hilo:
 # フォント割当は resourcepack/.../font/default.json（Private Use: U+E100〜）
 # /perocasino slot create <id> で現在位置に台を追加し、enabled を true にします。
 slot-display:
-  enabled: false
+  enabled: true
   bet-diamonds: 1
   tick-period: 1
   reel-step-base-ticks: 2
-  # 各リールで「次が当たり」判定に使うシンボルID（リールa/b/c の当たりマーク）
+  # ストップ時「次コマがこのIDなら」距離抽選を変える対象（各リールの当たりマーク）
   atari-symbol-ids:
-    - a_atari
-    - b_atari
-    - c_atari
+  - a4
+  - b3
+  - c7
   stop-distance-weights:
     next: 80
     next-next: 20
@@ -149,149 +186,251 @@ slot-display:
       next: 20
       next-next: 80
   payouts:
-    three-of-a-kind: 8
-    two-of-a-kind: 2
+    three-atari-multiplier: 20
+    triple-same-mark-multiplier: 2
   layout:
     reel-spacing: 0.55
     reel-y-offset: 1.15
     button-forward: 0.45
     button-down: -0.35
   symbols:
+    # --- 左リール a0〜a9（ストリップ順 0→9）---
     a0:
-      glyph: ""
+      glyph: 
       weight: 1
-      winning: false
+      match-group: rapi
     a1:
-      glyph: ""
+      glyph: 
       weight: 1
-      winning: false
+      match-group: eme
     a2:
-      glyph: ""
+      glyph: 
       weight: 1
-      winning: false
+      match-group: gold
     a3:
-      glyph: ""
+      glyph: 
       weight: 1
-      winning: false
+      match-group: rapi
+    a4:
+      glyph: 
+      weight: 1
+      winning: true
+    a5:
+      glyph: 
+      weight: 1
+      hazure: true
+    a6:
+      glyph: 
+      weight: 1
+      match-group: iron
+    a7:
+      glyph: 
+      weight: 1
+      match-group: eme
+    a8:
+      glyph: 
+      weight: 1
+      match-group: gold
+    a9:
+      glyph: 
+      weight: 1
+      match-group: iron
+    # --- 中リール b0〜b9 ---
+    b0:
+      glyph: 
+      weight: 1
+      match-group: iron
+    b1:
+      glyph: 
+      weight: 1
+      match-group: rapi
+    b2:
+      glyph: 
+      weight: 1
+      match-group: eme
+    b3:
+      glyph: 
+      weight: 1
+      winning: true
+    b4:
+      glyph: 
+      weight: 1
+      hazure: true
+    b5:
+      glyph: 
+      weight: 1
+      match-group: gold
+    b6:
+      glyph: 
+      weight: 1
+      match-group: iron
+    b7:
+      glyph: 
+      weight: 1
+      match-group: rapi
+    b8:
+      glyph: 
+      weight: 1
+      match-group: eme
+    b9:
+      glyph: 
+      weight: 1
+      match-group: gold
+    # --- 右リール c0〜c9 ---
+    c0:
+      glyph: 
+      weight: 1
+      match-group: rapi
+    c1:
+      glyph: 
+      weight: 1
+      match-group: eme
+    c2:
+      glyph: 
+      weight: 1
+      match-group: gold
+    c3:
+      glyph: 
+      weight: 1
+      match-group: rapi
+    c4:
+      glyph: 
+      weight: 1
+      match-group: iron
+    c5:
+      glyph: 
+      weight: 1
+      match-group: eme
+    c6:
+      glyph: 
+      weight: 1
+      match-group: iron
+    c7:
+      glyph: 
+      weight: 1
+      winning: true
+    c8:
+      glyph: 
+      weight: 1
+      hazure: true
+    c9:
+      glyph: 
+      weight: 1
+      match-group: gold
+    # 旧ストリップ互換（シンボル定義のみ・未使用でも可）
     a_atari:
-      glyph: ""
+      glyph: 
       weight: 1
       winning: true
     a_hazure:
-      glyph: ""
+      glyph: 
       weight: 1
-      winning: false
-    a6:
-      glyph: ""
-      weight: 1
-      winning: false
-    a7:
-      glyph: ""
-      weight: 1
-      winning: false
-    a8:
-      glyph: ""
-      weight: 1
-      winning: false
-    a9:
-      glyph: ""
-      weight: 1
-      winning: false
-    b0:
-      glyph: ""
-      weight: 1
-      winning: false
-    b1:
-      glyph: ""
-      weight: 1
-      winning: false
-    b2:
-      glyph: ""
-      weight: 1
-      winning: false
     b_atari:
-      glyph: ""
+      glyph: 
       weight: 1
       winning: true
     b_hazure:
-      glyph: ""
+      glyph: 
       weight: 1
-      winning: false
-    b5:
-      glyph: ""
-      weight: 1
-      winning: false
-    b6:
-      glyph: ""
-      weight: 1
-      winning: false
-    b7:
-      glyph: ""
-      weight: 1
-      winning: false
-    b8:
-      glyph: ""
-      weight: 1
-      winning: false
-    b9:
-      glyph: ""
-      weight: 1
-      winning: false
-    c0:
-      glyph: ""
-      weight: 1
-      winning: false
-    c1:
-      glyph: ""
-      weight: 1
-      winning: false
-    c2:
-      glyph: ""
-      weight: 1
-      winning: false
-    c3:
-      glyph: ""
-      weight: 1
-      winning: false
-    c4:
-      glyph: ""
-      weight: 1
-      winning: false
-    c5:
-      glyph: ""
-      weight: 1
-      winning: false
-    c6:
-      glyph: ""
-      weight: 1
-      winning: false
     c_atari:
-      glyph: ""
+      glyph: 
       weight: 1
       winning: true
     c_hazure:
-      glyph: ""
+      glyph: 
       weight: 1
-      winning: false
-    c9:
-      glyph: ""
-      weight: 1
-      winning: false
-  # 左・中・右リール（この順で a / b / c のストリップ）
+  # 左=a列・中=b列・右=c列。各10コマを 0→9 の順で一周する。
   reel-strips:
-    - [a0, a1, a2, a3, a_atari, a_hazure, a6, a7, a8, a9]
-    - [b0, b1, b2, b_atari, b_hazure, b5, b6, b7, b8, b9]
-    - [c0, c1, c2, c3, c4, c5, c6, c_atari, c_hazure, c9]
-  # 旧互換: reel-strips が無い場合のみ使われる単一ストリップ
-  strip:
-    - a0
+  - - a0
     - a1
     - a2
     - a3
-    - a_atari
-    - a_hazure
+    - a4
+    - a5
     - a6
     - a7
     - a8
     - a9
-  machines: {}
+  - - b0
+    - b1
+    - b2
+    - b3
+    - b4
+    - b5
+    - b6
+    - b7
+    - b8
+    - b9
+  - - c0
+    - c1
+    - c2
+    - c3
+    - c4
+    - c5
+    - c6
+    - c7
+    - c8
+    - c9
+  # 旧互換: reel-strips が無い場合のみ使われる単一ストリップ
+  strip:
+  - a0
+  - a1
+  - a2
+  - a3
+  - a4
+  - a5
+  - a6
+  - a7
+  - a8
+  - a9
+  
+  machines:
+    my_slot:
+      world: world
+      x: 157
+      y: 63
+      z: 215
+      yaw: 1.649730920791626
+      pitch: 3.2998666763305664
+  bet-dealer:
+    uuid: "f38b65f4-88b0-43c3-9d01-fa9e52ee37d9"
+    world: world
+    x: 154
+    y: 63
+    z: 217
+
+
+# チンチロ（サイコロ表示 + 卓）。領域は下記か、/perocasino chinchiro region set を角2回
+chinchiro:
+  enabled: true
+  dealer:
+    uuid: ''
+    world: ''
+    x: 0
+    y: 0
+    z: 0
+  table:
+    join-radius: 16
+    max-players: 8
+    roll-delay-ticks: 40
+  dice:
+    # paper の custom_model_data（resourcepack items/paper.json の threshold 9020 と一致）
+    custom-model-data: 9020
+    # モデル dice.json は 16³（約1）；ItemDisplay が NONE のとき、この値がワールドでの立方体の辺の長さ（ブロック）。
+    edge-length-blocks: 0.5
+    # Paper/MC 1.21.11系で ItemDisplay の見た目が極小になる分を補正。配置判定には使わない。
+    # 0.5ブロック指定なのに0.05程度に見える環境では 10.0 のままでOK。
+    model-scale-correction: 10.0
+    # XZ 上でサイコロ中心同士の最低距離の下限。辺長に応じて余白も増やす
+    separation: 0.55
+    random-tries: 120
+    region:
+      world: world
+      min:
+        x: 149
+        y: 63
+        z: 219
+      max:
+        x: 151
+        y: 63
+        z: 221
