@@ -32,7 +32,8 @@ public final class ChinchiroDiceService {
 
     private boolean enabled = true;
     private int customModelData = DEFAULT_CMD;
-    private float displayScale = 1.0f;
+    /** ワールドでの立方体モデルの辺の長さ（ブロック）。dice.json は 16³＝モデルとして 1 を想定する。ItemDisplay で NONE と併せるための実寸。 */
+    private float edgeLengthBlocks = 0.5f;
     /** XZ 平面上の中心同士の最低距離（ブロック） */
     private double separation = 0.55;
     private int randomTries = 120;
@@ -56,7 +57,11 @@ public final class ChinchiroDiceService {
         FileConfiguration cfg = plugin.getConfig();
         enabled = cfg.getBoolean("chinchiro.enabled", true);
         customModelData = cfg.getInt("chinchiro.dice.custom-model-data", DEFAULT_CMD);
-        displayScale = (float) cfg.getDouble("chinchiro.dice.display-scale", 2.0);
+        if (cfg.isSet("chinchiro.dice.edge-length-blocks")) {
+            edgeLengthBlocks = clampEdge((float) cfg.getDouble("chinchiro.dice.edge-length-blocks", 0.5));
+        } else {
+            edgeLengthBlocks = clampEdge((float) cfg.getDouble("chinchiro.dice.display-scale", 0.5));
+        }
         separation = cfg.getDouble("chinchiro.dice.separation", 0.55);
         randomTries = Math.max(20, cfg.getInt("chinchiro.dice.random-tries", 120));
 
@@ -122,19 +127,18 @@ public final class ChinchiroDiceService {
         int loZ = Math.min(minZ, maxZ);
         int hiZ = Math.max(minZ, maxZ);
 
-        // モデル dice.json は 16³ 要素（ワールドで約 1×1×1）を display-scale 倍で表示する想定
-        float s = displayScale;
-        // 床ブロック上面より上に中心を置く（旧 loY+0.25 は床ブロック内に埋まりクリップしやすかった）
-        double cy = loY + 1.0 + 0.5 * s;
-        double margin = Math.max(separation * 0.5, s * 0.52);
+        // dice.json はモデル空間で 1³；ItemDisplayTransform.NONE なら Transformation.scale がそのままワールド辺長（ブロック）になる
+        float edge = edgeLengthBlocks;
+        double cy = loY + 1.0 + 0.5 * edge;
+        double margin = Math.max(separation * 0.5, edge * 0.52);
         double minCx = loX + margin;
         double maxCx = hiX + 1.0 - margin;
         double minCz = loZ + margin;
         double maxCz = hiZ + 1.0 - margin;
-        double minCenterDist = Math.max(separation, s * 1.08);
+        double minCenterDist = Math.max(separation, edge * 1.08);
         // ThreadLocalRandom#nextDouble は origin < bound が必須
         if (!(maxCx > minCx) || !(maxCz > minCz)) {
-            player.sendMessage("§c[チンチロ] 領域が狭すぎます。display-scale や chinchiro.dice.region を広げてください。");
+            player.sendMessage("§c[チンチロ] 領域が狭すぎます。edge-length-blocks を下げるか chinchiro.dice.region を広げてください。");
             return new int[0];
         }
 
@@ -172,8 +176,8 @@ public final class ChinchiroDiceService {
                 }
                 ItemDisplay display = (ItemDisplay) world.spawnEntity(loc, EntityType.ITEM_DISPLAY);
                 display.setItemStack(diceItem());
-                // NONE は環境によって薄い平面に見えることがある。展示用は FIXED が無難
-                display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.FIXED);
+                // FIXED は ItemDisplay 側の極小スケールが乗りやすいので、立方体は NONE + Transformation のみで制御する
+                display.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
                 display.setBillboard(Display.Billboard.FIXED);
                 display.setShadowRadius(0f);
                 display.setShadowStrength(0f);
@@ -227,7 +231,7 @@ public final class ChinchiroDiceService {
         Quaternionf face = topFaceQuaternion(top1to6);
         Quaternionf yawQ = new Quaternionf().rotateY(yawRad);
         Quaternionf rot = yawQ.mul(face, new Quaternionf()).normalize();
-        float s = displayScale;
+        float s = edgeLengthBlocks;
         return new Transformation(
                 new Vector3f(0f, 0f, 0f),
                 rot,
@@ -246,5 +250,11 @@ public final class ChinchiroDiceService {
             case 4 -> new Quaternionf().rotateZ((float) (-Math.PI / 2.0));
             default -> new Quaternionf();
         };
+    }
+
+    private static float clampEdge(float blocks) {
+        if (blocks < 0.05f) return 0.05f;
+        if (blocks > 32f) return 32f;
+        return blocks;
     }
 }

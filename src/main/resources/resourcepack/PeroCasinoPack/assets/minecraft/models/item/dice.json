@@ -1,5 +1,5 @@
 {
-  "parent": "minecraft:block/block",
+  "ambientocclusion": false,
   "textures": {
     "particle": "minecraft:item/dice_1",
     "tex_up": "minecraft:item/dice_1",
