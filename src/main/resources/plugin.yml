@@ -9,6 +9,9 @@ permissions:
   perocasino.chinchiro.roll:
     description: チンチロのサイコロを振る
     default: true
+  perocasino.commandwand:
+    description: config の command-wand で指定した杖（人参付きの棒等）の使用
+    default: op
 
 commands:
   balance:

@@ -15,6 +15,7 @@ import me.bokan.perocasino.games.slot.SlotMachineService;
 import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
 import me.bokan.perocasino.listeners.CasinoMenuListener;
 import me.bokan.perocasino.listeners.CommandBookListener;
+import me.bokan.perocasino.listeners.CommandWandListener;
 import me.bokan.perocasino.listeners.GameMenuListener;
 import me.bokan.perocasino.listeners.LoanMenuListener;
 import me.bokan.perocasino.listeners.QuarryRespawnListener;
@@ -87,6 +88,7 @@ public class PeRoCasino extends JavaPlugin {
         // ルールブック（ホットバー左端0に固定）
         getServer().getPluginManager().registerEvents(new RuleBookListener(this), this);
         getServer().getPluginManager().registerEvents(new CommandBookListener(this), this);
+        getServer().getPluginManager().registerEvents(new CommandWandListener(this), this);
 
         // 【追加】ルーレットのリスナーを登録
         RouletteBetMenuListener betListener = new RouletteBetMenuListener(this);

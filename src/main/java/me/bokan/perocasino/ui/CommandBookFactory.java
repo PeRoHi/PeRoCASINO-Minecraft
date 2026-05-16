@@ -33,8 +33,8 @@ public final class CommandBookFactory {
                         "§0設定コマンドをまとめています。\n\n" +
                         "§0目次\n" +
                         "§0- 一般\n" +
-                        "§0- 管理者（設置）\n" +
-                        "§0  └ルーレットは砥石を見て登録",
+                        "§0- 管理者（設置）1\n" +
+                        "§0- 管理者（設置）2",
                 "§0§l一般\n" +
                         "§0・/casino\n" +
                         "§0  カジノメニュー\n\n" +
@@ -50,28 +50,37 @@ public final class CommandBookFactory {
                         "§0・/chinchiro roll\n" +
                         "§0  チンチロ3個を振る（表示領域が必要）\n\n" +
                         "§0・/commandbook（/cb）\n" +
-                        "§0  この本を再取得",
-                "§0§l管理者（設置）\n" +
+                        "§0  この本を再取得\n\n" +
+                        "§0・command-wand（config）\n" +
+                        "§0  人参付きの棒等を右クリックで\n" +
+                        "§0  設定コマンドを実行（権限要）",
+                "§0§l管理者（設置）1\n" +
                         "§0権限: perocasino.admin\n\n" +
                         "§0・/perocasino（/pc）\n" +
-                        "§0  サブコマンド一覧を表示\n\n" +
-                        "§0§lルーレット設置\n" +
+                        "§0  サブコマンド一覧\n\n" +
+                        "§0§lルーレット\n" +
                         "§0・/perocasino roulette set\n" +
-                        "§0  （/pc roulette set）\n" +
-                        "§0  6ブロック以内の砥石を見て実行。\n" +
-                        "§0  その砥石がルーレット拠点になります。\n\n" +
-                        "§0・/perocasino blackjack dealer set|summon\n" +
-                        "§0  BJディーラーを設定/召喚\n\n" +
-                        "§0・/perocasino hilo dealer set|summon\n" +
-                        "§0  H&Lディーラーを設定/召喚\n\n" +
-                        "§0・/perocasino chinchiro region set\n" +
-                        "§0  チンチロサイコロの範囲（角2回）\n\n" +
-                        "§0・/perocasino quarry set\n" +
-                        "§0  採石場の角2点を登録（2回実行）\n\n" +
-                        "§0・/perocasino slot create|remove|list\n" +
-                        "§0  設置スロット（TextDisplay）を登録/削除/一覧\n\n" +
+                        "§0  6ブロック以内の砥石を見て登録\n\n" +
+                        "§0・/perocasino roulette display set\n" +
+                        "§0  見ているブロック面に盤面(ItemDisplay)\n\n" +
+                        "§0・/perocasino roulette display remove\n" +
+                        "§0  盤面(ItemDisplay)を削除\n\n" +
                         "§0・/perocasino reload\n" +
-                        "§0  config再読込"
+                        "§0  config再読込",
+                "§0§l管理者（設置）2\n" +
+                        "§0・/perocasino blackjack dealer set|summon\n" +
+                        "§0  BJディーラー\n\n" +
+                        "§0・/perocasino hilo dealer set|summon\n" +
+                        "§0  H&Lディーラー\n\n" +
+                        "§0・/perocasino chinchiro region set\n" +
+                        "§0  チンチロ範囲（角2回）\n\n" +
+                        "§0・/perocasino quarry set\n" +
+                        "§0  採石場（角2回）\n\n" +
+                        "§0・/perocasino slot create <id>\n" +
+                        "§0・/perocasino slot remove <id>\n" +
+                        "§0・/perocasino slot list\n" +
+                        "§0・/perocasino slot dealer set|summon\n" +
+                        "§0  設置スロット掛け金ディーラー"
         ));
 
         meta.getPersistentDataContainer().set(key(plugin), PersistentDataType.BYTE, (byte) 1);

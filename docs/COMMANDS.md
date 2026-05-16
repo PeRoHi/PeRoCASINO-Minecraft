@@ -33,6 +33,10 @@
 - **/perocasino roulette set**（別名: **/pc roulette set**）
   - **6ブロック以内**で見ている **砥石（grindstone）** をルーレット拠点として `config.yml` に登録します。
   - プレイヤーがその砥石を右クリックしてベット GUI を開きます。
+- **/perocasino roulette display set**（別名: **/pc roulette display set**）
+  - **8ブロック以内**で見ているブロックの面を基準に、ルーレット盤面の **ItemDisplay** を設置・config に保存します。
+- **/perocasino roulette display remove**（別名: **/pc roulette display remove**）
+  - 保存されているルーレット **ItemDisplay** を削除します。
 - **/perocasino blackjack dealer set**
   - 近くの村人をブラックジャック ディーラーとして登録します。
 - **/perocasino blackjack dealer summon**
@@ -52,5 +56,17 @@
   - 設置スロットを設定から削除します。
 - **/perocasino slot list**
   - 設置スロットの一覧を表示します。
+- **/perocasino slot dealer set**（別名: **/pc slot dealer set**）
+  - 近くの村人を「設置スロット掛け金ディーラー」として登録します。
+- **/perocasino slot dealer summon**（別名: **/pc slot dealer summon**）
+  - 掛け金ディーラー村人を召喚し、登録します。
 - **/perocasino reload**
   - `config.yml` を再読込します。
+
+### コマンド杖（config: `command-wand`）
+
+- `config.yml` の **`command-wand`** で、特定アイテム（デフォルト **人参付きの棒**）を **メインハンドで右クリック（使用）** したときに、列挙したコマンドをプレイヤーとして順に実行できます。
+- **`command-wand.enabled`** を `true` にし、**`command-wand.commands`** に実行したい行（先頭の `/` はあってもなくても可）を書きます。
+- 改ざん防止のため、**`command-wand.allowed-command-labels`** にある「コマンドの先頭ラベル」だけが実行されます（例: `chinchiro`, `casino`, `perocasino`）。
+- 権限: デフォルトでは **`perocasino.commandwand`**（`plugin.yml` では **op** 想定）。`command-wand.permission` で変更可能です。
+- ブタン用の **Interaction** ではなく、**アイテム使用**トリガです。豚に乗っているときは **`skip-when-riding-pig`**（既定 `true`）で無効化されます。

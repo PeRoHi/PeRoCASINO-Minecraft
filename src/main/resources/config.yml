@@ -407,3 +407,30 @@ chinchiro:
         x: 151
         y: 63
         z: 221
+
+# メインハンドの杖アイテムを「右クリック（使用）」したときに、プレイヤーとしてコマンドを実行する。
+# 「振る」= 右クリック使用を想定（空気・ブロックどちらでも可）。ブタン用の Interaction ではありません。
+command-wand:
+  enabled: false
+  material: CARROT_ON_A_STICK
+  # custom_model_data を一致させたい場合 true にし、下の値を合わせる
+  match-custom-model-data: false
+  custom-model-data: 0
+  permission: perocasino.commandwand
+  cooldown-ticks: 20
+  delay-ticks-between-commands: 1
+  skip-when-riding-pig: true
+  # 先頭ラベルがここに含まれる行だけ実行（改ざん防止）。別名も列挙すること。
+  allowed-command-labels:
+    - balance
+    - bal
+    - deposit
+    - casino
+    - commandbook
+    - cb
+    - perocasino
+    - pc
+    - hilo
+    - chinchiro
+  commands:
+    - chinchiro roll
