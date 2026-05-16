@@ -2,21 +2,29 @@ package me.bokan.perocasino;
 
 import me.bokan.perocasino.commands.BalanceCommand;
 import me.bokan.perocasino.commands.CasinoCommand;
+import me.bokan.perocasino.commands.ChinchiroCommand;
 import me.bokan.perocasino.commands.CommandBookCommand;
 import me.bokan.perocasino.commands.DepositCommand;
+import me.bokan.perocasino.commands.HiLoSelectCommand;
 import me.bokan.perocasino.commands.PerocasinoCommand;
 import me.bokan.perocasino.economy.EconomyManager;
+import me.bokan.perocasino.games.blackjack.BlackjackService;
+import me.bokan.perocasino.games.chinchiro.ChinchiroDiceService;
+import me.bokan.perocasino.games.hilo.HiLoService;
 import me.bokan.perocasino.games.slot.SlotMachineService;
+import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
 import me.bokan.perocasino.listeners.CasinoMenuListener;
+import me.bokan.perocasino.listeners.CommandBookListener;
 import me.bokan.perocasino.listeners.GameMenuListener;
 import me.bokan.perocasino.listeners.LoanMenuListener;
-import me.bokan.perocasino.listeners.CommandBookListener;
 import me.bokan.perocasino.listeners.NetherPortalTeleportListener;
 import me.bokan.perocasino.listeners.QuarryRespawnListener;
-import me.bokan.perocasino.listeners.RouletteBetBoardMenuListener;
 import me.bokan.perocasino.listeners.RuleBookListener;
 import me.bokan.perocasino.listeners.RouletteBetMenuListener;
 import me.bokan.perocasino.listeners.RouletteInteractListener;
+import me.bokan.perocasino.listeners.SlotDisplayBetDealerListener;
+import me.bokan.perocasino.listeners.SlotDisplayBlockButtonListener;
+import me.bokan.perocasino.listeners.SlotDisplayInteractListener;
 import me.bokan.perocasino.listeners.SlotInteractListener;
 import me.bokan.perocasino.listeners.SlotMenuListener;
 import me.bokan.perocasino.listeners.SlotSessionCleanupListener;
@@ -34,6 +42,10 @@ public class PeRoCasino extends JavaPlugin {
     private RouletteHubService rouletteHubService;
     private SlotMachineService slotMachineService;
     private RouletteDisplayService rouletteDisplayService;
+    private BlackjackService blackjackService;
+    private HiLoService hiLoService;
+    private SlotDisplayService slotDisplayService;
+    private ChinchiroDiceService chinchiroDiceService;
 
     @Override
     public void onEnable() {
@@ -46,59 +58,71 @@ public class PeRoCasino extends JavaPlugin {
         getCommand("commandbook").setExecutor(new CommandBookCommand(this));
 
         slotMachineService = new SlotMachineService(this, economyManager);
+        blackjackService = new BlackjackService(this, economyManager);
+        hiLoService = new HiLoService(this, economyManager);
 
-        // ルーレット表示（ItemDisplay）
-        RouletteDisplayService rouletteDisplayService = new RouletteDisplayService(this);
+        org.bukkit.command.PluginCommand hiloCmd = getCommand("hilo");
+        if (hiloCmd != null) {
+            hiloCmd.setExecutor(new HiLoSelectCommand(hiLoService));
+        }
+
+        slotDisplayService = new SlotDisplayService(this, economyManager);
+        slotDisplayService.reloadFromConfig();
+
+        chinchiroDiceService = new ChinchiroDiceService(this);
+        chinchiroDiceService.reloadFromConfig();
+        org.bukkit.command.PluginCommand chinchiroCmd = getCommand("chinchiro");
+        if (chinchiroCmd != null) {
+            chinchiroCmd.setExecutor(new ChinchiroCommand(this, chinchiroDiceService));
+        } else {
+            getLogger().severe("plugin.yml に chinchiro コマンドが定義されていません。");
+        }
+
+        rouletteDisplayService = new RouletteDisplayService(this);
         rouletteDisplayService.reloadFromConfig();
 
-        // LOAN GUI リスナー → カジノメインリスナーへ渡す
         LoanMenuListener loanListener = new LoanMenuListener(economyManager, this);
         getServer().getPluginManager().registerEvents(loanListener, this);
-        getServer().getPluginManager().registerEvents(new CasinoMenuListener(loanListener, this, slotMachineService), this);
+        getServer().getPluginManager().registerEvents(
+                new CasinoMenuListener(loanListener, this, slotMachineService, blackjackService, hiLoService), this);
 
-        // 財布システム（スロット8: 引き出し口 / スロット35: 専用バンドル）
         getServer().getPluginManager().registerEvents(new WalletListener(economyManager, this), this);
-
-        // ルールブック（ホットバー左端0に固定）
         getServer().getPluginManager().registerEvents(new RuleBookListener(this), this);
-
-        // コマンド集ルールブック（固定なし）
         getServer().getPluginManager().registerEvents(new CommandBookListener(this), this);
 
-        // 【追加】ルーレットのリスナーを登録
         RouletteBetMenuListener betListener = new RouletteBetMenuListener(this);
         getServer().getPluginManager().registerEvents(betListener, this);
         RouletteBetBoardService betBoardService = new RouletteBetBoardService(this, economyManager);
         getServer().getPluginManager().registerEvents(new RouletteInteractListener(betListener, betBoardService), this);
-        // 砥石ベットは 54枠GUI（RouletteBetMenuListener）で扱うので列別GUIは無効化
 
-        rouletteDisplayService = new RouletteDisplayService(this);
         rouletteHubService = new RouletteHubService(this, economyManager, betListener, rouletteDisplayService, betBoardService);
         rouletteHubService.runTaskTimer(this, 0L, 1L);
-
-        // ※上で登録済み（重複登録しない）
 
         org.bukkit.command.PluginCommand pc = getCommand("perocasino");
         if (pc != null) {
             PerocasinoCommand adminCmd = new PerocasinoCommand(this, () -> {
                 if (rouletteHubService != null) rouletteHubService.reloadFromConfig();
                 if (slotMachineService != null) slotMachineService.reloadFromConfig();
-            });
+                if (slotDisplayService != null) slotDisplayService.reloadFromConfig();
+                if (chinchiroDiceService != null) chinchiroDiceService.reloadFromConfig();
+            }, slotDisplayService, chinchiroDiceService);
             pc.setExecutor(adminCmd);
             pc.setTabCompleter(adminCmd);
         }
 
         getServer().getPluginManager().registerEvents(new QuarryRespawnListener(this), this);
         getServer().getPluginManager().registerEvents(new SlotInteractListener(slotMachineService), this);
+        getServer().getPluginManager().registerEvents(new SlotDisplayInteractListener(slotDisplayService), this);
+        getServer().getPluginManager().registerEvents(new SlotDisplayBlockButtonListener(slotDisplayService), this);
+        getServer().getPluginManager().registerEvents(new SlotDisplayBetDealerListener(this, economyManager), this);
         getServer().getPluginManager().registerEvents(new SlotMenuListener(), this);
         getServer().getPluginManager().registerEvents(new SlotSessionCleanupListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new GameMenuListener(), this);
         getServer().getPluginManager().registerEvents(new NetherPortalTeleportListener(this), this);
+        getServer().getPluginManager().registerEvents(blackjackService, this);
+        getServer().getPluginManager().registerEvents(hiLoService, this);
 
-        // HUD 表示（1秒ごと）
         new HudTask(economyManager).runTaskTimer(this, 0L, 20L);
-
-        // 利息タスク（1秒ごとにオンラインプレイヤーの借金をチェック）
         new LoanTask(economyManager).runTaskTimer(this, 20L, 20L);
 
         getLogger().info("PeRoCasino が有効化されました！");
@@ -109,10 +133,34 @@ public class PeRoCasino extends JavaPlugin {
         if (rouletteHubService != null) {
             rouletteHubService.shutdown();
         }
+        if (blackjackService != null) {
+            blackjackService.shutdown();
+        }
+        if (hiLoService != null) {
+            hiLoService.shutdown();
+        }
+        if (slotDisplayService != null) {
+            slotDisplayService.shutdown();
+        }
+        if (chinchiroDiceService != null) {
+            chinchiroDiceService.removeAllDisplays();
+        }
         getLogger().info("PeRoCasino が無効化されました。");
     }
 
     public EconomyManager getEconomyManager() {
         return economyManager;
+    }
+
+    public BlackjackService getBlackjackService() {
+        return blackjackService;
+    }
+
+    public HiLoService getHiLoService() {
+        return hiLoService;
+    }
+
+    public ChinchiroDiceService getChinchiroDiceService() {
+        return chinchiroDiceService;
     }
 }

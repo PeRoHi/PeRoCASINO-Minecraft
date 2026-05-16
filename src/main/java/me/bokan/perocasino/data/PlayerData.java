@@ -21,6 +21,9 @@ public class PlayerData {
     /** 次回利息適用時刻（Unix ミリ秒）。0 = 利息タイマー未起動。 */
     private long nextInterestMillis = 0L;
 
+    /** 設置スロット用：プレイヤーが選択した掛け金（0=未設定） */
+    private int slotDisplayBet = 0;
+
     public PlayerData(UUID playerId) {
         this.playerId = playerId;
     }
@@ -43,4 +46,8 @@ public class PlayerData {
 
     public long getNextInterestMillis() { return nextInterestMillis; }
     public void setNextInterestMillis(long millis) { nextInterestMillis = millis; }
+
+    // --- 設置スロット ---
+    public int getSlotDisplayBet() { return slotDisplayBet; }
+    public void setSlotDisplayBet(int bet) { slotDisplayBet = Math.max(0, bet); }
 }

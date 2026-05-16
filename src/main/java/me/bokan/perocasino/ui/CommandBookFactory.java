@@ -2,9 +2,9 @@ package me.bokan.perocasino.ui;
 
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
-import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BookMeta;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
@@ -14,68 +14,73 @@ public final class CommandBookFactory {
 
     private CommandBookFactory() {}
 
-    private static NamespacedKey key(Plugin plugin) {
+    public static NamespacedKey key(Plugin plugin) {
         return new NamespacedKey(plugin, "command_book");
-    }
-
-    public static ItemStack create() {
-        return create(null);
     }
 
     public static ItemStack create(Plugin plugin) {
         ItemStack book = new ItemStack(Material.WRITTEN_BOOK);
-        if (book.getItemMeta() instanceof BookMeta meta) {
-            meta.setTitle("PeRoCasino コマンド集");
-            meta.setAuthor("PeRoCasino");
-            meta.setDisplayName("§e§lコマンド集");
-            meta.setPages(List.of(
-                    "PeRoCasino コマンド集\n\n" +
-                            "基本:\n" +
-                            "/casino\n" +
-                            "/balance\n" +
-                            "/deposit\n\n" +
-                            "管理者:\n" +
-                            "/perocasino ...",
-                    "一般コマンド\n\n" +
-                            "・/casino\n" +
-                            "  カジノメニューを開く\n\n" +
-                            "・/balance\n" +
-                            "  財布残高/借金を表示\n\n" +
-                            "・/deposit\n" +
-                            "  手持ちのビーストコイン(ダイヤ)を財布へ",
-                    "管理者コマンド\n\n" +
-                            "・/perocasino roulette set\n" +
-                            "  砥石をルーレット拠点に登録\n\n" +
-                            "・/perocasino roulette remove\n" +
-                            "  ルーレット拠点を削除\n\n" +
-                            "・/perocasino roulette stop/start\n" +
-                            "  ルーレットの進行を停止/再開\n\n" +
-                            "・/perocasino roulette board set\n" +
-                            "  砥石ベット盤(左端)を登録",
-                    "管理者コマンド（続き）\n\n" +
-                            "・/perocasino roulette display set\n" +
-                            "  ルーレット表示(ItemDisplay)設置\n\n" +
-                            "・/perocasino roulette display remove\n" +
-                            "  ルーレット表示を削除\n\n" +
-                            "・/perocasino quarry set\n" +
-                            "  採石場範囲を登録（2回）"
-            ));
-            if (plugin != null) {
-                meta.getPersistentDataContainer().set(key(plugin), PersistentDataType.BYTE, (byte) 1);
-            }
-            book.setItemMeta(meta);
-        }
+        ItemMeta raw = book.getItemMeta();
+        if (!(raw instanceof BookMeta meta)) return book;
+
+        meta.setTitle("PeRoCasino コマンド集");
+        meta.setAuthor("PeRoCasino");
+        meta.setDisplayName("§0§lコマンド集");
+
+        meta.setPages(List.of(
+                "§0§lコマンド集\n" +
+                        "§0一般に使うコマンドと、管理者向けの\n" +
+                        "§0設定コマンドをまとめています。\n\n" +
+                        "§0目次\n" +
+                        "§0- 一般\n" +
+                        "§0- 管理者（設置）\n" +
+                        "§0  └ルーレットは砥石を見て登録",
+                "§0§l一般\n" +
+                        "§0・/casino\n" +
+                        "§0  カジノメニュー\n\n" +
+                        "§0・/casino <プレイヤー名|セレクター>\n" +
+                        "§0  対象プレイヤーにカジノメニューを開く\n\n" +
+                        "§0・/balance（/bal）\n" +
+                        "§0  財布・借金の表示\n\n" +
+                        "§0・/deposit\n" +
+                        "§0  手持ちコインを財布へ\n\n" +
+                        "§0・/hilo select <high|low>\n" +
+                        "§0  進行中のH&Lで選択\n" +
+                        "§0  （/hilo high|low|h|l|hi|lo も可）\n\n" +
+                        "§0・/commandbook（/cb）\n" +
+                        "§0  この本を再取得",
+                "§0§l管理者（設置）\n" +
+                        "§0権限: perocasino.admin\n\n" +
+                        "§0・/perocasino（/pc）\n" +
+                        "§0  サブコマンド一覧を表示\n\n" +
+                        "§0§lルーレット設置\n" +
+                        "§0・/perocasino roulette set\n" +
+                        "§0  （/pc roulette set）\n" +
+                        "§0  6ブロック以内の砥石を見て実行。\n" +
+                        "§0  その砥石がルーレット拠点になります。\n\n" +
+                        "§0・/perocasino blackjack dealer set|summon\n" +
+                        "§0  BJディーラーを設定/召喚\n\n" +
+                        "§0・/perocasino hilo dealer set|summon\n" +
+                        "§0  H&Lディーラーを設定/召喚\n\n" +
+                        "§0・/perocasino quarry set\n" +
+                        "§0  採石場の角2点を登録（2回実行）\n\n" +
+                        "§0・/perocasino slot create|remove|list\n" +
+                        "§0  設置スロット（TextDisplay）を登録/削除/一覧\n\n" +
+                        "§0・/perocasino reload\n" +
+                        "§0  config再読込"
+        ));
+
+        meta.getPersistentDataContainer().set(key(plugin), PersistentDataType.BYTE, (byte) 1);
+        book.setItemMeta(meta);
         return book;
     }
 
     public static boolean isCommandBook(ItemStack item, Plugin plugin) {
-        if (item == null || item.getType() != Material.WRITTEN_BOOK) return false;
-        if (!item.hasItemMeta()) return false;
-        var meta = item.getItemMeta();
-        return meta.getPersistentDataContainer().has(key(plugin), PersistentDataType.BYTE);
+        if (item == null || item.getType() != Material.WRITTEN_BOOK || !item.hasItemMeta()) return false;
+        return item.getItemMeta().getPersistentDataContainer().has(key(plugin), PersistentDataType.BYTE);
     }
 
-    public static boolean giveIfMissing(Player player, Plugin plugin) {
+    public static boolean giveIfMissing(org.bukkit.entity.Player player, Plugin plugin) {
         for (ItemStack it : player.getInventory().getContents()) {
             if (isCommandBook(it, plugin)) return false;
         }

@@ -1,7 +1,6 @@
 package me.bokan.perocasino.listeners;
 
 import me.bokan.perocasino.ui.CommandBookFactory;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -9,11 +8,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
-/**
- * 全プレイヤーに「コマンド集」ルールブックを配布（固定はしない）。
- * すでに所持している場合は重複配布しない。
- */
-public class CommandBookListener implements Listener {
+/** ログイン時にコマンド集を未所持なら1冊配布。 */
+public final class CommandBookListener implements Listener {
 
     private final Plugin plugin;
 

@@ -3,8 +3,8 @@
     {
       "type": "space",
       "advances": {
-        "\uF801": -1,
-        "\uF808": -8
+        "": -1,
+        "": -8
       }
     },
     {
@@ -12,7 +12,279 @@
       "file": "minecraft:font/gui_bg.png",
       "ascent": 13,
       "height": 256,
-      "chars": ["\uE001"]
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a0.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a1.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a2.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a3.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a4-atari.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a5-hazure.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a6.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a7.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a8.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_a9.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b0.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b1.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b2.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b3-atari.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b4-hazure.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b5.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b6.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b7.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b8.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_b9.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c0.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c1.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c2.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c3.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c4.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c5.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c6.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c7-atari.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c8-hazure.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
+    },
+    {
+      "type": "bitmap",
+      "file": "minecraft:font/slot_mark_c9.png",
+      "ascent": 8,
+      "height": 8,
+      "chars": [
+        ""
+      ]
     }
   ]
 }

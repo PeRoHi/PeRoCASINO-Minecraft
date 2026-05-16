@@ -17,7 +17,7 @@ public class GameMenuListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
         String title = event.getView().getTitle();
-        if (!BlackjackMenu.GUI_TITLE.equals(title) && !HiLoMenu.GUI_TITLE.equals(title)) return;
+        if (!HiLoMenu.GUI_TITLE.equals(title)) return;
 
         event.setCancelled(true);
 

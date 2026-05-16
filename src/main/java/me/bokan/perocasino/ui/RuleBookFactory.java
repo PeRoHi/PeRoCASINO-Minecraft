@@ -38,7 +38,9 @@ public final class RuleBookFactory {
                         "§0- スロット\n" +
                         "§0- ルーレット\n" +
                         "§0- 採石場\n" +
-                        "§0- WIP",
+                        "§0- チンチロ\n" +
+                        "§0- 設置スロット\n" +
+                        "§0- その他",
                 "§0§l財布（Wallet）\n" +
                         "§0右側に固定アイテムがあります。\n\n" +
                         "§1・ダイヤ引き出し口\n" +
@@ -73,10 +75,24 @@ public final class RuleBookFactory {
                         "§2・復活\n" +
                         "§0約5分（6000tick）で戻る\n\n" +
                         "§8範囲設定: /pc quarry set（2回）",
-                "§0§lWIP\n" +
-                        "§0ブラックジャック / ハイローは\n" +
-                        "§0いまはGUI骨組みのみです。\n\n" +
-                        "§8順次、勝敗・倍率・精算を追加"
+                "§0§lチンチロ\n" +
+                        "§0表示領域内で §f/chinchiro roll §0を実行すると\n" +
+                        "§0サイコロが振られます。\n\n" +
+                        "§0・領域登録（管理者）\n" +
+                        "§8/pc chinchiro region set §0を2回（MIN→MAX角）\n\n" +
+                        "§0詳細はコマンド集ブックを参照してください。",
+                "§0§l設置スロット（Slot Display）\n" +
+                        "§0ワールドに設置した台で遊べます。\n\n" +
+                        "§0・登録（管理者）\n" +
+                        "§8/pc slot create <id>\n\n" +
+                        "§0・掛け金ディーラー\n" +
+                        "§8/pc slot dealer set|summon\n\n" +
+                        "§0操作は台の表示に従ってください。",
+                "§0§lブラックジャック / High&Low\n" +
+                        "§0カジノメニュー（§f/casino§0）から参加できます。\n\n" +
+                        "§0ディーラー村人の登録は管理者向けコマンド\n" +
+                        "§8/pc blackjack dealer … §0 / §8/pc hilo dealer …\n\n" +
+                        "§0詳細はコマンド集ブックを参照してください。"
         ));
 
         meta.getPersistentDataContainer().set(key(plugin), PersistentDataType.BYTE, (byte) 1);
