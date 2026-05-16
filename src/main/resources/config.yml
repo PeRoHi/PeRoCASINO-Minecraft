@@ -71,23 +71,24 @@ roulette:
     - { multiplier: 2,  degrees: 15 } # 21
     - { multiplier: 6,  degrees: 15 } # 22
     - { multiplier: 4,  degrees: 15 } # 23
-  # config_1（運用ワールド）由来。ルーレット機能を使う場合は true 推奨
-  enabled: true
+  # 注: 「roulette.enabled」のような全体ON/OFFは現行プラグイン未対応（Hubタスクは常時起動）。
 
 quarry:
   enabled: true
   # 採石場として扱うワールド名（空なら全ワールド）
   world: world
+  # 角2点（含まれる立方体領域）。quarry.min.* / quarry.max.* が欠けると採石場は無効。
+  # 現在の角は X と Y が同一のため、実効は Z 方向 3 ブロックの細い帯です。面で覆う場合は対角に取り直してください。
+  min:
+    x: 166
+    y: 63
+    z: 194
   max:
     x: 166
     y: 63
     z: 196
   # ダイヤ鉱石を掘ったあと、何tick後に元に戻すか（20tick=1秒）
   respawn-delay-ticks: 6000
-  min:
-    x: 166
-    y: 63
-    z: 194
 
 slot-machine:
   # スロットの鉱石シンボル（上から順に回転表示）
@@ -375,7 +376,7 @@ slot-display:
       yaw: 1.649730920791626
       pitch: 3.2998666763305664
   bet-dealer:
-    uuid: f38b65f4-88b0-43c3-9d01-fa9e52ee37d9
+    uuid: "f38b65f4-88b0-43c3-9d01-fa9e52ee37d9"
     world: world
     x: 154
     y: 63
@@ -383,6 +384,7 @@ slot-display:
 
     
 # チンチロ（サイコロ表示のみ。領域は /perocasino chinchiro region set を2回）
+# 下記 region が初期値のまま（world 空・角0）のときはゲーム内コマンドで登録するまで振れません。
 chinchiro:
   enabled: true
   dice:
