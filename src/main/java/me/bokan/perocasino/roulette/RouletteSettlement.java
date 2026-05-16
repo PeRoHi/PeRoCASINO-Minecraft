@@ -41,14 +41,12 @@ public final class RouletteSettlement {
 
     public static void settleRound(EconomyManager economy,
                                    RouletteBetMenuListener betListener,
-                                   RouletteAngleConfig angleConfig,
+                                   AngleRoundResult result,
                                    Location hub,
                                    double notifyRadius) {
-        if (angleConfig == null || angleConfig.segments().isEmpty()) {
-            throw new IllegalStateException("Roulette angleConfig が未設定です。");
+        if (result == null) {
+            throw new IllegalStateException("Roulette result が未設定です。");
         }
-
-        AngleRoundResult result = randomAngleResult(angleConfig);
 
         Map<UUID, Inventory> open = betListener.getOpenBetInventoriesView();
         List<Map.Entry<UUID, Inventory>> snapshot = new ArrayList<>(open.entrySet());
