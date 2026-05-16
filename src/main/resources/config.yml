@@ -391,6 +391,9 @@ chinchiro:
     custom-model-data: 9020
     # モデル dice.json は 16³（約1）；ItemDisplay が NONE のとき、この値がワールドでの立方体の辺の長さ（ブロック）。
     edge-length-blocks: 0.5
+    # Paper/MC 1.21.11系で ItemDisplay の見た目が極小になる分を補正。配置判定には使わない。
+    # 0.5ブロック指定なのに0.05程度に見える環境では 10.0 のままでOK。
+    model-scale-correction: 10.0
     # XZ 上でサイコロ中心同士の最低距離の下限。辺長に応じて余白も増やす
     separation: 0.55
     random-tries: 120

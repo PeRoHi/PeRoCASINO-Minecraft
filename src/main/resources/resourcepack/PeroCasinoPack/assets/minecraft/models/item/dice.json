@@ -1,13 +1,13 @@
 {
   "ambientocclusion": false,
   "textures": {
-    "particle": "minecraft:item/dice_1",
-    "tex_up": "minecraft:item/dice_1",
-    "tex_down": "minecraft:item/dice_6",
-    "tex_north": "minecraft:item/dice_2",
-    "tex_south": "minecraft:item/dice_5",
-    "tex_east": "minecraft:item/dice_3",
-    "tex_west": "minecraft:item/dice_4"
+    "particle": "minecraft:item/dice1",
+    "tex_up": "minecraft:item/dice1",
+    "tex_down": "minecraft:item/dice6",
+    "tex_north": "minecraft:item/dice2",
+    "tex_south": "minecraft:item/dice5",
+    "tex_east": "minecraft:item/dice3",
+    "tex_west": "minecraft:item/dice4"
   },
   "elements": [
     {

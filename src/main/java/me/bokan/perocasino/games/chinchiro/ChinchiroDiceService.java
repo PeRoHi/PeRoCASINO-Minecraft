@@ -34,6 +34,8 @@ public final class ChinchiroDiceService {
     private int customModelData = DEFAULT_CMD;
     /** ワールドでの立方体モデルの辺の長さ（ブロック）。dice.json は 16³＝モデルとして 1 を想定する。ItemDisplay で NONE と併せるための実寸。 */
     private float edgeLengthBlocks = 0.5f;
+    /** Paper/MC 1.21系の ItemDisplay で見た目だけ小さくなる場合の描画補正。配置判定には使わない。 */
+    private float modelScaleCorrection = 10.0f;
     /** XZ 平面上の中心同士の最低距離（ブロック） */
     private double separation = 0.55;
     private int randomTries = 120;
@@ -62,6 +64,7 @@ public final class ChinchiroDiceService {
         } else {
             edgeLengthBlocks = clampEdge((float) cfg.getDouble("chinchiro.dice.display-scale", 0.5));
         }
+        modelScaleCorrection = clampCorrection((float) cfg.getDouble("chinchiro.dice.model-scale-correction", 10.0));
         separation = cfg.getDouble("chinchiro.dice.separation", 0.55);
         randomTries = Math.max(20, cfg.getInt("chinchiro.dice.random-tries", 120));
 
@@ -127,7 +130,7 @@ public final class ChinchiroDiceService {
         int loZ = Math.min(minZ, maxZ);
         int hiZ = Math.max(minZ, maxZ);
 
-        // dice.json はモデル空間で 1³；ItemDisplayTransform.NONE なら Transformation.scale がそのままワールド辺長（ブロック）になる
+        // edge は配置判定と床からの高さ用。描画だけ小さい環境は model-scale-correction で別途補正する。
         float edge = edgeLengthBlocks;
         double cy = loY + 1.0 + 0.5 * edge;
         double margin = Math.max(separation * 0.5, edge * 0.52);
@@ -231,7 +234,7 @@ public final class ChinchiroDiceService {
         Quaternionf face = topFaceQuaternion(top1to6);
         Quaternionf yawQ = new Quaternionf().rotateY(yawRad);
         Quaternionf rot = yawQ.mul(face, new Quaternionf()).normalize();
-        float s = edgeLengthBlocks;
+        float s = edgeLengthBlocks * modelScaleCorrection;
         return new Transformation(
                 new Vector3f(0f, 0f, 0f),
                 rot,
@@ -256,5 +259,11 @@ public final class ChinchiroDiceService {
         if (blocks < 0.05f) return 0.05f;
         if (blocks > 32f) return 32f;
         return blocks;
+    }
+
+    private static float clampCorrection(float correction) {
+        if (correction < 0.1f) return 0.1f;
+        if (correction > 100f) return 100f;
+        return correction;
     }
 }
