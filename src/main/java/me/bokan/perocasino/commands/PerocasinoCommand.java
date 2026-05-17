@@ -668,44 +668,66 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        placeBlock.setType(Material.CHEST, false);
-        if (!(placeBlock.getState() instanceof Chest chestState)) {
-            player.sendMessage("§cチェストの設置に失敗しました。");
-            return true;
+        Location chestLoc = placeBlock.getLocation().clone();
+        List<ItemStack> stacks = new ArrayList<>(wands.size());
+        for (ItemStack wand : wands) {
+            stacks.add(wand.clone());
         }
 
-        // BlockState のスナップショットへ入れて update する（getBlockInventory は update で消える）
-        Inventory inv = chestState.getInventory();
+        placeBlock.setType(Material.CHEST, true);
+        plugin.getLogger().info("[wandchest] Chest block placed at " + formatBlock(chestLoc)
+                + ", scheduling fill of " + stacks.size() + " wands for " + player.getName());
+
+        plugin.getServer().getScheduler().runTask(plugin, () ->
+                finishWandChest(player, chestLoc, stacks));
+        return true;
+    }
+
+    private void finishWandChest(Player player, Location chestLoc, List<ItemStack> wands) {
+        Block block = chestLoc.getBlock();
+        if (block.getType() != Material.CHEST) {
+            plugin.getLogger().warning("[wandchest] Expected CHEST at " + formatBlock(chestLoc)
+                    + " but found " + block.getType());
+            player.sendMessage("§cチェストの設置に失敗しました。コンソールに [wandchest] を確認してください。");
+            return;
+        }
+
+        if (!(block.getState() instanceof Chest chest)) {
+            plugin.getLogger().warning("[wandchest] BlockState is not Chest at " + formatBlock(chestLoc));
+            player.sendMessage("§cチェストの取得に失敗しました。");
+            return;
+        }
+
+        Inventory inv = chest.getBlockInventory();
         int slot = 0;
         int overflow = 0;
-        Location dropAt = placeBlock.getLocation().add(0.5, 0.5, 0.5);
+        Location dropAt = chestLoc.clone().add(0.5, 0.5, 0.5);
         for (ItemStack wand : wands) {
             if (slot < inv.getSize()) {
-                inv.setItem(slot++, wand.clone());
+                inv.setItem(slot++, wand);
             } else {
+                block.getWorld().dropItemNaturally(dropAt, wand);
                 overflow++;
             }
         }
-        chestState.update(true, false);
 
-        if (overflow > 0) {
-            for (int i = slot; i < wands.size(); i++) {
-                placeBlock.getWorld().dropItemNaturally(dropAt, wands.get(i).clone());
-            }
-        }
+        int filled = countItems(inv);
+        plugin.getLogger().info("[wandchest] Filled " + filled + "/" + wands.size() + " at "
+                + formatBlock(chestLoc) + (overflow > 0 ? " (overflow=" + overflow + ")" : ""));
 
-        Location loc = placeBlock.getLocation();
-        int filled = countItems(((Chest) placeBlock.getState()).getInventory());
-        player.sendMessage("§aコマンド杖チェストを設置しました: §f" + loc.getBlockX() + " "
-                + loc.getBlockY() + " " + loc.getBlockZ() + " §7(" + filled + "/" + wands.size() + "本)");
+        player.sendMessage("§aコマンド杖チェストを設置しました: §f" + chestLoc.getBlockX() + " "
+                + chestLoc.getBlockY() + " " + chestLoc.getBlockZ() + " §7(" + filled + "/" + wands.size() + "本)");
         if (filled == 0) {
-            player.sendMessage("§cチェストにアイテムが入りませんでした。§7もう一度 §f/pc wandchest §7を試すか、コンソールログを確認してください。");
+            player.sendMessage("§cチェストにアイテムが入りませんでした。§7サーバーコンソールの §f[wandchest] §7行を確認してください。");
         }
         if (overflow > 0) {
             player.sendMessage("§eチェストに入り切らなかった杖を §f" + overflow + " §e本ドロップしました。");
         }
         player.sendMessage("§7※ 使用時は §fcommand-wand.enabled: true §7と §fperocasino.commandwand§7 が必要です。");
-        return true;
+    }
+
+    private static String formatBlock(Location loc) {
+        return loc.getWorld().getName() + " " + loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
     }
 
     private static int countItems(Inventory inv) {
