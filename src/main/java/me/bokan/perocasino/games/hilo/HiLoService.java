@@ -1,6 +1,7 @@
 package me.bokan.perocasino.games.hilo;
 
 import me.bokan.perocasino.economy.EconomyManager;
+import me.bokan.perocasino.games.blackjack.BlackjackService;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
@@ -74,6 +75,7 @@ public final class HiLoService implements Listener {
 
     private Session session;
     private BukkitTask hudTask;
+    private BlackjackService blackjackService;
 
     public HiLoService(JavaPlugin plugin, EconomyManager economy) {
         this.plugin = plugin;
@@ -84,6 +86,15 @@ public final class HiLoService implements Listener {
         this.reverseKey = new NamespacedKey(plugin, "hilo_reverse");
         startHud();
         applyConfiguredDealerNpcSettings();
+    }
+
+    public void setBlackjackService(BlackjackService blackjackService) {
+        this.blackjackService = blackjackService;
+    }
+
+    /** 進行中またはロビー待機中のプレイヤーか */
+    public boolean isPlayerInGame(UUID playerId) {
+        return session != null && session.players.containsKey(playerId);
     }
 
     /** config の UUID に一致するディーラー村人がいれば AI/重力を無効化（再起動後も固定）。 */
@@ -129,7 +140,10 @@ public final class HiLoService implements Listener {
         if (!isDealer(villager)) return;
         event.setCancelled(true);
         Player player = event.getPlayer();
-        if (resumeFromDealer(player)) {
+        if (blackjackService != null && blackjackService.isPlayerInGame(player.getUniqueId())) {
+            return;
+        }
+        if (resumeFromDealer(player, villager)) {
             return;
         }
         if (tryJoinExistingLobby(player)) {
@@ -309,10 +323,9 @@ public final class HiLoService implements Listener {
     }
 
     /** ディーラー右クリックで、中断していたGUIを再表示する */
-    private boolean resumeFromDealer(Player player) {
+    private boolean resumeFromDealer(Player player, Villager clickedDealer) {
         if (session == null || !session.players.containsKey(player.getUniqueId())) return false;
-        Entity dealer = findDealerFor(player);
-        if (dealer == null || !dealer.getUniqueId().equals(session.dealerId)) return false;
+        if (!clickedDealer.getUniqueId().equals(session.dealerId)) return false;
 
         if (session.phase == Phase.PLAYING) {
             PlayerState ps = session.players.get(player.getUniqueId());
@@ -322,6 +335,8 @@ public final class HiLoService implements Listener {
             }
         }
         String last = session.lastGuiTitle.get(player.getUniqueId());
+        Entity dealer = getDealerEntity();
+        if (dealer == null) dealer = clickedDealer;
         if (last == null) {
             if (session.phase == Phase.LOBBY) openLobby(player);
             return true;
@@ -340,6 +355,8 @@ public final class HiLoService implements Listener {
         } else if (CHOICE_TITLE.equals(last) && session.phase == Phase.PLAYING) {
             PlayerState ps = session.players.get(player.getUniqueId());
             if (ps != null && player.getUniqueId().equals(session.currentChild) && ps.awaitingChoice) openChoice(player);
+        } else if (session.phase == Phase.LOBBY) {
+            openLobby(player);
         }
         return true;
     }
@@ -1044,6 +1061,8 @@ public final class HiLoService implements Listener {
     private boolean isDealer(Villager villager) {
         String configured = plugin.getConfig().getString("hilo.dealer.uuid", "");
         if (configured != null && !configured.isBlank() && configured.equals(villager.getUniqueId().toString())) return true;
+        String sharedBj = plugin.getConfig().getString("blackjack.dealer.uuid", "");
+        if (sharedBj != null && !sharedBj.isBlank() && sharedBj.equals(villager.getUniqueId().toString())) return true;
         String plain = org.bukkit.ChatColor.stripColor(villager.getCustomName());
         if (plain == null) return false;
         String lower = plain.toLowerCase(Locale.ROOT);
@@ -1053,10 +1072,17 @@ public final class HiLoService implements Listener {
                 || lower.contains("low")
                 || plain.contains("ハイロー")
                 || plain.contains("H＆L")
-                || plain.contains("H&L");
+                || plain.contains("H&L")
+                || lower.contains("blackjack")
+                || lower.contains("ブラックジャック")
+                || lower.contains("ディーラー");
     }
 
     private Entity findDealerFor(Player player) {
+        if (session != null) {
+            Entity sessionDealer = getDealerEntity();
+            if (sessionDealer != null) return sessionDealer;
+        }
         UUID configured = findDealerIdFor(player);
         if (configured != null) {
             Entity e = Bukkit.getEntity(configured);

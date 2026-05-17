@@ -1,6 +1,7 @@
 package me.bokan.perocasino.commands;
 
 import me.bokan.perocasino.games.chinchiro.ChinchiroDiceService;
+import me.bokan.perocasino.games.chinchiro.ChinchiroHandEvaluator;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
@@ -51,7 +52,8 @@ public final class ChinchiroCommand implements CommandExecutor {
             return true;
         }
 
-        player.sendMessage("§6[チンチロ] §f出目: §e" + tops[0] + " §7| §e" + tops[1] + " §7| §e" + tops[2]);
+        player.sendMessage("§6[チンチロ] §f出目: §e" + tops[0] + " §7| §e" + tops[1] + " §7| §e" + tops[2]
+                + " §7（§f" + ChinchiroHandEvaluator.describeJapanese(tops) + "§7）");
 
         try {
             TextComponent head = new TextComponent(TextComponent.fromLegacyText("§7もう一度: "));

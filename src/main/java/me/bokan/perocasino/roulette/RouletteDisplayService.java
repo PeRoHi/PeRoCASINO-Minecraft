@@ -28,7 +28,7 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class RouletteDisplayService {
 
-    private static final int ROULETTE_CMD = 9001; // paper: custom_model_data (resourcepack側の割当)
+    private static final int ROULETTE_CMD = 9001; // paper: custom_model_data
 
     private final Plugin plugin;
 
@@ -37,23 +37,30 @@ public final class RouletteDisplayService {
     private BlockFace face = BlockFace.NORTH; // 壁の向き（表示面）
 
     // 回転状態
-    private float currentDeg; // 0..360（内部は増加していく）
-    private Float targetDeg;  // nullならフリー回転（正規化角）
+    private float currentDeg; // 0..360
+    private Float targetDeg;  // nullならフリー回転（絶対角）
     private Float targetDegAbsolute; // current基準で「必ず前進して止まる」用（絶対角、単調増加）
 
-    // 回転タスク
+    // 簡易回転タスク
     private BukkitRunnable task;
+
+    public RouletteDisplayService(Plugin plugin) {
+        this.plugin = plugin;
+    }
 
     /** 画像の真上(0°)を実際の上方向に合わせるための補正角度。 */
     private float angleOffsetDeg = 0f;
     private float decelDistanceDeg = 540f;
     private int decelTicks = 60;
 
-    public RouletteDisplayService(Plugin plugin) {
-        this.plugin = plugin;
-    }
-
     public void reloadFromConfig() {
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
+        targetDeg = null;
+        targetDegAbsolute = null;
+
         FileConfiguration cfg = plugin.getConfig();
         String worldName = cfg.getString("roulette.display.anchor.world", "");
         String uuidStr = cfg.getString("roulette.display.uuid", "");
@@ -98,6 +105,7 @@ public final class RouletteDisplayService {
      * ルーレット表示を削除し、設定もクリアする。
      */
     public void removeDisplay() {
+        // 回転タスク停止
         if (task != null) {
             task.cancel();
             task = null;
@@ -105,6 +113,7 @@ public final class RouletteDisplayService {
         targetDeg = null;
         targetDegAbsolute = null;
 
+        // entity削除
         ItemDisplay d = getDisplay();
         if (d != null) {
             d.remove();
@@ -113,6 +122,7 @@ public final class RouletteDisplayService {
         displayUuid = null;
         anchor = null;
 
+        // configクリア
         FileConfiguration cfg = plugin.getConfig();
         cfg.set("roulette.display.anchor.world", "");
         cfg.set("roulette.display.anchor.x", null);
@@ -124,6 +134,7 @@ public final class RouletteDisplayService {
     }
 
     public void setAnchor(Location anchorCenter, BlockFace face) {
+        // 既存があれば削除（移動/貼り替え）
         ItemDisplay existing = getDisplay();
         if (existing != null) {
             existing.remove();
@@ -133,6 +144,7 @@ public final class RouletteDisplayService {
         if (face != null) this.face = face;
         ensureSpawned();
 
+        // config保存
         FileConfiguration cfg = plugin.getConfig();
         cfg.set("roulette.display.anchor.world", anchor.getWorld().getName());
         cfg.set("roulette.display.anchor.x", anchor.getX());
@@ -149,9 +161,11 @@ public final class RouletteDisplayService {
 
         targetDeg = null;
         targetDegAbsolute = null;
+        // ランダムな初速っぽい開始角
         currentDeg = ThreadLocalRandom.current().nextInt(360);
 
         task = new BukkitRunnable() {
+            // 遅めの回転（必要なら後でconfig化）
             private float speedDegPerTick = 8f;
             private int decelElapsed = 0;
             private Float decelStartDeg = null;
@@ -174,6 +188,7 @@ public final class RouletteDisplayService {
                     float eased = easeOutCubic(t);
                     currentDeg = decelStartDeg + (targetDegAbsolute - decelStartDeg) * eased;
                     if (t >= 1.0f) {
+                        // 最終tickは必ず狙った角度へスナップし、補間揺れを残さない
                         currentDeg = targetDegAbsolute;
                         applyTransform(d, normalizeDeg(currentDeg));
                         stopTask();
@@ -203,6 +218,8 @@ public final class RouletteDisplayService {
      */
     public void stopAtAngle(int targetAngleDeg0to359) {
         if (getDisplay() == null) return;
+        // 針は上(0°)固定なので、結果角度を上へ持ってくるには盤面を逆方向へ回す。
+        // angleOffsetDeg は applyTransform 側で加算されるため、ここでは逆補正を含める。
         float resultAngle = normalizeDeg((targetAngleDeg0to359 % 360 + 360) % 360);
         float aim = normalizeDeg(-resultAngle - angleOffsetDeg);
         targetDeg = aim;
@@ -227,12 +244,10 @@ public final class RouletteDisplayService {
     }
 
     private ItemDisplay getDisplay() {
-        if (anchor == null || anchor.getWorld() == null) return null;
         if (displayUuid != null) {
-            for (Entity e : anchor.getWorld().getEntities()) {
-                if (e.getUniqueId().equals(displayUuid) && e instanceof ItemDisplay d) {
-                    return d;
-                }
+            Entity e = Bukkit.getEntity(displayUuid);
+            if (e instanceof ItemDisplay d) {
+                return d;
             }
         }
         return null;
@@ -246,6 +261,7 @@ public final class RouletteDisplayService {
             return;
         }
 
+        // 壁面から少し前に押し出して「貼り付け」を作る
         Vector3f n = faceNormal(face);
         Location spawn = anchor.clone().add(n.x() * 0.51, n.y() * 0.51, n.z() * 0.51);
 
@@ -273,11 +289,13 @@ public final class RouletteDisplayService {
     }
 
     private void applyTransform(ItemDisplay display, float angleDeg) {
+        // 壁貼り3×3相当: X/Yを3倍。Zは薄く。
         Vector3f scale = new Vector3f(3.0f, 3.0f, 0.01f);
         Vector3f translation = new Vector3f(0f, 0f, 0f);
 
         float effectiveAngle = normalizeDeg(angleDeg + angleOffsetDeg);
 
+        // 壁に向ける回転（Y軸）→盤面回転（Z軸）
         float yaw = yawFromFace(face);
         Quaternionf toWall = new Quaternionf().rotateY((float) Math.toRadians(yaw));
         Quaternionf spin = new Quaternionf().rotateZ((float) Math.toRadians(effectiveAngle));
@@ -293,6 +311,7 @@ public final class RouletteDisplayService {
     }
 
     private static float yawFromFace(BlockFace face) {
+        // Displayの向き。盤面がプレイヤーに正面を向く想定で調整していく。
         return switch (face) {
             case NORTH -> 180f;
             case SOUTH -> 0f;

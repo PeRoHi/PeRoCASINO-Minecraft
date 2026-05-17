@@ -5,7 +5,10 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.Chest;
 import org.bukkit.FluidCollisionMode;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -17,8 +20,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import me.bokan.perocasino.PeRoCasino;
+import me.bokan.perocasino.commandwand.CommandWandItems;
 import me.bokan.perocasino.games.chinchiro.ChinchiroDiceService;
 import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
+import me.bokan.perocasino.roulette.RouletteBetBoardService;
 import me.bokan.perocasino.roulette.RouletteDisplayService;
 
 import java.util.ArrayList;
@@ -51,6 +57,10 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         }
         if (args.length == 0) {
             sender.sendMessage("§e/perocasino roulette set §7… 見ている砥石をルーレット拠点に登録");
+            sender.sendMessage("§e/perocasino roulette remove §7… ルーレット拠点登録を削除");
+            sender.sendMessage("§e/perocasino roulette stop §7… ルーレット進行を一時停止");
+            sender.sendMessage("§e/perocasino roulette start §7… ルーレット進行を再開");
+            sender.sendMessage("§e/perocasino roulette board set §7… 砥石ベット盤の左端砥石を登録");
             sender.sendMessage("§e/perocasino roulette display set §7… 見ているブロック面にルーレット表示(ItemDisplay)を設置");
             sender.sendMessage("§e/perocasino roulette display remove §7… ルーレット表示(ItemDisplay)を削除");
             sender.sendMessage("§e/perocasino blackjack dealer set|summon §7… ブラックジャックディーラーを設定/召喚");
@@ -60,12 +70,18 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e/perocasino slot remove <id> §7… 設置スロットを設定から削除");
             sender.sendMessage("§e/perocasino slot list §7… 設置スロット一覧");
             sender.sendMessage("§e/perocasino slot dealer set|summon §7… スロット掛け金ディーラーを設定/召喚");
+            sender.sendMessage("§e/perocasino chinchiro dealer set|summon §7… チンチロ卓ディーラー");
             sender.sendMessage("§e/perocasino chinchiro region set §7… サイコロ3個の出現範囲（2回: MIN→MAX 角）");
+            sender.sendMessage("§e/perocasino wandchest §7… 見ている位置にコマンド杖一式入りチェストを設置");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
         }
 
         String sub = args[0].toLowerCase();
+        if ("wandchest".equals(sub)) {
+            return spawnWandChest(sender);
+        }
+
         if ("reload".equals(sub)) {
             plugin.reloadConfig();
             if (onReload != null) {
@@ -82,6 +98,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             }
             if (args.length < 2) {
                 sender.sendMessage("§c使い方: /perocasino roulette set");
+                sender.sendMessage("§c使い方: /perocasino roulette board set");
                 sender.sendMessage("§c使い方: /perocasino roulette display set");
                 sender.sendMessage("§c使い方: /perocasino roulette display remove");
                 return true;
@@ -107,6 +124,61 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
 
+            if ("board".equals(action)) {
+                if (args.length < 3 || !"set".equalsIgnoreCase(args[2])) {
+                    sender.sendMessage("§c使い方: /perocasino roulette board set");
+                    return true;
+                }
+                Block target = player.getTargetBlockExact(8);
+                if (target == null || target.getType() != Material.GRINDSTONE) {
+                    sender.sendMessage("§c8ブロック以内の砥石（左端）を狙ってください。");
+                    return true;
+                }
+                String facing = RouletteBetBoardService.facingFromPlayerYaw(player.getLocation().getYaw()).name();
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("roulette.board.world", target.getWorld().getName());
+                cfg.set("roulette.board.x", target.getX());
+                cfg.set("roulette.board.y", target.getY());
+                cfg.set("roulette.board.z", target.getZ());
+                cfg.set("roulette.board.facing", facing);
+                plugin.saveConfig();
+                sender.sendMessage("§aルーレット砥石ベット盤（左端）を登録しました: §f" + target.getWorld().getName()
+                        + " " + target.getX() + " " + target.getY() + " " + target.getZ()
+                        + " §7facing=" + facing);
+                sender.sendMessage("§7※ /perocasino reload で反映されます。");
+                return true;
+            }
+
+            if ("remove".equals(action)) {
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("roulette.world", "");
+                cfg.set("roulette.x", 0);
+                cfg.set("roulette.y", 0);
+                cfg.set("roulette.z", 0);
+                plugin.saveConfig();
+                sender.sendMessage("§aルーレット拠点登録を削除しました。");
+                sender.sendMessage("§7※ /perocasino reload で反映されます。");
+                return true;
+            }
+
+            if ("stop".equals(action)) {
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("roulette.enabled", false);
+                plugin.saveConfig();
+                sender.sendMessage("§eルーレット進行を停止しました。");
+                sender.sendMessage("§7※ /perocasino reload で反映されます。");
+                return true;
+            }
+
+            if ("start".equals(action)) {
+                FileConfiguration cfg = plugin.getConfig();
+                cfg.set("roulette.enabled", true);
+                plugin.saveConfig();
+                sender.sendMessage("§aルーレット進行を再開しました。");
+                sender.sendMessage("§7※ /perocasino reload で反映されます。");
+                return true;
+            }
+
             if ("display".equals(action)) {
                 if (args.length < 3) {
                     sender.sendMessage("§c使い方: /perocasino roulette display set");
@@ -116,7 +188,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 String subAction = args[2].toLowerCase(Locale.ROOT);
 
                 if ("remove".equals(subAction)) {
-                    RouletteDisplayService display = new RouletteDisplayService(plugin);
+                    RouletteDisplayService display = rouletteDisplay();
                     display.reloadFromConfig();
                     display.removeDisplay();
                     sender.sendMessage("§aルーレット表示(ItemDisplay)を削除しました。");
@@ -141,7 +213,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
 
                 Location anchor = target.getLocation().add(0.5, 0.5, 0.5);
 
-                RouletteDisplayService display = new RouletteDisplayService(plugin);
+                RouletteDisplayService display = rouletteDisplay();
                 display.reloadFromConfig();
                 display.removeDisplay();
                 display.setAnchor(anchor, face);
@@ -151,6 +223,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             }
 
             sender.sendMessage("§c使い方: /perocasino roulette set");
+            sender.sendMessage("§c使い方: /perocasino roulette board set");
             sender.sendMessage("§c使い方: /perocasino roulette display set");
             sender.sendMessage("§c使い方: /perocasino roulette display remove");
             return true;
@@ -251,41 +324,34 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             }
 
             FileConfiguration cfg = plugin.getConfig();
-            // 1回目: 一時保存 / 2回目: min/maxへ確定
-            String tmp = "quarry._tmpMin";
-            if (!cfg.isSet(tmp + ".x")) {
-                cfg.set("quarry.world", world.getName());
-                cfg.set(tmp + ".world", world.getName());
-                cfg.set(tmp + ".x", loc.getBlockX());
-                cfg.set(tmp + ".y", loc.getBlockY());
-                cfg.set(tmp + ".z", loc.getBlockZ());
+            String pathBase = "quarry.";
+            if (!cfg.isSet(pathBase + "min.x")) {
+                cfg.set(pathBase + "world", world.getName());
+                cfg.set(pathBase + "min.x", loc.getBlockX());
+                cfg.set(pathBase + "min.y", loc.getBlockY());
+                cfg.set(pathBase + "min.z", loc.getBlockZ());
                 plugin.saveConfig();
                 sender.sendMessage("§e採石場の §fMIN §e角を設定しました。もう一度同じコマンドで §fMAX §e角を設定してください。");
                 return true;
             }
 
-            String minWorld = cfg.getString(tmp + ".world", world.getName());
-            int minX = cfg.getInt(tmp + ".x");
-            int minY = cfg.getInt(tmp + ".y");
-            int minZ = cfg.getInt(tmp + ".z");
+            int minX = cfg.getInt(pathBase + "min.x");
+            int minY = cfg.getInt(pathBase + "min.y");
+            int minZ = cfg.getInt(pathBase + "min.z");
             int maxX = loc.getBlockX();
             int maxY = loc.getBlockY();
             int maxZ = loc.getBlockZ();
 
-            cfg.set("quarry.world", minWorld);
-            cfg.set("quarry.min.x", minX);
-            cfg.set("quarry.min.y", minY);
-            cfg.set("quarry.min.z", minZ);
-            cfg.set("quarry.max.x", maxX);
-            cfg.set("quarry.max.y", maxY);
-            cfg.set("quarry.max.z", maxZ);
-            cfg.set(tmp, null);
+            cfg.set(pathBase + "world", world.getName());
+            cfg.set(pathBase + "max.x", maxX);
+            cfg.set(pathBase + "max.y", maxY);
+            cfg.set(pathBase + "max.z", maxZ);
             plugin.saveConfig();
 
-            sender.sendMessage("§a採石場範囲を登録しました: §f" + minWorld
+            sender.sendMessage("§a採石場範囲を登録しました: §f" + world.getName()
                     + " §7MIN§f(" + minX + "," + minY + "," + minZ + ")"
                     + " §7MAX§f(" + maxX + "," + maxY + "," + maxZ + ")");
-            sender.sendMessage("§7※ もう一度 /perocasino quarry set を2回実行すると範囲を作り直せます。");
+            sender.sendMessage("§7※ 範囲を作り直したい場合は config.yml の quarry.min/max を編集するか、/perocasino quarry reset を実装予定です。");
             return true;
         }
 
@@ -426,10 +492,46 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
             if (args.length < 2) {
+                sender.sendMessage("§c使い方: /perocasino chinchiro dealer set|summon");
                 sender.sendMessage("§c使い方: /perocasino chinchiro region set");
                 return true;
             }
-            if (!"region".equalsIgnoreCase(args[1])) {
+            String branch = args[1].toLowerCase(Locale.ROOT);
+            if ("dealer".equals(branch)) {
+                if (args.length < 3) {
+                    sender.sendMessage("§c使い方: /perocasino chinchiro dealer set|summon");
+                    return true;
+                }
+                if ("summon".equalsIgnoreCase(args[2])) {
+                    Villager villager = (Villager) player.getWorld().spawnEntity(player.getLocation(), EntityType.VILLAGER);
+                    villager.setCustomName("§6Chinchiro Dealer");
+                    villager.setCustomNameVisible(true);
+                    villager.setProfession(Villager.Profession.MASON);
+                    configureChinchiroDealerNpc(villager);
+                    saveChinchiroDealer(villager);
+                    sender.sendMessage("§aチンチロディーラーを召喚・登録しました: §f" + villager.getUniqueId());
+                    return true;
+                }
+                if ("set".equalsIgnoreCase(args[2])) {
+                    Villager villager = player.getNearbyEntities(8, 8, 8).stream()
+                            .filter(e -> e instanceof Villager)
+                            .map(e -> (Villager) e)
+                            .min(java.util.Comparator.comparingDouble(e -> e.getLocation().distanceSquared(player.getEyeLocation())))
+                            .orElse(null);
+                    if (villager == null) {
+                        sender.sendMessage("§c8ブロック以内の村人を狙ってください。");
+                        return true;
+                    }
+                    configureChinchiroDealerNpc(villager);
+                    saveChinchiroDealer(villager);
+                    sender.sendMessage("§aチンチロディーラーを登録しました: §f" + villager.getUniqueId());
+                    return true;
+                }
+                sender.sendMessage("§c使い方: /perocasino chinchiro dealer set|summon");
+                return true;
+            }
+            if (!"region".equals(branch)) {
+                sender.sendMessage("§c使い方: /perocasino chinchiro dealer set|summon");
                 sender.sendMessage("§c使い方: /perocasino chinchiro region set");
                 return true;
             }
@@ -479,12 +581,30 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§aチンチロサイコロ領域を登録しました: §f" + minWorld
                     + " §7MIN§f(" + tminX + "," + tminY + "," + tminZ + ")"
                     + " §7MAX§f(" + maxXb + "," + maxYb + "," + maxZb + ")");
-            sender.sendMessage("§7※ プレイヤーは §f/chinchiro roll §7でサイコロを振れます。");
+            sender.sendMessage("§7※ 卓は村人ディーラーから。単体練習は §f/chinchiro roll §7も利用できます。");
             return true;
         }
 
         sender.sendMessage("§c不明なサブコマンドです。");
         return true;
+    }
+
+    private void configureChinchiroDealerNpc(Villager villager) {
+        villager.setAI(false);
+        villager.setGravity(false);
+    }
+
+    private void saveChinchiroDealer(Villager villager) {
+        FileConfiguration cfg = plugin.getConfig();
+        cfg.set("chinchiro.dealer.uuid", villager.getUniqueId().toString());
+        cfg.set("chinchiro.dealer.world", villager.getWorld().getName());
+        cfg.set("chinchiro.dealer.x", villager.getLocation().getX());
+        cfg.set("chinchiro.dealer.y", villager.getLocation().getY());
+        cfg.set("chinchiro.dealer.z", villager.getLocation().getZ());
+        plugin.saveConfig();
+        if (onReload != null) {
+            onReload.run();
+        }
     }
 
     /** H&amp;L ディーラー用NPC：移動・重力を無効化（サーバー再起動後は手動で再設定が必要な場合あり）。 */
@@ -512,6 +632,114 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private boolean spawnWandChest(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
+            return true;
+        }
+
+        Block target = player.getTargetBlockExact(8, FluidCollisionMode.NEVER);
+        if (target == null) {
+            player.sendMessage("§c8ブロック以内のブロックを狙ってください。");
+            return true;
+        }
+
+        Block placeBlock;
+        if (target.getType().isAir() || !target.getType().isSolid()) {
+            placeBlock = target;
+        } else {
+            BlockFace face = target.getFace(player.getLocation().getBlock());
+            if (face == null) {
+                face = BlockFace.UP;
+            }
+            placeBlock = target.getRelative(face);
+        }
+
+        Material existing = placeBlock.getType();
+        if (!existing.isAir() && existing != Material.WATER && existing != Material.CAVE_AIR) {
+            player.sendMessage("§cこの場所にはチェストを置けません: §f" + existing);
+            return true;
+        }
+
+        FileConfiguration cfg = plugin.getConfig();
+        List<ItemStack> wands = CommandWandItems.allConfiguredWands(cfg);
+        if (wands.isEmpty()) {
+            player.sendMessage("§ccommand-wand.wands が空です。config.yml を確認し §f/perocasino reload§7 してください。");
+            return true;
+        }
+
+        Location chestLoc = placeBlock.getLocation().clone();
+        List<ItemStack> stacks = new ArrayList<>(wands.size());
+        for (ItemStack wand : wands) {
+            stacks.add(wand.clone());
+        }
+
+        placeBlock.setType(Material.CHEST, true);
+        plugin.getLogger().info("[wandchest] Chest block placed at " + formatBlock(chestLoc)
+                + ", scheduling fill of " + stacks.size() + " wands for " + player.getName());
+
+        plugin.getServer().getScheduler().runTask(plugin, () ->
+                finishWandChest(player, chestLoc, stacks));
+        return true;
+    }
+
+    private void finishWandChest(Player player, Location chestLoc, List<ItemStack> wands) {
+        Block block = chestLoc.getBlock();
+        if (block.getType() != Material.CHEST) {
+            plugin.getLogger().warning("[wandchest] Expected CHEST at " + formatBlock(chestLoc)
+                    + " but found " + block.getType());
+            player.sendMessage("§cチェストの設置に失敗しました。コンソールに [wandchest] を確認してください。");
+            return;
+        }
+
+        if (!(block.getState() instanceof Chest chest)) {
+            plugin.getLogger().warning("[wandchest] BlockState is not Chest at " + formatBlock(chestLoc));
+            player.sendMessage("§cチェストの取得に失敗しました。");
+            return;
+        }
+
+        Inventory inv = chest.getBlockInventory();
+        int slot = 0;
+        int overflow = 0;
+        Location dropAt = chestLoc.clone().add(0.5, 0.5, 0.5);
+        for (ItemStack wand : wands) {
+            if (slot < inv.getSize()) {
+                inv.setItem(slot++, wand);
+            } else {
+                block.getWorld().dropItemNaturally(dropAt, wand);
+                overflow++;
+            }
+        }
+
+        int filled = countItems(inv);
+        plugin.getLogger().info("[wandchest] Filled " + filled + "/" + wands.size() + " at "
+                + formatBlock(chestLoc) + (overflow > 0 ? " (overflow=" + overflow + ")" : ""));
+
+        player.sendMessage("§aコマンド杖チェストを設置しました: §f" + chestLoc.getBlockX() + " "
+                + chestLoc.getBlockY() + " " + chestLoc.getBlockZ() + " §7(" + filled + "/" + wands.size() + "本)");
+        if (filled == 0) {
+            player.sendMessage("§cチェストにアイテムが入りませんでした。§7サーバーコンソールの §f[wandchest] §7行を確認してください。");
+        }
+        if (overflow > 0) {
+            player.sendMessage("§eチェストに入り切らなかった杖を §f" + overflow + " §e本ドロップしました。");
+        }
+        player.sendMessage("§7※ 使用時は §fcommand-wand.enabled: true §7と §fperocasino.commandwand§7 が必要です。");
+    }
+
+    private static String formatBlock(Location loc) {
+        return loc.getWorld().getName() + " " + loc.getBlockX() + "," + loc.getBlockY() + "," + loc.getBlockZ();
+    }
+
+    private static int countItems(Inventory inv) {
+        int n = 0;
+        for (ItemStack stack : inv.getContents()) {
+            if (stack != null && stack.getType() != Material.AIR) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     private void saveHiLoDealer(Villager villager) {
         FileConfiguration cfg = plugin.getConfig();
         cfg.set("hilo.dealer.uuid", villager.getUniqueId().toString());
@@ -537,19 +765,32 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             if ("slot".startsWith(a)) out.add("slot");
             if ("chinchiro".startsWith(a)) out.add("chinchiro");
             if ("reload".startsWith(a)) out.add("reload");
+            if ("wandchest".startsWith(a)) out.add("wandchest");
         } else if (args.length == 2 && "slot".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("create".startsWith(a)) out.add("create");
             if ("remove".startsWith(a)) out.add("remove");
             if ("list".startsWith(a)) out.add("list");
+            if ("dealer".startsWith(a)) out.add("dealer");
         } else if (args.length == 2 && "roulette".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
+            if ("board".startsWith(a)) out.add("board");
             if ("display".startsWith(a)) out.add("display");
+            if ("remove".startsWith(a)) out.add("remove");
+            if ("stop".startsWith(a)) out.add("stop");
+            if ("start".startsWith(a)) out.add("start");
         } else if (args.length == 3 && "roulette".equalsIgnoreCase(args[0]) && "display".equalsIgnoreCase(args[1])) {
             String a = args[2].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
             if ("remove".startsWith(a)) out.add("remove");
+        } else if (args.length == 3 && "roulette".equalsIgnoreCase(args[0]) && "board".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+        } else if (args.length == 3 && "slot".equalsIgnoreCase(args[0]) && "dealer".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+            if ("summon".startsWith(a)) out.add("summon");
         } else if (args.length == 2 && "blackjack".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("dealer".startsWith(a)) out.add("dealer");
@@ -570,10 +811,22 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         } else if (args.length == 2 && "chinchiro".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("region".startsWith(a)) out.add("region");
+            if ("dealer".startsWith(a)) out.add("dealer");
         } else if (args.length == 3 && "chinchiro".equalsIgnoreCase(args[0]) && "region".equalsIgnoreCase(args[1])) {
             String a = args[2].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
+        } else if (args.length == 3 && "chinchiro".equalsIgnoreCase(args[0]) && "dealer".equalsIgnoreCase(args[1])) {
+            String a = args[2].toLowerCase();
+            if ("set".startsWith(a)) out.add("set");
+            if ("summon".startsWith(a)) out.add("summon");
         }
         return out;
+    }
+
+    private RouletteDisplayService rouletteDisplay() {
+        if (plugin instanceof PeRoCasino casino && casino.getRouletteDisplayService() != null) {
+            return casino.getRouletteDisplayService();
+        }
+        return new RouletteDisplayService(plugin);
     }
 }
