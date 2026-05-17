@@ -1,6 +1,7 @@
 package me.bokan.perocasino.games.blackjack;
 
 import me.bokan.perocasino.economy.EconomyManager;
+import me.bokan.perocasino.games.hilo.HiLoService;
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
@@ -67,6 +68,7 @@ public final class BlackjackService implements Listener {
 
     private Table table;
     private BukkitTask hudTask;
+    private HiLoService hiLoService;
 
     public BlackjackService(JavaPlugin plugin, EconomyManager economy) {
         this.plugin = plugin;
@@ -76,6 +78,15 @@ public final class BlackjackService implements Listener {
         this.rankKey = new NamespacedKey(plugin, "blackjack_rank");
         startHud();
         applyConfiguredDealerNpcSettings();
+    }
+
+    public void setHiLoService(HiLoService hiLoService) {
+        this.hiLoService = hiLoService;
+    }
+
+    /** 進行中またはロビー待機中のプレイヤーか */
+    public boolean isPlayerInGame(UUID playerId) {
+        return table != null && table.players.containsKey(playerId);
     }
 
     /** config の UUID に一致するディーラー村人がいれば AI/重力を無効化（再起動後も固定）。 */
@@ -110,6 +121,9 @@ public final class BlackjackService implements Listener {
 
         event.setCancelled(true);
         Player player = event.getPlayer();
+        if (hiLoService != null && hiLoService.isPlayerInGame(player.getUniqueId())) {
+            return;
+        }
         if (table != null && table.phase == Phase.PLAYING && !table.players.containsKey(player.getUniqueId())) {
             player.sendMessage("§c現在ブラックジャックは進行中です。次のゲームまでお待ちください。");
             return;
@@ -503,8 +517,15 @@ public final class BlackjackService implements Listener {
             return true;
         }
         String last = table.lastGuiTitle.get(id);
-        if (BET_TITLE.equals(last)) openBet(player);
-        else openLobby(player);
+        if (BET_TITLE.equals(last)) {
+            openBet(player);
+        } else if (ACTION_TITLE.equals(last)) {
+            openAction(player);
+        } else if (CONFIRM_TITLE.equals(last)) {
+            openConfirm(player, clickedDealer);
+        } else {
+            openLobby(player);
+        }
         return true;
     }
 
@@ -923,7 +944,14 @@ public final class BlackjackService implements Listener {
         String configured = plugin.getConfig().getString("blackjack.dealer.uuid", "");
         if (configured != null && !configured.isBlank()) {
             try {
-                if (villager.getUniqueId().equals(UUID.fromString(configured))) return true;
+                if (villager.getUniqueId().equals(UUID.fromString(configured.trim()))) return true;
+            } catch (IllegalArgumentException ignored) {
+            }
+        }
+        String sharedHilo = plugin.getConfig().getString("hilo.dealer.uuid", "");
+        if (sharedHilo != null && !sharedHilo.isBlank()) {
+            try {
+                if (villager.getUniqueId().equals(UUID.fromString(sharedHilo.trim()))) return true;
             } catch (IllegalArgumentException ignored) {
             }
         }
