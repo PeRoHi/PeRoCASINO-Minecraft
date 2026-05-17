@@ -20,6 +20,8 @@
   - 権限: **perocasino.chinchiro.roll**（`plugin.yml` ではデフォルトで付与）
 - **/commandbook**（別名: **/cb**）
   - コマンド集ブックを受け取ります（未所持のときだけ追加）。
+- **/commandbook refresh**（**update** も可）
+  - インベントリ内のコマンド集を**最新版の内容に差し替え**ます。古い3ページ版を持っている場合はこちらを実行してください。
 
 ### 管理者（設置）
 
@@ -37,6 +39,12 @@
   - **8ブロック以内**で見ているブロックの面を基準に、ルーレット盤面の **ItemDisplay** を設置・config に保存します。
 - **/perocasino roulette display remove**（別名: **/pc roulette display remove**）
   - 保存されているルーレット **ItemDisplay** を削除します。
+- **/perocasino roulette remove**
+  - ルーレット拠点（砥石）の登録を削除します。
+- **/perocasino roulette start** / **/perocasino roulette stop**
+  - ルーレットの自動進行を再開 / 一時停止します（`reload` で反映）。
+- **/perocasino roulette board set**
+  - 砥石ベット盤の**左端の砥石**を登録します（プレイヤーの向きから facing を保存）。
 - **/perocasino blackjack dealer set**
   - 近くの村人をブラックジャック ディーラーとして登録します。
 - **/perocasino blackjack dealer summon**
@@ -45,9 +53,11 @@
   - 近くの村人を H&L ディーラーとして登録します。
 - **/perocasino hilo dealer summon**
   - H&L ディーラー村人を召喚し、登録します。
+- **/perocasino chinchiro dealer set** / **summon**
+  - チンチロ卓の村人ディーラーを登録 / 召喚します。
 - **/perocasino chinchiro region set**（別名: **/pc chinchiro region set**）
   - チンチロ用サイコロ3個の出現範囲（AABB）を、実行した地点の角として登録します（2回実行: 1回目がMIN角、2回目がMAX角）。
-  - 登録後、プレイヤーは **/chinchiro roll** でサイコロを振れます。
+  - 登録後、プレイヤーは **/chinchiro roll** でサイコロを振れます（卓ディーラーからの参加も可）。
 - **/perocasino quarry set**
   - 採石場の立方体範囲を、実行した地点の角として登録します（2回実行で確定）。
 - **/perocasino slot create <id>**
@@ -65,7 +75,11 @@
 
 ### コマンド杖（config: `command-wand`）
 
-- `config.yml` の **`command-wand`** で、特定アイテム（デフォルト **人参付きの棒**）を **メインハンドで右クリック（使用）** したときに、列挙したコマンドをプレイヤーとして順に実行できます。
+- `config.yml` の **`command-wand`** で、特定アイテム（デフォルト **人参付きの棒 = `CARROT_ON_A_STICK`**）を **メインハンドで右クリック（使用）** したときに、列挙したコマンドをプレイヤーとして順に実行できます。
+- **入手方法（プラグインは自動配布しません）**
+  - クラフト: 釣り竿 + ニンジン → 人参付きの棒
+  - OP/管理者: `/give @s carrot_on_a_stick`
+  - リソースパックで見た目を変えたい場合は `match-custom-model-data` と CMD を合わせる
 - **`command-wand.enabled`** を `true` にし、**`command-wand.commands`** に実行したい行（先頭の `/` はあってもなくても可）を書きます。
 - 改ざん防止のため、**`command-wand.allowed-command-labels`** にある「コマンドの先頭ラベル」だけが実行されます（例: `chinchiro`, `casino`, `perocasino`）。
 - 権限: デフォルトでは **`perocasino.commandwand`**（`plugin.yml` では **op** 想定）。`command-wand.permission` で変更可能です。

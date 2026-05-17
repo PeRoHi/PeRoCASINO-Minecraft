@@ -21,12 +21,19 @@ public final class CommandBookCommand implements CommandExecutor {
             sender.sendMessage("§cこのコマンドはプレイヤーから実行してください。");
             return true;
         }
+
+        if (args.length > 0 && ("refresh".equalsIgnoreCase(args[0]) || "update".equalsIgnoreCase(args[0]))) {
+            int count = CommandBookFactory.refresh(player, plugin);
+            player.sendMessage("§aコマンド集を最新版に更新しました。（§f" + count + "§a冊）");
+            return true;
+        }
+
         if (CommandBookFactory.giveIfMissing(player, plugin)) {
             player.sendMessage("§aコマンド集を配布しました。");
         } else {
             player.sendMessage("§7既にコマンド集を持っています。");
+            player.sendMessage("§7最新版へ差し替える: §f/commandbook refresh");
         }
         return true;
     }
 }
-
