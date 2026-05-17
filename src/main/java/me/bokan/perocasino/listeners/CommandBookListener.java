@@ -8,10 +8,8 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 
-/**
- * ログイン時にコマンド集を持っていなければ1冊配布。
- */
-public class CommandBookListener implements Listener {
+/** ログイン時にコマンド集を未所持なら1冊配布。 */
+public final class CommandBookListener implements Listener {
 
     private final Plugin plugin;
 
@@ -33,3 +31,4 @@ public class CommandBookListener implements Listener {
         return false;
     }
 }
+
