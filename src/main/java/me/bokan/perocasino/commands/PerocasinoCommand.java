@@ -661,21 +661,21 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        FileConfiguration cfg = plugin.getConfig();
+        List<ItemStack> wands = CommandWandItems.allConfiguredWands(cfg);
+        if (wands.isEmpty()) {
+            player.sendMessage("§ccommand-wand.wands が空です。config.yml を確認し §f/perocasino reload§7 してください。");
+            return true;
+        }
+
         placeBlock.setType(Material.CHEST, false);
         if (!(placeBlock.getState() instanceof Chest chestState)) {
             player.sendMessage("§cチェストの設置に失敗しました。");
             return true;
         }
 
-        FileConfiguration cfg = plugin.getConfig();
-        List<ItemStack> wands = CommandWandItems.allConfiguredWands(cfg);
-        if (wands.isEmpty()) {
-            player.sendMessage("§ccommand-wand.wands が空です。config.yml を確認してください。");
-            placeBlock.setType(Material.AIR, false);
-            return true;
-        }
-
-        Inventory inv = chestState.getBlockInventory();
+        // BlockState のスナップショットへ入れて update する（getBlockInventory は update で消える）
+        Inventory inv = chestState.getInventory();
         int slot = 0;
         int overflow = 0;
         Location dropAt = placeBlock.getLocation().add(0.5, 0.5, 0.5);
@@ -683,29 +683,39 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             if (slot < inv.getSize()) {
                 inv.setItem(slot++, wand.clone());
             } else {
-                placeBlock.getWorld().dropItemNaturally(dropAt, wand.clone());
                 overflow++;
             }
         }
-        chestState.update(true, true);
+        chestState.update(true, false);
 
-        Location loc = placeBlock.getLocation();
-        int filled = 0;
-        for (ItemStack stack : inv.getContents()) {
-            if (stack != null && stack.getType() != Material.AIR) {
-                filled++;
+        if (overflow > 0) {
+            for (int i = slot; i < wands.size(); i++) {
+                placeBlock.getWorld().dropItemNaturally(dropAt, wands.get(i).clone());
             }
         }
+
+        Location loc = placeBlock.getLocation();
+        int filled = countItems(((Chest) placeBlock.getState()).getInventory());
         player.sendMessage("§aコマンド杖チェストを設置しました: §f" + loc.getBlockX() + " "
                 + loc.getBlockY() + " " + loc.getBlockZ() + " §7(" + filled + "/" + wands.size() + "本)");
         if (filled == 0) {
-            player.sendMessage("§cチェストにアイテムが入りませんでした。§7command-wand.wands の YAML インデントを確認し §f/reload§7 してください。");
+            player.sendMessage("§cチェストにアイテムが入りませんでした。§7もう一度 §f/pc wandchest §7を試すか、コンソールログを確認してください。");
         }
         if (overflow > 0) {
             player.sendMessage("§eチェストに入り切らなかった杖を §f" + overflow + " §e本ドロップしました。");
         }
         player.sendMessage("§7※ 使用時は §fcommand-wand.enabled: true §7と §fperocasino.commandwand§7 が必要です。");
         return true;
+    }
+
+    private static int countItems(Inventory inv) {
+        int n = 0;
+        for (ItemStack stack : inv.getContents()) {
+            if (stack != null && stack.getType() != Material.AIR) {
+                n++;
+            }
+        }
+        return n;
     }
 
     private void saveHiLoDealer(Villager villager) {
