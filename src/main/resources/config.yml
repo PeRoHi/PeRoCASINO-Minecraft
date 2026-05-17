@@ -103,7 +103,7 @@ nether-portal:
   # ネザーポータルに触れた瞬間、固定座標へテレポートさせる
   enabled: false
   to:
-    world: ""
+    world: ''
     x: 149
     y: 63
     z: 219
@@ -403,15 +403,15 @@ slot-display:
   - a9
   
   machines:
-    my_slot:
+    testslot:
       world: world
       x: 157
-      y: 63
-      z: 215
-      yaw: 1.649730920791626
-      pitch: 3.2998666763305664
+      y: 64
+      z: 217
+      yaw: -176.0999298095703
+      pitch: 90.0
   bet-dealer:
-    uuid: "f38b65f4-88b0-43c3-9d01-fa9e52ee37d9"
+    uuid: f38b65f4-88b0-43c3-9d01-fa9e52ee37d9
     world: world
     x: 154
     y: 63
@@ -422,11 +422,11 @@ slot-display:
 chinchiro:
   enabled: true
   dealer:
-    uuid: ''
-    world: ''
-    x: 0
-    y: 0
-    z: 0
+    uuid: 738589cc-f370-4680-927a-d9e4ed9c9ed1
+    world: world
+    x: 145.17422514670926
+    y: 63.0
+    z: 219.004048724314
   table:
     join-radius: 16
     max-players: 8
@@ -438,20 +438,20 @@ chinchiro:
     edge-length-blocks: 0.5
     # Paper/MC 1.21.11系で ItemDisplay の見た目が極小になる分を補正。配置判定には使わない。
     # 0.5ブロック指定なのに0.05程度に見える環境では 10.0 のままでOK。
-    model-scale-correction: 10.0
+    model-scale-correction: 0.5
     # XZ 上でサイコロ中心同士の最低距離の下限。辺長に応じて余白も増やす
     separation: 0.55
     random-tries: 120
     region:
       world: world
       min:
-        x: 149
-        y: 63
-        z: 219
-      max:
-        x: 151
+        x: 150
         y: 63
         z: 221
+      max:
+        x: 149
+        y: 63
+        z: 220
 
 # メインハンドの杖アイテムを「右クリック（使用）」したときに、プレイヤーとしてコマンドを実行する。
 # 「振る」= 右クリック使用を想定（空気・ブロックどちらでも可）。ブタン用の Interaction ではありません。
@@ -487,32 +487,36 @@ command-wand:
   # 表示名でコマンドを切り替え（色コードは無視して一致）
   # 杖の名前は /give や anvil で付けた DisplayName と同じ文字列にする
   wands:
-    "BJディーラー設置":
-      - perocasino blackjack dealer set
-    "H&Lディーラー設置":
-      - perocasino hilo dealer set
-    "スロット掛け金ディーラー設置":
-      - perocasino slot dealer set
-    "チンチロディーラー設置":
-      - perocasino chinchiro dealer set
-    "ルーレット設置":
-      - perocasino roulette display set
-    "ルーレット拠点設置":
-      - perocasino roulette set
-    "スロット設置":
-      - perocasino slot create {slot_id}
-    "サイコロの場所設置":
-      - perocasino chinchiro region set
-    "サイコロ振る":
-      - chinchiro roll
-    "コマンド集付与":
-      - commandbook
-    "コマンドブロック付与":
-      - commandbook
-    "サバイバル変更":
-      - gamemode survival
-    "クリエイティブ変更":
-      - gamemode creative
-    "config reload":
-      - perocasino reload
+    BJディーラー設置:
+    - perocasino blackjack dealer summon
+    H&Lディーラー設置:
+    - perocasino hilo dealer summon
+    スロット掛け金ディーラー設置:
+    - perocasino slot dealer summon
+    チンチロディーラー設置:
+    - perocasino chinchiro dealer summon
+    ルーレット設置:
+    - perocasino roulette display set
+    ルーレット拠点設置:
+    - perocasino roulette set
+    テストスロット設置:
+    - perocasino slot create testslot
+    テストスロット除去:
+    - perocasino slot remove testslot
+    サイコロの場所設置:
+    - perocasino chinchiro region set
+    サイコロ振る:
+    - chinchiro roll
+    コマンド集付与:
+    - commandbook
+    コマンドブロック付与:
+    - give @s command_block
+    サバイバル変更:
+    - gamemode survival
+    クリエイティブ変更:
+    - gamemode creative
+    config reload:
+    - perocasino reload
+    にんじん付きの棒セット:
+    - perocasino wandchest
 # 表示名が tp-100-64-200 の形式なら tp 100 64 200 を実行（wands 登録不要）
