@@ -64,6 +64,8 @@ public class PeRoCasino extends JavaPlugin {
         slotMachineService = new SlotMachineService(this, economyManager);
         blackjackService = new BlackjackService(this, economyManager);
         hiLoService = new HiLoService(this, economyManager);
+        blackjackService.setHiLoService(hiLoService);
+        hiLoService.setBlackjackService(blackjackService);
 
         org.bukkit.command.PluginCommand hiloCmd = getCommand("hilo");
         if (hiloCmd != null) {
