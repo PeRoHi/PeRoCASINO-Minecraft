@@ -487,32 +487,32 @@ command-wand:
   # 表示名でコマンドを切り替え（色コードは無視して一致）
   # 杖の名前は /give や anvil で付けた DisplayName と同じ文字列にする
   wands:
-    BJディーラー設置:
-    - perocasino blackjack dealer set
-    H&Lディーラー設置:
-    - perocasino hilo dealer set
-    スロット掛け金ディーラー設置:
-    - perocasino slot dealer set
-    チンチロディーラー設置:
-    - perocasino chinchiro dealer set
-    ルーレット設置:
-    - perocasino roulette display set
-    ルーレット拠点設置:
-    - perocasino roulette set
-    スロット設置:
-    - perocasino slot create {slot_id}
-    サイコロの場所設置:
-    - perocasino chinchiro region set
-    サイコロ振る:
-    - chinchiro roll
-    コマンド集付与:
-    - commandbook
-    コマンドブロック付与:
-    - commandbook
-    サバイバル変更:
-    - gamemode survival
-    クリエイティブ変更:
-    - gamemode creative
-    config reload:
-    - perocasino reload
+    "BJディーラー設置":
+      - perocasino blackjack dealer set
+    "H&Lディーラー設置":
+      - perocasino hilo dealer set
+    "スロット掛け金ディーラー設置":
+      - perocasino slot dealer set
+    "チンチロディーラー設置":
+      - perocasino chinchiro dealer set
+    "ルーレット設置":
+      - perocasino roulette display set
+    "ルーレット拠点設置":
+      - perocasino roulette set
+    "スロット設置":
+      - perocasino slot create {slot_id}
+    "サイコロの場所設置":
+      - perocasino chinchiro region set
+    "サイコロ振る":
+      - chinchiro roll
+    "コマンド集付与":
+      - commandbook
+    "コマンドブロック付与":
+      - commandbook
+    "サバイバル変更":
+      - gamemode survival
+    "クリエイティブ変更":
+      - gamemode creative
+    "config reload":
+      - perocasino reload
 # 表示名が tp-100-64-200 の形式なら tp 100 64 200 を実行（wands 登録不要）

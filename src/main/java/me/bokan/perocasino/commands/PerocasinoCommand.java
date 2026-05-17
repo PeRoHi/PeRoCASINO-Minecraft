@@ -681,17 +681,26 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         Location dropAt = placeBlock.getLocation().add(0.5, 0.5, 0.5);
         for (ItemStack wand : wands) {
             if (slot < inv.getSize()) {
-                inv.setItem(slot++, wand);
+                inv.setItem(slot++, wand.clone());
             } else {
-                placeBlock.getWorld().dropItemNaturally(dropAt, wand);
+                placeBlock.getWorld().dropItemNaturally(dropAt, wand.clone());
                 overflow++;
             }
         }
-        chestState.update(true, false);
+        chestState.update(true, true);
 
         Location loc = placeBlock.getLocation();
+        int filled = 0;
+        for (ItemStack stack : inv.getContents()) {
+            if (stack != null && stack.getType() != Material.AIR) {
+                filled++;
+            }
+        }
         player.sendMessage("§aコマンド杖チェストを設置しました: §f" + loc.getBlockX() + " "
-                + loc.getBlockY() + " " + loc.getBlockZ() + " §7(" + wands.size() + "本)");
+                + loc.getBlockY() + " " + loc.getBlockZ() + " §7(" + filled + "/" + wands.size() + "本)");
+        if (filled == 0) {
+            player.sendMessage("§cチェストにアイテムが入りませんでした。§7command-wand.wands の YAML インデントを確認し §f/reload§7 してください。");
+        }
         if (overflow > 0) {
             player.sendMessage("§eチェストに入り切らなかった杖を §f" + overflow + " §e本ドロップしました。");
         }

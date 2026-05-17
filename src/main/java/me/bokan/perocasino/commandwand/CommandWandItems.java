@@ -7,8 +7,11 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /** config の {@code command-wand} 設定に基づくコマンド杖アイテムの生成。 */
 public final class CommandWandItems {
@@ -30,15 +33,32 @@ public final class CommandWandItems {
         return item;
     }
 
-    /** {@code command-wand.wands} に登録されている表示名ごとに杖を1本ずつ生成（設定順）。 */
+    /**
+     * {@code command-wand.wands} に登録されている表示名ごとに杖を1本ずつ生成（設定順）。
+     * Bukkit の YAML パース差異に備え、セクション取得に失敗した場合は Map 直読みも試す。
+     */
     public static List<ItemStack> allConfiguredWands(FileConfiguration cfg) {
         List<ItemStack> out = new ArrayList<>();
+        Set<String> names = new LinkedHashSet<>();
+
         ConfigurationSection wands = cfg.getConfigurationSection("command-wand.wands");
-        if (wands == null) {
-            return out;
+        if (wands != null) {
+            names.addAll(wands.getKeys(false));
         }
-        for (String key : wands.getKeys(false)) {
-            out.add(createWand(cfg, key));
+
+        if (names.isEmpty()) {
+            Object raw = cfg.get("command-wand.wands");
+            if (raw instanceof Map<?, ?> map) {
+                for (Object key : map.keySet()) {
+                    if (key != null) {
+                        names.add(key.toString());
+                    }
+                }
+            }
+        }
+
+        for (String name : names) {
+            out.add(createWand(cfg, name));
         }
         return out;
     }

@@ -85,7 +85,12 @@
 - **テレポート杖**: 表示名を **`tp-100-64-200`** のようにすると `tp 100 64 200` を実行（`wands` への登録は不要）。
 - **旧形式** `command-wand.commands` は、**表示名が付いていない杖**のときだけ使われます（互換用・削除しない）。
 - 改ざん防止: **`command-wand.allowed-command-labels`** にある先頭ラベルのみ実行可能。
-- 権限: **`perocasino.commandwand`**（既定 op）。`command-wand.enabled: true` が必要。
+- 権限: **`perocasino.commandwand`**（`plugin.yml` では **OP のみ** が既定）。`command-wand.enabled: true` が必要。
+- 権限付与例:
+  - OP なら追加設定不要
+  - LuckPerms: `/lp user <名前> permission set perocasino.commandwand true`
+  - グループ: `/lp group <グループ> permission set perocasino.commandwand true`
+  - `permissions.yml`（Bukkit）: `perocasino.commandwand: true` を該当プレイヤーに付与
 
 #### 初期登録されている杖の表示名（`config.yml`）
 
