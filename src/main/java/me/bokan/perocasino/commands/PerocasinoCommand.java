@@ -543,10 +543,13 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             if ("remove".startsWith(a)) out.add("remove");
             if ("list".startsWith(a)) out.add("list");
             if ("dealer".startsWith(a)) out.add("dealer");
+<<<<<<< HEAD
         } else if (args.length == 3 && "slot".equalsIgnoreCase(args[0]) && "dealer".equalsIgnoreCase(args[1])) {
             String a = args[2].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
             if ("summon".startsWith(a)) out.add("summon");
+=======
+>>>>>>> 674b8d49fc5efea26847c0e00c7ddfff37c46ccf
         } else if (args.length == 2 && "roulette".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("set".startsWith(a)) out.add("set");

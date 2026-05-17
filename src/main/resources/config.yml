@@ -430,3 +430,68 @@ chinchiro:
         x: 151
         y: 63
         z: 221
+<<<<<<< HEAD
+=======
+
+# メインハンドの杖アイテムを「右クリック（使用）」したときに、プレイヤーとしてコマンドを実行する。
+# 「振る」= 右クリック使用を想定（空気・ブロックどちらでも可）。ブタン用の Interaction ではありません。
+command-wand:
+  enabled: false
+  material: CARROT_ON_A_STICK
+  # custom_model_data を一致させたい場合 true にし、下の値を合わせる
+  match-custom-model-data: false
+  custom-model-data: 0
+  permission: perocasino.commandwand
+  cooldown-ticks: 20
+  delay-ticks-between-commands: 1
+  skip-when-riding-pig: true
+  # /perocasino slot create {slot_id} の {slot_id} 部分（スロット設置杖用）
+  slot-create-id: wand_slot
+  # 先頭ラベルがここに含まれる行だけ実行（改ざん防止）。別名も列挙すること。
+  allowed-command-labels:
+    - balance
+    - bal
+    - deposit
+    - casino
+    - commandbook
+    - cb
+    - perocasino
+    - pc
+    - hilo
+    - chinchiro
+    - gamemode
+    - tp
+  # 旧形式: 表示名のない杖だけこのコマンドを実行（互換のため残す）
+  commands:
+    - chinchiro roll
+  # 表示名でコマンドを切り替え（色コードは無視して一致）
+  # 杖の名前は /give や anvil で付けた DisplayName と同じ文字列にする
+  wands:
+    "BJディーラー設置":
+      - perocasino blackjack dealer set
+    "H&Lディーラー設置":
+      - perocasino hilo dealer set
+    "スロット掛け金ディーラー設置":
+      - perocasino slot dealer set
+    "チンチロディーラー設置":
+      - perocasino chinchiro dealer set
+    "ルーレット設置":
+      - perocasino roulette display set
+    "ルーレット拠点設置":
+      - perocasino roulette set
+    "スロット設置":
+      - perocasino slot create {slot_id}
+    "サイコロの場所設置":
+      - perocasino chinchiro region set
+    "サイコロ振る":
+      - chinchiro roll
+    "コマンド集付与":
+      - commandbook
+    "コマンドブロック付与":
+      - commandbook
+    "サバイバル変更":
+      - gamemode survival
+    "クリエイティブ変更":
+      - gamemode creative
+  # 表示名が tp-100-64-200 の形式なら tp 100 64 200 を実行（wands 登録不要）
+>>>>>>> 674b8d49fc5efea26847c0e00c7ddfff37c46ccf

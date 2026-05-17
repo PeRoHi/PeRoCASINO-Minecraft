@@ -1,7 +1,9 @@
 package me.bokan.perocasino.listeners;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Pig;
 import org.bukkit.entity.Player;
@@ -12,6 +14,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
@@ -19,12 +22,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * メインハンドの「コマンド杖」（デフォルト: 人参付きの棒）を右クリックしたとき、
- * {@code config.yml} の {@code command-wand.commands} をプレイヤーとして順に実行する。
+ * メインハンドのコマンド杖（既定: 人参付きの棒）を右クリックしたとき、
+ * アイテムの表示名に応じたコマンドを {@code config.yml} の {@code command-wand.wands} から実行する。
  */
 public final class CommandWandListener implements Listener {
+
+    /** 表示名が {@code tp-100-64-200} のとき座標テレポート */
+    private static final Pattern TELEPORT_NAME = Pattern.compile("^tp-(-?\\d+)-(-?\\d+)-(-?\\d+)$", Pattern.CASE_INSENSITIVE);
 
     private final JavaPlugin plugin;
     private final ConcurrentHashMap<UUID, Long> lastUseMillis = new ConcurrentHashMap<>();
@@ -50,7 +58,7 @@ public final class CommandWandListener implements Listener {
 
         Player player = event.getPlayer();
         ItemStack main = player.getInventory().getItemInMainHand();
-        if (!matchesWand(main, cfg)) {
+        if (!matchesMaterial(main, cfg)) {
             return;
         }
 
@@ -64,8 +72,9 @@ public final class CommandWandListener implements Listener {
             return;
         }
 
-        List<String> commands = cfg.getStringList("command-wand.commands");
-        if (commands == null || commands.isEmpty()) {
+        String displayName = plainDisplayName(main);
+        List<String> resolved = resolveCommands(cfg, displayName, player);
+        if (resolved.isEmpty()) {
             return;
         }
 
@@ -75,24 +84,7 @@ public final class CommandWandListener implements Listener {
             return;
         }
 
-        List<String> toRun = new ArrayList<>();
-        for (String raw : commands) {
-            if (raw == null) {
-                continue;
-            }
-            String line = raw.trim();
-            if (line.isEmpty()) {
-                continue;
-            }
-            if (line.startsWith("/")) {
-                line = line.substring(1);
-            }
-            if (!isAllowedRoot(line, allowed)) {
-                player.sendMessage("§c[PeRoCasino] コマンド杖: 許可されていないコマンドです: §f" + line);
-                continue;
-            }
-            toRun.add(line);
-        }
+        List<String> toRun = filterAllowed(resolved, allowed, player);
         if (toRun.isEmpty()) {
             return;
         }
@@ -114,6 +106,97 @@ public final class CommandWandListener implements Listener {
         }
 
         Bukkit.getScheduler().runTask(plugin, () -> runCommands(player, toRun));
+    }
+
+    /**
+     * 表示名に対応するコマンド列を解決する。
+     * 1) {@code command-wand.wands.<表示名>} のリスト
+     * 2) 表示名が {@code tp-x-y-z} 形式ならテレポート
+     * 3) （互換）表示名未設定・未一致時のみ {@code command-wand.commands}
+     */
+    private List<String> resolveCommands(FileConfiguration cfg, String displayName, Player player) {
+        List<String> out = new ArrayList<>();
+
+        if (displayName != null && !displayName.isBlank()) {
+            ConfigurationSection wands = cfg.getConfigurationSection("command-wand.wands");
+            if (wands != null) {
+                for (String key : wands.getKeys(false)) {
+                    if (displayName.equals(plainKey(key))) {
+                        out.addAll(expandPlaceholders(wands.getStringList(key), cfg, player));
+                        return out;
+                    }
+                }
+            }
+
+            Matcher tp = TELEPORT_NAME.matcher(displayName);
+            if (tp.matches()) {
+                out.add("tp " + tp.group(1) + " " + tp.group(2) + " " + tp.group(3));
+                return out;
+            }
+        }
+
+        // 旧形式: 名前なし・未登録の杖だけ共通 commands を使う（既存設定を消さない）
+        if (displayName == null || displayName.isBlank()) {
+            List<String> legacy = cfg.getStringList("command-wand.commands");
+            if (legacy != null) {
+                out.addAll(expandPlaceholders(legacy, cfg, player));
+            }
+        }
+        return out;
+    }
+
+    private static List<String> expandPlaceholders(List<String> raw, FileConfiguration cfg, Player player) {
+        List<String> out = new ArrayList<>();
+        if (raw == null) {
+            return out;
+        }
+        String slotId = cfg.getString("command-wand.slot-create-id", "wand_slot");
+        for (String line : raw) {
+            if (line == null) {
+                continue;
+            }
+            String s = line.trim()
+                    .replace("{slot_id}", slotId)
+                    .replace("{player}", player.getName());
+            if (!s.isEmpty()) {
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
+    private static String plainDisplayName(ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (!meta.hasDisplayName()) {
+            return null;
+        }
+        return ChatColor.stripColor(meta.getDisplayName()).trim();
+    }
+
+    private static String plainKey(String configKey) {
+        return ChatColor.stripColor(configKey).trim();
+    }
+
+    private List<String> filterAllowed(List<String> commands, List<String> allowedLabels, Player player) {
+        List<String> toRun = new ArrayList<>();
+        for (String raw : commands) {
+            String line = raw.trim();
+            if (line.isEmpty()) {
+                continue;
+            }
+            if (line.startsWith("/")) {
+                line = line.substring(1);
+            }
+            if (!isAllowedRoot(line, allowedLabels)) {
+                player.sendMessage("§c[PeRoCasino] コマンド杖: 許可されていないコマンドです: §f" + line);
+                continue;
+            }
+            toRun.add(line);
+        }
+        return toRun;
     }
 
     private void runCommands(Player player, List<String> toRun) {
@@ -159,7 +242,7 @@ public final class CommandWandListener implements Listener {
         return false;
     }
 
-    private static boolean matchesWand(ItemStack item, FileConfiguration cfg) {
+    private static boolean matchesMaterial(ItemStack item, FileConfiguration cfg) {
         if (item == null || item.getType() == Material.AIR) {
             return false;
         }
