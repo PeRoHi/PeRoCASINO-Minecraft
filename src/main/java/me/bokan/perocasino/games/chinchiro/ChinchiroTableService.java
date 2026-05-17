@@ -25,6 +25,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -145,13 +146,11 @@ public final class ChinchiroTableService implements Listener {
         }
         event.setCancelled(true);
         Player player = event.getPlayer();
-        if (table != null && table.phase == Phase.ROLLING) {
-            if (!table.bets.containsKey(player.getUniqueId())) {
-                player.sendMessage("§cチンチロは進行中です。次のラウンドまでお待ちください。");
-                return;
-            }
+        if (resumeFromDealer(player, villager)) {
+            return;
         }
-        if (resumeToLobby(player)) {
+        if (table != null && table.phase == Phase.ROLLING) {
+            player.sendMessage("§cチンチロは進行中です。次のラウンドまでお待ちください。");
             return;
         }
         openConfirm(player, villager);
@@ -207,6 +206,11 @@ public final class ChinchiroTableService implements Listener {
                 player.closeInventory();
                 return;
             }
+            if (table.phase != Phase.LOBBY) {
+                player.sendMessage("§eラウンド進行中はロビーGUIを使えません。§7（閉じました）");
+                player.closeInventory();
+                return;
+            }
             switch (event.getSlot()) {
                 case 11 -> openBet(player);
                 case 13 -> {
@@ -254,8 +258,16 @@ public final class ChinchiroTableService implements Listener {
         if (!(event.getPlayer() instanceof Player player)) {
             return;
         }
-        if (CONFIRM_TITLE.equals(event.getView().getTitle())) {
+        String title = event.getView().getTitle();
+        if (CONFIRM_TITLE.equals(title)) {
             player.removeMetadata("perocasino_chinchiro_dealer", plugin);
+            return;
+        }
+        if (table == null || !table.bets.containsKey(player.getUniqueId())) {
+            return;
+        }
+        if (LOBBY_TITLE.equals(title) || BET_TITLE.equals(title)) {
+            table.lastGuiTitle.put(player.getUniqueId(), title);
         }
     }
 
@@ -306,6 +318,7 @@ public final class ChinchiroTableService implements Listener {
         inv.setItem(13, icon(Material.MAGMA_CREAM, "§a§lSTART", startLore));
         inv.setItem(15, icon(Material.BARRIER, "§c退出", null));
         player.openInventory(inv);
+        rememberGuiTitle(player, LOBBY_TITLE);
     }
 
     private List<String> lobbyLore() {
@@ -313,6 +326,7 @@ public final class ChinchiroTableService implements Listener {
             return List.of();
         }
         List<String> lore = new ArrayList<>();
+        lore.add("§7閉じたあとも、§fディーラー右クリック§7で戻れます。");
         for (UUID id : table.bets.keySet()) {
             Player p = Bukkit.getPlayer(id);
             String hostMark = id.equals(table.host) ? " §6[親]" : " §7[子]";
@@ -323,8 +337,11 @@ public final class ChinchiroTableService implements Listener {
     }
 
     private void openBet(Player player) {
+        if (table == null) {
+            return;
+        }
         Inventory inv = Bukkit.createInventory(null, 27, BET_TITLE);
-        int cur = table == null ? 0 : table.bets.getOrDefault(player.getUniqueId(), 0);
+        int cur = table.bets.getOrDefault(player.getUniqueId(), 0);
         inv.setItem(4, icon(Material.GOLD_INGOT, "§e現在の掛け金: §b" + cur, List.of(
                 "§7財布からラウンド開始時に徴収されます。",
                 "§7不足分は借金として計上されます。"
@@ -337,6 +354,7 @@ public final class ChinchiroTableService implements Listener {
         inv.setItem(15, icon(Material.DIAMOND, "§b64", null));
         inv.setItem(22, icon(Material.ARROW, "§7ロビーへ戻る", null));
         player.openInventory(inv);
+        rememberGuiTitle(player, BET_TITLE);
     }
 
     private void setBet(Player player, int amount) {
@@ -405,6 +423,13 @@ public final class ChinchiroTableService implements Listener {
             economy.takeBetFromWalletOrDebt(cp, bet);
         }
 
+        for (UUID id : table.bets.keySet()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null && p.isOnline()) {
+                p.closeInventory();
+            }
+        }
+
         table.phase = Phase.ROLLING;
         table.children = children;
         table.childIndex = 0;
@@ -441,6 +466,8 @@ public final class ChinchiroTableService implements Listener {
             refundCurrentRoundStakes();
             table.phase = Phase.LOBBY;
             broadcastTable("§cサイコロを表示できませんでした。ラウンドは中断され、子の掛け金は戻しました。");
+            cancelRollChain();
+            reopenLobbyForParticipants();
             return;
         }
         table.oyaDice = tops;
@@ -472,12 +499,7 @@ public final class ChinchiroTableService implements Listener {
                 table.phase = Phase.LOBBY;
                 broadcastTable("§cディーラー（ハウス）の出目を表示できませんでした。ラウンドは中断され、人間の子がいれば掛け金を戻しました。");
                 cancelRollChain();
-                for (UUID id : new ArrayList<>(table.bets.keySet())) {
-                    Player p = Bukkit.getPlayer(id);
-                    if (p != null && p.isOnline()) {
-                        openLobby(p);
-                    }
-                }
+                reopenLobbyForParticipants();
                 return;
             }
             oya.playSound(oya.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 0.95f);
@@ -617,7 +639,7 @@ public final class ChinchiroTableService implements Listener {
             Player p = Bukkit.getPlayer(id);
             if (p != null && p.isOnline()) {
                 p.sendMessage(message);
-                p.closeInventory();
+                openLobby(p);
             }
         }
     }
@@ -635,6 +657,7 @@ public final class ChinchiroTableService implements Listener {
             return;
         }
         table.bets.remove(id);
+        table.lastGuiTitle.remove(id);
         if (voluntary) {
             player.sendMessage("§eチンチロ卓から退出しました。");
             broadcastLobby("§e" + player.getName() + " が退出しました。");
@@ -654,15 +677,54 @@ public final class ChinchiroTableService implements Listener {
         player.closeInventory();
     }
 
-    private boolean resumeToLobby(Player player) {
-        if (table == null || !table.bets.containsKey(player.getUniqueId())) {
+    /**
+     * ブラックジャック / H&amp;L と同様、ディーラー右クリックで閉じたロビー・掛け金GUIを復帰する。
+     * ラウンド進行中は参加確認を開かず、説明だけ返す。
+     */
+    private boolean resumeFromDealer(Player player, Villager clickedDealer) {
+        if (table == null) {
             return false;
         }
-        if (table.phase == Phase.LOBBY) {
-            openLobby(player);
+        if (!clickedDealer.getUniqueId().equals(table.dealerId)) {
+            return false;
+        }
+        UUID id = player.getUniqueId();
+        if (!table.bets.containsKey(id)) {
+            return false;
+        }
+        if (table.phase == Phase.ROLLING) {
+            player.sendMessage("§eチンチロはラウンド進行中です。§7GUIは出ません。結果はチャットを確認し、終了後にもう一度ディーラーに話しかけてください。");
             return true;
         }
-        return false;
+        String last = table.lastGuiTitle.get(id);
+        if (BET_TITLE.equals(last)) {
+            openBet(player);
+        } else {
+            openLobby(player);
+        }
+        return true;
+    }
+
+    private void reopenLobbyForParticipants() {
+        if (table == null) {
+            return;
+        }
+        for (UUID pid : new ArrayList<>(table.bets.keySet())) {
+            Player p = Bukkit.getPlayer(pid);
+            if (p != null && p.isOnline()) {
+                openLobby(p);
+            }
+        }
+    }
+
+    private void rememberGuiTitle(Player player, String title) {
+        if (table == null) {
+            return;
+        }
+        if (!table.bets.containsKey(player.getUniqueId())) {
+            return;
+        }
+        table.lastGuiTitle.put(player.getUniqueId(), title);
     }
 
     private void broadcastLobby(String msg) {
@@ -803,6 +865,8 @@ public final class ChinchiroTableService implements Listener {
         int childIndex;
         final LinkedHashSet<UUID> refundPending = new LinkedHashSet<>();
         boolean soloVsHouse;
+        /** 閉じる直前のチンチロGUIタイトル（ディーラークリックで復帰） */
+        final Map<UUID, String> lastGuiTitle = new HashMap<>();
 
         Table(UUID host, UUID dealerId) {
             this.host = host;
