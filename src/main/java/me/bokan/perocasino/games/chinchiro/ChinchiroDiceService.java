@@ -108,19 +108,32 @@ public final class ChinchiroDiceService {
         return hiX >= loX && hiZ >= loZ && hiY >= loY;
     }
 
+    /** サイコロ表示が有効で領域が使えるとき true（テーブル開始前のチェック用）。 */
+    public boolean canRollDice() {
+        return enabled && hasValidRegion() && regionWorld != null && !regionWorld.isBlank()
+                && Bukkit.getWorld(regionWorld) != null;
+    }
+
     /**
      * 領域内に 3 個のサイコロを出し直す。メインスレッドから呼ぶこと。
      *
      * @return 各サイコロの上面の目（1〜6）、失敗時は空
      */
     public int[] rollThreeDice(Player player) {
+        return rollThreeDice(player, false);
+    }
+
+    /**
+     * @param quiet true のときプレイヤーへチャットせずログのみ（テーブル進行用）
+     */
+    public int[] rollThreeDice(Player player, boolean quiet) {
         if (!enabled) {
-            player.sendMessage("§e[チンチロ] サイコロ表示は無効です。");
+            msg(player, quiet, "§e[チンチロ] サイコロ表示は無効です。");
             return new int[0];
         }
         World world = Bukkit.getWorld(regionWorld);
         if (world == null || !hasValidRegion()) {
-            player.sendMessage("§c[チンチロ] サイコロ領域が未設定です。§7管理者: §f/perocasino chinchiro region set");
+            msg(player, quiet, "§c[チンチロ] サイコロ領域が未設定です。§7管理者: §f/perocasino chinchiro region set");
             return new int[0];
         }
 
@@ -141,7 +154,7 @@ public final class ChinchiroDiceService {
         double minCenterDist = Math.max(separation, edge * 1.08);
         // ThreadLocalRandom#nextDouble は origin < bound が必須
         if (!(maxCx > minCx) || !(maxCz > minCz)) {
-            player.sendMessage("§c[チンチロ] 領域が狭すぎます。edge-length-blocks を下げるか chinchiro.dice.region を広げてください。");
+            msg(player, quiet, "§c[チンチロ] 領域が狭すぎます。edge-length-blocks を下げるか chinchiro.dice.region を広げてください。");
             return new int[0];
         }
 
@@ -160,7 +173,7 @@ public final class ChinchiroDiceService {
             }
         }
         if (!ok) {
-            player.sendMessage("§c[チンチロ] 重ならない配置が見つかりませんでした（random-tries を増やすか領域を広げてください）。");
+            msg(player, quiet, "§c[チンチロ] 重ならない配置が見つかりませんでした（random-tries を増やすか領域を広げてください）。");
             return new int[0];
         }
 
@@ -194,12 +207,20 @@ public final class ChinchiroDiceService {
             } catch (Throwable t) {
                 plugin.getLogger().warning("[Chinchiro] サイコロ表示のスポーンに失敗: " + t.getMessage());
                 removeAllDisplays();
-                player.sendMessage("§c[チンチロ] サイコロを表示できませんでした。サーバーログを確認してください。");
+                msg(player, quiet, "§c[チンチロ] サイコロを表示できませんでした。サーバーログを確認してください。");
                 return new int[0];
             }
         }
 
         return tops;
+    }
+
+    private void msg(Player player, boolean quiet, String text) {
+        if (quiet) {
+            plugin.getLogger().info("[Chinchiro] " + org.bukkit.ChatColor.stripColor(text));
+        } else if (player != null) {
+            player.sendMessage(text);
+        }
     }
 
     private static boolean pairwiseOk(double[] x, double[] z, double minDist) {
