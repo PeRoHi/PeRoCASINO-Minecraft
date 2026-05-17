@@ -73,6 +73,11 @@
 - **/perocasino reload**
   - `config.yml` を再読込します。
 
+### コマンド杖チェスト
+
+- **/perocasino wandchest**（別名 **/pc wandchest**）  
+  見ているブロックの手前（空気ブロック）にチェストを設置し、`command-wand.wands` に登録されている表示名の人参付きの棒を1本ずつ入れます。権限: `perocasino.admin`
+
 ### コマンド杖（config: `command-wand`）
 
 - 既定素材は **人参付きの棒**（`CARROT_ON_A_STICK`）。**メインハンドで右クリック**で実行します。

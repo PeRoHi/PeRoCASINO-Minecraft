@@ -17,6 +17,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import me.bokan.perocasino.commandwand.CommandWandItems;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -58,7 +60,7 @@ public final class CommandWandListener implements Listener {
 
         Player player = event.getPlayer();
         ItemStack main = player.getInventory().getItemInMainHand();
-        if (!matchesMaterial(main, cfg)) {
+        if (!CommandWandItems.matches(main, cfg)) {
             return;
         }
 
@@ -242,26 +244,4 @@ public final class CommandWandListener implements Listener {
         return false;
     }
 
-    private static boolean matchesMaterial(ItemStack item, FileConfiguration cfg) {
-        if (item == null || item.getType() == Material.AIR) {
-            return false;
-        }
-        String matName = cfg.getString("command-wand.material", "CARROT_ON_A_STICK");
-        Material mat;
-        try {
-            mat = Material.valueOf(matName.trim().toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-        if (item.getType() != mat) {
-            return false;
-        }
-        if (!cfg.getBoolean("command-wand.match-custom-model-data", false)) {
-            return true;
-        }
-        if (!item.hasItemMeta() || !item.getItemMeta().hasCustomModelData()) {
-            return false;
-        }
-        return item.getItemMeta().getCustomModelData() == cfg.getInt("command-wand.custom-model-data", 0);
-    }
 }

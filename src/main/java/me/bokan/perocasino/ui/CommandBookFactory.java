@@ -106,6 +106,9 @@ public final class CommandBookFactory {
                         "§0・slot list\n" +
                         "§0・slot dealer set|summon\n\n" +
                         "§0・quarry set（角2回）\n" +
+                        "§0・wandchest\n" +
+                        "§0  見ている位置に\n" +
+                        "§0  コマンド杖チェスト設置\n" +
                         "§0・reload\n" +
                         "§0  config再読込"
         ));

@@ -5,7 +5,10 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.Chest;
 import org.bukkit.FluidCollisionMode;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -18,6 +21,7 @@ import org.bukkit.entity.Villager;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import me.bokan.perocasino.PeRoCasino;
+import me.bokan.perocasino.commandwand.CommandWandItems;
 import me.bokan.perocasino.games.chinchiro.ChinchiroDiceService;
 import me.bokan.perocasino.games.slotdisplay.SlotDisplayService;
 import me.bokan.perocasino.roulette.RouletteBetBoardService;
@@ -68,11 +72,16 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e/perocasino slot dealer set|summon §7… スロット掛け金ディーラーを設定/召喚");
             sender.sendMessage("§e/perocasino chinchiro dealer set|summon §7… チンチロ卓ディーラー");
             sender.sendMessage("§e/perocasino chinchiro region set §7… サイコロ3個の出現範囲（2回: MIN→MAX 角）");
+            sender.sendMessage("§e/perocasino wandchest §7… 見ている位置にコマンド杖一式入りチェストを設置");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
         }
 
         String sub = args[0].toLowerCase();
+        if ("wandchest".equals(sub)) {
+            return spawnWandChest(sender);
+        }
+
         if ("reload".equals(sub)) {
             plugin.reloadConfig();
             if (onReload != null) {
@@ -623,6 +632,73 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private boolean spawnWandChest(CommandSender sender) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
+            return true;
+        }
+
+        Block target = player.getTargetBlockExact(8, FluidCollisionMode.NEVER);
+        if (target == null) {
+            player.sendMessage("§c8ブロック以内のブロックを狙ってください。");
+            return true;
+        }
+
+        Block placeBlock;
+        if (target.getType().isAir() || !target.getType().isSolid()) {
+            placeBlock = target;
+        } else {
+            BlockFace face = target.getFace(player.getLocation().getBlock());
+            if (face == null) {
+                face = BlockFace.UP;
+            }
+            placeBlock = target.getRelative(face);
+        }
+
+        Material existing = placeBlock.getType();
+        if (!existing.isAir() && existing != Material.WATER && existing != Material.CAVE_AIR) {
+            player.sendMessage("§cこの場所にはチェストを置けません: §f" + existing);
+            return true;
+        }
+
+        placeBlock.setType(Material.CHEST, false);
+        if (!(placeBlock.getState() instanceof Chest chestState)) {
+            player.sendMessage("§cチェストの設置に失敗しました。");
+            return true;
+        }
+
+        FileConfiguration cfg = plugin.getConfig();
+        List<ItemStack> wands = CommandWandItems.allConfiguredWands(cfg);
+        if (wands.isEmpty()) {
+            player.sendMessage("§ccommand-wand.wands が空です。config.yml を確認してください。");
+            placeBlock.setType(Material.AIR, false);
+            return true;
+        }
+
+        Inventory inv = chestState.getBlockInventory();
+        int slot = 0;
+        int overflow = 0;
+        Location dropAt = placeBlock.getLocation().add(0.5, 0.5, 0.5);
+        for (ItemStack wand : wands) {
+            if (slot < inv.getSize()) {
+                inv.setItem(slot++, wand);
+            } else {
+                placeBlock.getWorld().dropItemNaturally(dropAt, wand);
+                overflow++;
+            }
+        }
+        chestState.update(true, false);
+
+        Location loc = placeBlock.getLocation();
+        player.sendMessage("§aコマンド杖チェストを設置しました: §f" + loc.getBlockX() + " "
+                + loc.getBlockY() + " " + loc.getBlockZ() + " §7(" + wands.size() + "本)");
+        if (overflow > 0) {
+            player.sendMessage("§eチェストに入り切らなかった杖を §f" + overflow + " §e本ドロップしました。");
+        }
+        player.sendMessage("§7※ 使用時は §fcommand-wand.enabled: true §7と §fperocasino.commandwand§7 が必要です。");
+        return true;
+    }
+
     private void saveHiLoDealer(Villager villager) {
         FileConfiguration cfg = plugin.getConfig();
         cfg.set("hilo.dealer.uuid", villager.getUniqueId().toString());
@@ -648,6 +724,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
             if ("slot".startsWith(a)) out.add("slot");
             if ("chinchiro".startsWith(a)) out.add("chinchiro");
             if ("reload".startsWith(a)) out.add("reload");
+            if ("wandchest".startsWith(a)) out.add("wandchest");
         } else if (args.length == 2 && "slot".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("create".startsWith(a)) out.add("create");

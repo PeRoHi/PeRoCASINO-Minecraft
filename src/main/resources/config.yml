@@ -15,6 +15,8 @@ roulette:
   spin-seconds: 3
   # 次ラウンドまでのクールダウン（秒）
   cooldown-seconds: 5
+  # ルーレット進行の ON/OFF（/perocasino roulette start|stop でも切替）
+  enabled: true
   # 砥石ベット盤（左→右が 2x/4x/6x/10x/20x）。未登録ならGUI方式のままです。
   # /perocasino roulette board set で「左端の砥石」を登録
   board:
@@ -79,7 +81,8 @@ roulette:
     - { multiplier: 2,  degrees: 15 } # 21
     - { multiplier: 6,  degrees: 15 } # 22
     - { multiplier: 4,  degrees: 15 } # 23
-  # 注: 「roulette.enabled」のような全体ON/OFFは現行プラグイン未対応（Hubタスクは常時起動）。
+  # 精算待ち: 盤面が減速停止するまでの tick（ItemDisplay 使用時）
+  settle-delay-ticks: 40
 
 nether-portal:
   # ネザーポータルに触れた瞬間、固定座標へテレポートさせる
