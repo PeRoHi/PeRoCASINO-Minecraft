@@ -447,6 +447,8 @@ command-wand:
   cooldown-ticks: 20
   delay-ticks-between-commands: 1
   skip-when-riding-pig: true
+  # /perocasino slot create {slot_id} の {slot_id} 部分（スロット設置杖用）
+  slot-create-id: wand_slot
   # 先頭ラベルがここに含まれる行だけ実行（改ざん防止）。別名も列挙すること。
   allowed-command-labels:
     - balance
@@ -459,5 +461,38 @@ command-wand:
     - pc
     - hilo
     - chinchiro
+    - gamemode
+    - tp
+  # 旧形式: 表示名のない杖だけこのコマンドを実行（互換のため残す）
   commands:
     - chinchiro roll
+  # 表示名でコマンドを切り替え（色コードは無視して一致）
+  # 杖の名前は /give や anvil で付けた DisplayName と同じ文字列にする
+  wands:
+    "BJディーラー設置":
+      - perocasino blackjack dealer set
+    "H&Lディーラー設置":
+      - perocasino hilo dealer set
+    "スロット掛け金ディーラー設置":
+      - perocasino slot dealer set
+    "チンチロディーラー設置":
+      - perocasino chinchiro dealer set
+    "ルーレット設置":
+      - perocasino roulette display set
+    "ルーレット拠点設置":
+      - perocasino roulette set
+    "スロット設置":
+      - perocasino slot create {slot_id}
+    "サイコロの場所設置":
+      - perocasino chinchiro region set
+    "サイコロ振る":
+      - chinchiro roll
+    "コマンド集付与":
+      - commandbook
+    "コマンドブロック付与":
+      - commandbook
+    "サバイバル変更":
+      - gamemode survival
+    "クリエイティブ変更":
+      - gamemode creative
+  # 表示名が tp-100-64-200 の形式なら tp 100 64 200 を実行（wands 登録不要）

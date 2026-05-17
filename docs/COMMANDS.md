@@ -75,12 +75,34 @@
 
 ### コマンド杖（config: `command-wand`）
 
-- `config.yml` の **`command-wand`** で、特定アイテム（デフォルト **人参付きの棒 = `CARROT_ON_A_STICK`**）を **メインハンドで右クリック（使用）** したときに、列挙したコマンドをプレイヤーとして順に実行できます。
-- **入手方法（プラグインは自動配布しません）**
-  - クラフト: 釣り竿 + ニンジン → 人参付きの棒
-  - OP/管理者: `/give @s carrot_on_a_stick`
-  - リソースパックで見た目を変えたい場合は `match-custom-model-data` と CMD を合わせる
-- **`command-wand.enabled`** を `true` にし、**`command-wand.commands`** に実行したい行（先頭の `/` はあってもなくても可）を書きます。
-- 改ざん防止のため、**`command-wand.allowed-command-labels`** にある「コマンドの先頭ラベル」だけが実行されます（例: `chinchiro`, `casino`, `perocasino`）。
-- 権限: デフォルトでは **`perocasino.commandwand`**（`plugin.yml` では **op** 想定）。`command-wand.permission` で変更可能です。
-- ブタン用の **Interaction** ではなく、**アイテム使用**トリガです。豚に乗っているときは **`skip-when-riding-pig`**（既定 `true`）で無効化されます。
+- 既定素材は **人参付きの棒**（`CARROT_ON_A_STICK`）。**メインハンドで右クリック**で実行します。
+- **表示名でコマンドを切り替え**: `command-wand.wands` に「杖の表示名 → 実行コマンド列」を登録します（色コードは無視して一致）。
+- **テレポート杖**: 表示名を **`tp-100-64-200`** のようにすると `tp 100 64 200` を実行（`wands` への登録は不要）。
+- **旧形式** `command-wand.commands` は、**表示名が付いていない杖**のときだけ使われます（互換用・削除しない）。
+- 改ざん防止: **`command-wand.allowed-command-labels`** にある先頭ラベルのみ実行可能。
+- 権限: **`perocasino.commandwand`**（既定 op）。`command-wand.enabled: true` が必要。
+
+#### 初期登録されている杖の表示名（`config.yml`）
+
+| 表示名 | 実行内容（概要） |
+|--------|------------------|
+| BJディーラー設置 | `/perocasino blackjack dealer set` |
+| H&Lディーラー設置 | `/perocasino hilo dealer set` |
+| スロット掛け金ディーラー設置 | `/perocasino slot dealer set` |
+| チンチロディーラー設置 | `/perocasino chinchiro dealer set` |
+| ルーレット設置 | `/perocasino roulette display set` |
+| ルーレット拠点設置 | `/perocasino roulette set` |
+| スロット設置 | `/perocasino slot create <slot-create-id>` |
+| サイコロの場所設置 | `/perocasino chinchiro region set`（角2回） |
+| サイコロ振る | `/chinchiro roll` |
+| コマンド集付与 / コマンドブロック付与 | `/commandbook` |
+| サバイバル変更 | `/gamemode survival` |
+| クリエイティブ変更 | `/gamemode creative` |
+| `tp-X-Y-Z` | `/tp X Y Z` |
+
+追加するときは `wands` に行を足すだけで OK です（既存の行は消さない運用）。
+
+#### 入手・名前の付け方
+
+- クラフトまたは `/give @s carrot_on_a_stick`
+- Anvil やコマンドで **DisplayName** を上表と同じ文字列にする（例: `/give @s carrot_on_a_stick[custom_name='{"text":"ルーレット設置"}']` はバージョンにより書式が異なります）

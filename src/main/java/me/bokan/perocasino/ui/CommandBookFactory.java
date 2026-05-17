@@ -59,16 +59,16 @@ public final class CommandBookFactory {
                         "§0・/commandbook（/cb）\n" +
                         "§0  この本を入手・更新",
                 "§0§lコマンド杖\n" +
-                        "§0config の command-wand。\n" +
-                        "§0既定: 人参付きの棒を\n" +
-                        "§0メインハンドで右クリック。\n\n" +
-                        "§0入手例\n" +
-                        "§0・クラフト（棒+ニンジン）\n" +
-                        "§0・/give @s carrot_on_a_stick\n\n" +
-                        "§0有効化\n" +
-                        "§0・command-wand.enabled: true\n" +
-                        "§0・権限 perocasino.commandwand\n" +
-                        "§0・commands に実行行を記載",
+                        "§0人参付きの棒に付けた\n" +
+                        "§0表示名でコマンドが変わる。\n" +
+                        "§0右クリックで実行。\n\n" +
+                        "§0例（configのwands）\n" +
+                        "§0・BJディーラー設置\n" +
+                        "§0・ルーレット設置\n" +
+                        "§0・サイコロ振る\n" +
+                        "§0・tp-100-64-200（座標TP）\n\n" +
+                        "§0有効化: command-wand.enabled\n" +
+                        "§0権限: perocasino.commandwand",
                 "§0§l管理者（1/3）\n" +
                         "§0権限: perocasino.admin\n" +
                         "§0別名: /pc\n\n" +
