@@ -42,6 +42,15 @@ public final class ChinchiroTableService implements Listener {
     private static final String LOBBY_TITLE = "§0§lCHINCHIRO: ロビー";
     private static final String BET_TITLE = "§0§lCHINCHIRO: 掛け金";
 
+    /**
+     * 子リスト専用の仮UUID。ロビーの {@code bets} には含めない。1人のとき子として振る相手＝ハウス（ディーラー側）。
+     */
+    private static final UUID HOUSE_CHILD_PLACEHOLDER = UUID.fromString("c7770000-0000-4000-8000-000000000001");
+
+    private static boolean isHouseChildPlaceholder(UUID id) {
+        return id != null && HOUSE_CHILD_PLACEHOLDER.equals(id);
+    }
+
     private final JavaPlugin plugin;
     private final EconomyManager economy;
     private final ChinchiroDiceService dice;
@@ -117,7 +126,8 @@ public final class ChinchiroTableService implements Listener {
         Inventory inv = Bukkit.createInventory(null, 27, CONFIRM_TITLE);
         inv.setItem(11, icon(Material.LIME_CONCRETE, "§a§l参加する", List.of(
                 "§7親子形式のチンチロ卓に入ります。",
-                "§7最初に参加した人が親（ホスト）です。"
+                "§7最初に参加した人が親（ホスト）です。",
+                "§7※ 1人だけでも、ディーラー（ハウス）が子として対戦します。"
         )));
         inv.setItem(15, icon(Material.RED_CONCRETE, "§c§l参加しない", null));
         inv.setItem(22, icon(Material.BARRIER, "§7閉じる", null));
@@ -287,10 +297,13 @@ public final class ChinchiroTableService implements Listener {
         int bet = table.bets.getOrDefault(player.getUniqueId(), 0);
         inv.setItem(10, icon(Material.PLAYER_HEAD, "§b参加者: §f" + table.bets.size() + " / " + maxPlayers, lobbyLore()));
         inv.setItem(11, icon(Material.DIAMOND, "§e掛け金（財布）", List.of("§7現在: §b" + bet + " §7ダイヤ", "§7子はこの額を親と張ります。")));
-        inv.setItem(13, icon(Material.MAGMA_CREAM, "§a§lSTART", List.of(
-                "§7親だけが押せます。",
-                "§7全員が掛け金を選び、サイコロ領域が有効なときだけ開始します。"
-        )));
+        List<String> startLore = new ArrayList<>();
+        startLore.add("§7親だけが押せます。");
+        startLore.add("§7全員が掛け金を選び、サイコロ領域が有効なときだけ開始します。");
+        if (table.bets.size() == 1) {
+            startLore.add("§7※ 1人のときは §eディーラー（ハウス）§7が子として対戦します。");
+        }
+        inv.setItem(13, icon(Material.MAGMA_CREAM, "§a§lSTART", startLore));
         inv.setItem(15, icon(Material.BARRIER, "§c退出", null));
         player.openInventory(inv);
     }
@@ -345,12 +358,12 @@ public final class ChinchiroTableService implements Listener {
             host.sendMessage("§c開始できるのは親だけです。");
             return;
         }
-        if (table.bets.size() < 2) {
-            host.sendMessage("§c子がいません。最低2人（親+子）が必要です。");
-            return;
-        }
         if (!dice.canRollDice()) {
             host.sendMessage("§cサイコロ表示領域が無効です。§7/perocasino chinchiro region set §cと chinchiro.enabled を確認してください。");
+            return;
+        }
+        if (table.bets.size() < 1) {
+            host.sendMessage("§c参加者がいません。");
             return;
         }
         for (UUID id : table.bets.keySet()) {
@@ -372,11 +385,21 @@ public final class ChinchiroTableService implements Listener {
             }
         }
         if (children.isEmpty()) {
-            host.sendMessage("§c子がいません。");
-            return;
+            if (table.bets.size() == 1 && table.bets.containsKey(table.host)) {
+                children.add(HOUSE_CHILD_PLACEHOLDER);
+                table.soloVsHouse = true;
+            } else {
+                host.sendMessage("§c子がいません。");
+                return;
+            }
+        } else {
+            table.soloVsHouse = false;
         }
 
         for (UUID cid : children) {
+            if (isHouseChildPlaceholder(cid)) {
+                continue;
+            }
             int bet = table.bets.getOrDefault(cid, 0);
             Player cp = Bukkit.getPlayer(cid);
             economy.takeBetFromWalletOrDebt(cp, bet);
@@ -387,11 +410,20 @@ public final class ChinchiroTableService implements Listener {
         table.childIndex = 0;
         table.oyaDice = null;
         table.refundPending.clear();
-        table.refundPending.addAll(children);
+        for (UUID cid : children) {
+            if (!isHouseChildPlaceholder(cid)) {
+                table.refundPending.add(cid);
+            }
+        }
 
         cancelRollChain();
         long token = ++rollChainToken;
-        broadcastTable("§6[チンチロ] §fラウンド開始。親は §e" + host.getName() + " §fです。");
+        if (table.soloVsHouse) {
+            broadcastTable("§6[チンチロ] §fラウンド開始。§7対戦: §e" + host.getName()
+                    + " §7（親） vs §eディーラー（ハウス）");
+        } else {
+            broadcastTable("§6[チンチロ] §fラウンド開始。親は §e" + host.getName() + " §fです。");
+        }
         schedule(token, rollDelayTicks, () -> rollOyaStep(token));
     }
 
@@ -428,6 +460,32 @@ public final class ChinchiroTableService implements Listener {
             return;
         }
         UUID cid = table.children.get(table.childIndex);
+        if (isHouseChildPlaceholder(cid)) {
+            Player oya = Bukkit.getPlayer(table.host);
+            if (oya == null) {
+                abortRoundAndResetLobby("§c親がオフラインになったため卓をリセットしました。");
+                return;
+            }
+            int[] tops = dice.rollThreeDice(oya, true);
+            if (tops.length != 3) {
+                refundCurrentRoundStakes();
+                table.phase = Phase.LOBBY;
+                broadcastTable("§cディーラー（ハウス）の出目を表示できませんでした。ラウンドは中断され、人間の子がいれば掛け金を戻しました。");
+                cancelRollChain();
+                for (UUID id : new ArrayList<>(table.bets.keySet())) {
+                    Player p = Bukkit.getPlayer(id);
+                    if (p != null && p.isOnline()) {
+                        openLobby(p);
+                    }
+                }
+                return;
+            }
+            oya.playSound(oya.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1f, 0.95f);
+            settleHouseVersusOya(oya, tops);
+            table.childIndex++;
+            schedule(token, rollDelayTicks, () -> rollNextChild(token));
+            return;
+        }
         Player child = Bukkit.getPlayer(cid);
         if (child == null || !child.isOnline()) {
             int bet = table.bets.getOrDefault(cid, 0);
@@ -453,6 +511,31 @@ public final class ChinchiroTableService implements Listener {
         table.refundPending.remove(cid);
         table.childIndex++;
         schedule(token, rollDelayTicks, () -> rollNextChild(token));
+    }
+
+    private void settleHouseVersusOya(Player oya, int[] houseDice) {
+        if (table == null || table.oyaDice == null) {
+            return;
+        }
+        int bet = table.bets.getOrDefault(table.host, 0);
+        int cmp = ChinchiroHandEvaluator.compareHands(table.oyaDice, houseDice);
+        String oyaDesc = ChinchiroHandEvaluator.describeJapanese(table.oyaDice);
+        String houseDesc = ChinchiroHandEvaluator.describeJapanese(houseDice);
+        String prefix = "§6[チンチロ] §fディーラー（ハウス）§f: §e"
+                + houseDice[0] + " §7| §e" + houseDice[1] + " §7| §e" + houseDice[2]
+                + " §7（§f" + houseDesc + "§7） ";
+        if (cmp > 0) {
+            economy.addWalletBalance(oya.getUniqueId(), bet);
+            broadcastTable(prefix + "§c→ 親の勝ち §7（親: " + oyaDesc + "）");
+            oya.sendMessage("§aディーラー（ハウス）に勝ちました。§7（+" + bet + "）");
+        } else if (cmp < 0) {
+            economy.takeBetFromWalletOrDebt(oya, bet);
+            broadcastTable(prefix + "§c→ ディーラー（ハウス）の勝ち §7（親: " + oyaDesc + "）");
+            oya.sendMessage("§cディーラー（ハウス）に負けました。§7（-" + bet + "）");
+        } else {
+            broadcastTable(prefix + "§e→ 引き分け");
+            oya.sendMessage("§e引き分け。掛け金のやり取りはありません。");
+        }
     }
 
     private void settleChildVersusOya(Player child, int[] childDice) {
@@ -719,6 +802,7 @@ public final class ChinchiroTableService implements Listener {
         List<UUID> children = new ArrayList<>();
         int childIndex;
         final LinkedHashSet<UUID> refundPending = new LinkedHashSet<>();
+        boolean soloVsHouse;
 
         Table(UUID host, UUID dealerId) {
             this.host = host;

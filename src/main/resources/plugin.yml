@@ -7,7 +7,10 @@ authors: [PeRo]
 
 permissions:
   perocasino.chinchiro.roll:
-    description: チンチロのサイコロを振る
+    description: チンチロのサイコロを振る（練習・表示のみ）
+    default: true
+  perocasino.chinchiro.table:
+    description: チンチロ卓（村人ディーラー）に参加する
     default: true
   perocasino.commandwand:
     description: config の command-wand で指定した杖（人参付きの棒等）の使用
