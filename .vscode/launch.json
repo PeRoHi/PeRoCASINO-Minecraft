@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "Attach to Paper Server",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005,
+      "projectName": "PeRoCasino"
+    },
+    {
+      "type": "java",
+      "name": "Debug Paper Server (start + attach)",
+      "request": "attach",
+      "hostName": "localhost",
+      "port": 5005,
+      "preLaunchTask": "minecraft: start dev server",
+      "projectName": "PeRoCasino"
+    }
+  ]
+}
