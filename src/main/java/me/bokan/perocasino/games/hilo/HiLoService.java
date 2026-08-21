@@ -700,8 +700,11 @@ public final class HiLoService implements Listener {
 
     private void openChoice(Player player) {
         PlayerState ps = session.players.get(player.getUniqueId());
+        PlayerState parentState = session.players.get(session.currentParent);
+        Card parentCard = parentState == null ? null : parentState.parentCard;
+        String parentLabel = parentCard == null ? "?" : parentCard.label();
         Inventory inv = Bukkit.createInventory(null, 27, CHOICE_TITLE);
-        inv.setItem(4, icon(Material.PAPER, "§e親カード: §f" + session.players.get(session.currentParent).parentCard.label(), List.of(
+        inv.setItem(4, icon(Material.PAPER, "§e親カード: §f" + parentLabel, List.of(
                 "§7自分の伏せカードが親より高いか低いか選択。",
                 "§7同じ数字は不正解扱いです。"
         )));
@@ -1061,8 +1064,6 @@ public final class HiLoService implements Listener {
     private boolean isDealer(Villager villager) {
         String configured = plugin.getConfig().getString("hilo.dealer.uuid", "");
         if (configured != null && !configured.isBlank() && configured.equals(villager.getUniqueId().toString())) return true;
-        String sharedBj = plugin.getConfig().getString("blackjack.dealer.uuid", "");
-        if (sharedBj != null && !sharedBj.isBlank() && sharedBj.equals(villager.getUniqueId().toString())) return true;
         String plain = org.bukkit.ChatColor.stripColor(villager.getCustomName());
         if (plain == null) return false;
         String lower = plain.toLowerCase(Locale.ROOT);
@@ -1072,10 +1073,7 @@ public final class HiLoService implements Listener {
                 || lower.contains("low")
                 || plain.contains("ハイロー")
                 || plain.contains("H＆L")
-                || plain.contains("H&L")
-                || lower.contains("blackjack")
-                || lower.contains("ブラックジャック")
-                || lower.contains("ディーラー");
+                || plain.contains("H&L");
     }
 
     private Entity findDealerFor(Player player) {

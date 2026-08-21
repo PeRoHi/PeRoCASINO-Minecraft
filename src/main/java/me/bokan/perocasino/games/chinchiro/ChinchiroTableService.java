@@ -153,6 +153,10 @@ public final class ChinchiroTableService implements Listener {
             player.sendMessage("§cチンチロは進行中です。次のラウンドまでお待ちください。");
             return;
         }
+        if (!player.hasPermission(PERM_PLAY)) {
+            player.sendMessage("§c権限がありません。");
+            return;
+        }
         openConfirm(player, villager);
     }
 
