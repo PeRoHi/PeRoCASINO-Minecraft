@@ -146,6 +146,10 @@ public final class ChinchiroTableService implements Listener {
         }
         event.setCancelled(true);
         Player player = event.getPlayer();
+        if (!player.hasPermission(PERM_PLAY)) {
+            player.sendMessage("§c権限がありません。");
+            return;
+        }
         if (resumeFromDealer(player, villager)) {
             return;
         }
@@ -276,7 +280,17 @@ public final class ChinchiroTableService implements Listener {
         leaveTable(event.getPlayer(), false);
     }
 
+    @EventHandler
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        leaveTable(event.getEntity(), false);
+    }
+
     private void joinLobby(Player player, Entity dealer) {
+        if (!player.hasPermission(PERM_PLAY)) {
+            player.sendMessage("§c権限がありません。");
+            player.closeInventory();
+            return;
+        }
         if (table != null && table.phase == Phase.LOBBY && !dealer.getUniqueId().equals(table.dealerId)) {
             player.sendMessage("§c別のディーラーで開いているチンチロ卓があります。そちらの卓に参加するか、全員が退出してからやり直してください。");
             player.closeInventory();

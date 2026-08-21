@@ -119,11 +119,12 @@ public final class BlackjackService implements Listener {
         if (!(event.getRightClicked() instanceof Villager villager)) return;
         if (!isDealer(villager)) return;
 
-        event.setCancelled(true);
         Player player = event.getPlayer();
+        // キャンセル前に譲る。ignoreCancelled=true の HiLo 側が再開できるようにする
         if (hiLoService != null && hiLoService.isPlayerInGame(player.getUniqueId())) {
             return;
         }
+        event.setCancelled(true);
         if (table != null && table.phase == Phase.PLAYING && !table.players.containsKey(player.getUniqueId())) {
             player.sendMessage("§c現在ブラックジャックは進行中です。次のゲームまでお待ちください。");
             return;
@@ -280,6 +281,14 @@ public final class BlackjackService implements Listener {
         leaveTable(event.getPlayer(), false);
     }
 
+    @EventHandler
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        Player player = event.getEntity();
+        if (!isPlayerInGame(player.getUniqueId())) return;
+        event.getDrops().removeIf(this::isBlackjackCard);
+        leaveTable(player, false);
+    }
+
     /** GUI を閉じてもテーブルは維持する（ディーラー右クリックで復帰）。 */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryClose(InventoryCloseEvent event) {
@@ -315,6 +324,11 @@ public final class BlackjackService implements Listener {
     }
 
     private void joinLobby(Player player, Entity dealer) {
+        if (hiLoService != null && hiLoService.isPlayerInGame(player.getUniqueId())) {
+            player.sendMessage("§c先に High & Low を終了してください。");
+            player.closeInventory();
+            return;
+        }
         if (table == null || table.phase == Phase.FINISHED) {
             table = new Table(player.getUniqueId(), dealer.getUniqueId());
         }
@@ -751,11 +765,17 @@ public final class BlackjackService implements Listener {
             int stackAmount = Math.min(64, remaining);
             ItemStack stack = new ItemStack(Material.DIAMOND, stackAmount);
             Map<Integer, ItemStack> leftover = player.getInventory().addItem(stack);
-            if (!leftover.isEmpty()) {
-                int overflow = leftover.values().stream().mapToInt(ItemStack::getAmount).sum();
-                if (overflow > 0) economy.addWalletBalance(player.getUniqueId(), overflow);
+            if (leftover.isEmpty()) {
+                remaining -= stackAmount;
+                continue;
             }
-            remaining -= stackAmount;
+            int overflow = leftover.values().stream().mapToInt(ItemStack::getAmount).sum();
+            int added = stackAmount - overflow;
+            remaining -= added;
+            if (remaining > 0) {
+                economy.addWalletBalance(player.getUniqueId(), remaining);
+            }
+            break;
         }
     }
 
@@ -941,26 +961,31 @@ public final class BlackjackService implements Listener {
     }
 
     private boolean isDealer(Villager villager) {
-        String configured = plugin.getConfig().getString("blackjack.dealer.uuid", "");
-        if (configured != null && !configured.isBlank()) {
-            try {
-                if (villager.getUniqueId().equals(UUID.fromString(configured.trim()))) return true;
-            } catch (IllegalArgumentException ignored) {
-            }
-        }
-        String sharedHilo = plugin.getConfig().getString("hilo.dealer.uuid", "");
-        if (sharedHilo != null && !sharedHilo.isBlank()) {
-            try {
-                if (villager.getUniqueId().equals(UUID.fromString(sharedHilo.trim()))) return true;
-            } catch (IllegalArgumentException ignored) {
-            }
+        UUID id = villager.getUniqueId();
+        UUID self = parseUuid(plugin.getConfig().getString("blackjack.dealer.uuid", ""));
+        UUID other = parseUuid(plugin.getConfig().getString("hilo.dealer.uuid", ""));
+        if (self != null && id.equals(self)) return true;
+        if (other != null && id.equals(other)) {
+            return self != null && self.equals(other);
         }
         String name = villager.getCustomName();
         if (name == null) return false;
         String plain = org.bukkit.ChatColor.stripColor(name);
         if (plain == null) return false;
         String lower = plain.toLowerCase(Locale.ROOT);
+        if (lower.contains("hilo") || lower.contains("h&l") || lower.contains("ハイロー")) {
+            return false;
+        }
         return lower.contains("blackjack") || lower.contains("ブラックジャック") || lower.contains("ディーラー");
+    }
+
+    private static UUID parseUuid(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return UUID.fromString(raw.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private Entity findDealerFor(Player player) {
@@ -969,9 +994,11 @@ public final class BlackjackService implements Listener {
         String configured = cfg.getString("blackjack.dealer.uuid", "");
         if (configured != null && !configured.isBlank()) {
             try {
-                UUID uuid = UUID.fromString(configured);
-                for (Entity e : player.getWorld().getEntities()) {
-                    if (e.getUniqueId().equals(uuid)) return e;
+                UUID uuid = UUID.fromString(configured.trim());
+                Entity e = Bukkit.getEntity(uuid);
+                if (e != null) return e;
+                for (Entity ent : player.getWorld().getEntities()) {
+                    if (ent.getUniqueId().equals(uuid)) return ent;
                 }
             } catch (IllegalArgumentException ignored) {
             }

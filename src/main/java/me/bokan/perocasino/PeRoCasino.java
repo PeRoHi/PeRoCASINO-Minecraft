@@ -55,6 +55,7 @@ public class PeRoCasino extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         economyManager = new EconomyManager();
+        RouletteBetMenuListener betListener = new RouletteBetMenuListener(this);
 
         getCommand("balance").setExecutor(new BalanceCommand(economyManager));
         getCommand("deposit").setExecutor(new DepositCommand(economyManager));
@@ -92,18 +93,17 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(loanListener, this);
         getServer().getPluginManager().registerEvents(
                 new CasinoMenuListener(loanListener, this, slotMachineService, blackjackService, hiLoService,
-                        chinchiroTableService), this);
+                        chinchiroTableService, betListener), this);
 
         getServer().getPluginManager().registerEvents(new WalletListener(economyManager, this), this);
         getServer().getPluginManager().registerEvents(new RuleBookListener(this), this);
         getServer().getPluginManager().registerEvents(new CommandBookListener(this), this);
         getServer().getPluginManager().registerEvents(new CommandWandListener(this), this);
 
-        RouletteBetMenuListener betListener = new RouletteBetMenuListener(this);
         getServer().getPluginManager().registerEvents(betListener, this);
         RouletteBetBoardService betBoardService = new RouletteBetBoardService(this, economyManager);
         getServer().getPluginManager().registerEvents(new RouletteBetBoardMenuListener(betBoardService), this);
-        getServer().getPluginManager().registerEvents(new RouletteInteractListener(betListener, betBoardService), this);
+        getServer().getPluginManager().registerEvents(new RouletteInteractListener(this, betListener, betBoardService), this);
 
         rouletteHubService = new RouletteHubService(this, economyManager, betListener, rouletteDisplayService, betBoardService);
         rouletteHubService.runTaskTimer(this, 0L, 1L);
@@ -144,6 +144,9 @@ public class PeRoCasino extends JavaPlugin {
     public void onDisable() {
         if (rouletteHubService != null) {
             rouletteHubService.shutdown();
+        }
+        if (rouletteDisplayService != null) {
+            rouletteDisplayService.shutdown();
         }
         if (blackjackService != null) {
             blackjackService.shutdown();

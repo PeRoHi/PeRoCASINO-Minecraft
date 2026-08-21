@@ -24,8 +24,8 @@ roulette:
     y: 63
     z: 218
     facing: EAST
-  # ItemDisplay 減速停止後、精算まで待つ tick
-  settle-delay-ticks: 40
+  # ItemDisplay 減速停止後、精算まで待つ tick（display.decel-ticks 未満なら自動で引き上げる）
+  settle-delay-ticks: 60
   # ルーレット盤面の表示（ItemDisplay）
   # /perocasino roulette display set|remove で設置・削除します。
   display:

@@ -138,11 +138,12 @@ public class SlotMachineService {
         }
     }
 
-    public void onGuiClose(UUID playerId) {
-        Session s = sessions.remove(playerId);
+    public void onGuiClose(Player player, Inventory inv) {
+        Session s = sessions.remove(player.getUniqueId());
         if (s != null) {
             s.cancelAnim();
         }
+        returnBetDiamonds(player, inv);
     }
 
     private void startSpin(Player player) {
@@ -184,6 +185,7 @@ public class SlotMachineService {
         Material r2 = pickSymbol();
 
         Session session = new Session(player.getUniqueId(), inv, bet, r0, r1, r2, min, max);
+        consumeBetDiamonds(inv);
         sessions.put(player.getUniqueId(), session);
         session.start();
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, 1.4f);
@@ -221,6 +223,24 @@ public class SlotMachineService {
             }
         }
         return n;
+    }
+
+    private static void consumeBetDiamonds(Inventory inv) {
+        if (inv == null) return;
+        for (int slot : List.of(12, 14)) {
+            inv.setItem(slot, null);
+        }
+    }
+
+    private static void returnBetDiamonds(Player player, Inventory inv) {
+        if (player == null || inv == null) return;
+        for (int slot : List.of(12, 14)) {
+            ItemStack st = inv.getItem(slot);
+            if (st == null || st.getType() != Material.DIAMOND || st.getAmount() <= 0) continue;
+            inv.setItem(slot, null);
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(st);
+            leftover.values().forEach(it -> player.getWorld().dropItemNaturally(player.getLocation(), it));
+        }
     }
 
     private final class Session {
@@ -328,10 +348,7 @@ public class SlotMachineService {
         }
 
         private void finish(Player player) {
-            // ベットダイヤを回収
-            for (int slot : List.of(12, 14)) {
-                inv.setItem(slot, null);
-            }
+            consumeBetDiamonds(inv);
 
             int three = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.three-of-a-kind", 8));
             int two = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.two-of-a-kind", 2));

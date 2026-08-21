@@ -1,6 +1,5 @@
 package me.bokan.perocasino.listeners;
 
-import me.bokan.perocasino.games.blackjack.BlackjackMenu;
 import me.bokan.perocasino.games.hilo.HiLoMenu;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;

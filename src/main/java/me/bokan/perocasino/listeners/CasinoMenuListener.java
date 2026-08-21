@@ -22,16 +22,19 @@ public class CasinoMenuListener implements Listener {
     private final BlackjackService blackjackService;
     private final HiLoService hiLoService;
     private final ChinchiroTableService chinchiroTableService;
+    private final RouletteBetMenuListener rouletteBetMenu;
 
     public CasinoMenuListener(LoanMenuListener loanListener, Plugin plugin, SlotMachineService slotMachineService,
                               BlackjackService blackjackService, HiLoService hiLoService,
-                              ChinchiroTableService chinchiroTableService) {
+                              ChinchiroTableService chinchiroTableService,
+                              RouletteBetMenuListener rouletteBetMenu) {
         this.loanListener = loanListener;
         this.plugin = plugin;
         this.slotMachineService = slotMachineService;
         this.blackjackService = blackjackService;
         this.hiLoService = hiLoService;
         this.chinchiroTableService = chinchiroTableService;
+        this.rouletteBetMenu = rouletteBetMenu;
     }
 
     @EventHandler
@@ -52,6 +55,8 @@ public class CasinoMenuListener implements Listener {
                 plugin.getServer().getScheduler().runTask(plugin, () -> loanListener.openGui(player));
             case 19 ->
                 plugin.getServer().getScheduler().runTask(plugin, () -> slotMachineService.openGui(player));
+            case 22 ->
+                plugin.getServer().getScheduler().runTask(plugin, () -> rouletteBetMenu.openBetGui(player));
             case 25 ->
                 plugin.getServer().getScheduler().runTask(plugin, () -> hiLoService.openFromMenu(player));
             case 28 ->

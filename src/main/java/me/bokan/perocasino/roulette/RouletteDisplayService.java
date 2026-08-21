@@ -74,7 +74,14 @@ public final class RouletteDisplayService {
         }
 
         World w = Bukkit.getWorld(worldName);
-        if (w == null) return;
+        if (w == null) {
+            displayUuid = null;
+            anchor = null;
+            angleOffsetDeg = (float) cfg.getDouble("roulette.display.angle-offset-deg", 0.0);
+            decelDistanceDeg = (float) cfg.getDouble("roulette.display.decel-distance-deg", 540.0);
+            decelTicks = Math.max(1, cfg.getInt("roulette.display.decel-ticks", 60));
+            return;
+        }
 
         displayUuid = tryParseUuid(uuidStr);
         double x = cfg.getDouble("roulette.display.anchor.x", 0.0);
@@ -95,6 +102,19 @@ public final class RouletteDisplayService {
         if (displayUuid == null) {
             ensureSpawned();
         }
+    }
+
+    public int getDecelTicks() {
+        return decelTicks;
+    }
+
+    public void shutdown() {
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
+        targetDeg = null;
+        targetDegAbsolute = null;
     }
 
     public boolean hasDisplay() {

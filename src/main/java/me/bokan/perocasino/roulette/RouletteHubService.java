@@ -87,7 +87,6 @@ public class RouletteHubService extends BukkitRunnable {
         betTicks = Math.max(20, cfg.getInt("roulette.bet-seconds", 20) * 20);
         spinTicks = Math.max(20, cfg.getInt("roulette.spin-seconds", 3) * 20);
         cooldownTicks = Math.max(20, cfg.getInt("roulette.cooldown-seconds", 5) * 20);
-        settleDelayTicks = Math.max(0, cfg.getInt("roulette.settle-delay-ticks", 40));
 
         // 角度セグメント設定（画像制作・当たり判定の基準）
         try {
@@ -104,6 +103,9 @@ public class RouletteHubService extends BukkitRunnable {
         if (betBoardService != null) {
             betBoardService.reloadFromConfig();
         }
+        int configuredSettle = Math.max(0, cfg.getInt("roulette.settle-delay-ticks", 40));
+        // 表示の減速が終わる前に精算しない
+        settleDelayTicks = Math.max(configuredSettle, displayService.getDecelTicks());
 
         symbolPool.clear();
         List<String> raw = cfg.getStringList("slot-machine.symbols");
@@ -129,6 +131,12 @@ public class RouletteHubService extends BukkitRunnable {
             if (symbolPool.isEmpty()) {
                 symbolPool.add(Material.DIAMOND_ORE);
             }
+        }
+
+        // reload で進行中ラウンドを捨てる場合、確定済みベットは返却する
+        if (phase == RoulettePhase.SPINNING || phase == RoulettePhase.STOPPING || pendingSettlement
+                || betMenuListener.hasLockedBets()) {
+            betMenuListener.refundLockedBets(economyManager, "設定再読込");
         }
 
         // フェーズをリセット
@@ -197,6 +205,9 @@ public class RouletteHubService extends BukkitRunnable {
                 phase = RoulettePhase.SPINNING;
                 phaseTicksRemaining = spinTicks;
                 // ベット締切: 54枠GUIの内容を内部データに確定して、GUIから物理回収する
+                if (betMenuListener.hasLockedBets()) {
+                    betMenuListener.refundLockedBets(economyManager, "未精算の持ち越し");
+                }
                 betMenuListener.lockBetsForSpin();
                 if (angleConfig != null) {
                     pendingResult = RouletteSettlement.randomAngleResult(angleConfig);
@@ -207,7 +218,8 @@ public class RouletteHubService extends BukkitRunnable {
             }
             case SPINNING -> {
                 if (angleConfig == null || pendingResult == null) {
-                    plugin.getLogger().warning("[Roulette] angleConfig/pendingResult is null; skipping settlement.");
+                    plugin.getLogger().warning("[Roulette] angleConfig/pendingResult is null; refunding locked bets.");
+                    betMenuListener.refundLockedBets(economyManager, "抽選設定不正");
                 } else {
                     displayService.stopAtAngle(pendingResult.stopAngleDeg());
                     // 表示が止まるまで待ってから、結果通知＋精算へ

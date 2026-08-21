@@ -138,11 +138,11 @@ public final class HiLoService implements Listener {
     public void onDealerInteract(PlayerInteractEntityEvent event) {
         if (!(event.getRightClicked() instanceof Villager villager)) return;
         if (!isDealer(villager)) return;
-        event.setCancelled(true);
         Player player = event.getPlayer();
         if (blackjackService != null && blackjackService.isPlayerInGame(player.getUniqueId())) {
             return;
         }
+        event.setCancelled(true);
         if (resumeFromDealer(player, villager)) {
             return;
         }
@@ -166,6 +166,15 @@ public final class HiLoService implements Listener {
         if (session.players.containsKey(id)) {
             leave(event.getPlayer(), false);
         }
+    }
+
+    @EventHandler
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        if (session == null) return;
+        Player player = event.getEntity();
+        if (!session.players.containsKey(player.getUniqueId())) return;
+        event.getDrops().removeIf(this::isHiLoCard);
+        leave(player, false);
     }
 
     @EventHandler
@@ -364,6 +373,10 @@ public final class HiLoService implements Listener {
     private final Map<UUID, PendingMode> pendingModes = new HashMap<>();
 
     private boolean tryJoinExistingLobby(Player player) {
+        if (blackjackService != null && blackjackService.isPlayerInGame(player.getUniqueId())) {
+            player.sendMessage("§c先にブラックジャックを終了してください。");
+            return true;
+        }
         if (session == null || session.phase != Phase.LOBBY) {
             return false;
         }
@@ -416,8 +429,20 @@ public final class HiLoService implements Listener {
     }
 
     private void createLobby(Player host, Mode mode, UUID dealerId, int sets) {
+        if (blackjackService != null && blackjackService.isPlayerInGame(host.getUniqueId())) {
+            host.sendMessage("§c先にブラックジャックを終了してください。");
+            return;
+        }
         if (session != null && session.phase == Phase.PLAYING) {
             host.sendMessage("§c進行中のH&Lがあります。");
+            return;
+        }
+        if (session != null && session.phase == Phase.LOBBY && !session.players.isEmpty()) {
+            if (session.players.containsKey(host.getUniqueId())) {
+                openLobby(host);
+                return;
+            }
+            host.sendMessage("§c既にH&Lロビーが開いています。ディーラーから参加してください。");
             return;
         }
         session = new Session(host.getUniqueId(), dealerId, mode, sets);
@@ -1059,23 +1084,35 @@ public final class HiLoService implements Listener {
     }
 
     private boolean isDealer(Villager villager) {
-        String configured = plugin.getConfig().getString("hilo.dealer.uuid", "");
-        if (configured != null && !configured.isBlank() && configured.equals(villager.getUniqueId().toString())) return true;
-        String sharedBj = plugin.getConfig().getString("blackjack.dealer.uuid", "");
-        if (sharedBj != null && !sharedBj.isBlank() && sharedBj.equals(villager.getUniqueId().toString())) return true;
+        UUID id = villager.getUniqueId();
+        UUID self = parseUuid(plugin.getConfig().getString("hilo.dealer.uuid", ""));
+        UUID other = parseUuid(plugin.getConfig().getString("blackjack.dealer.uuid", ""));
+        if (self != null && id.equals(self)) return true;
+        if (other != null && id.equals(other)) {
+            return self != null && self.equals(other);
+        }
         String plain = org.bukkit.ChatColor.stripColor(villager.getCustomName());
         if (plain == null) return false;
         String lower = plain.toLowerCase(Locale.ROOT);
+        if (lower.contains("blackjack") || lower.contains("ブラックジャック")) {
+            return false;
+        }
         return lower.contains("hilo")
                 || lower.contains("h&l")
                 || lower.contains("high")
                 || lower.contains("low")
                 || plain.contains("ハイロー")
                 || plain.contains("H＆L")
-                || plain.contains("H&L")
-                || lower.contains("blackjack")
-                || lower.contains("ブラックジャック")
-                || lower.contains("ディーラー");
+                || plain.contains("H&L");
+    }
+
+    private static UUID parseUuid(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return UUID.fromString(raw.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private Entity findDealerFor(Player player) {
@@ -1095,12 +1132,7 @@ public final class HiLoService implements Listener {
     }
 
     private UUID findDealerIdFor(Player player) {
-        String raw = plugin.getConfig().getString("hilo.dealer.uuid", "");
-        try {
-            return raw == null || raw.isBlank() ? null : UUID.fromString(raw);
-        } catch (Exception ignored) {
-            return null;
-        }
+        return parseUuid(plugin.getConfig().getString("hilo.dealer.uuid", ""));
     }
 
     private Entity getDealerEntity() {

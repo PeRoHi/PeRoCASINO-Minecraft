@@ -230,6 +230,43 @@ public class RouletteBetMenuListener implements Listener {
         }
     }
 
+    public boolean hasLockedBets() {
+        for (Map<Integer, Integer> m : lockedBets.values()) {
+            if (m == null) continue;
+            for (int n : m.values()) {
+                if (n > 0) return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 未精算の確定ベットを返却する（reload や抽選設定不正時）。特殊枠の預かりはそのまま残す。
+     */
+    public void refundLockedBets(me.bokan.perocasino.economy.EconomyManager economy, String reason) {
+        for (Map.Entry<UUID, Map<Integer, Integer>> e : lockedBets.entrySet()) {
+            UUID uuid = e.getKey();
+            Map<Integer, Integer> m = e.getValue();
+            if (m == null) continue;
+            int total = m.values().stream().mapToInt(Integer::intValue).sum();
+            if (total <= 0) continue;
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                int toInv = addDiamondsToInventory(p, total);
+                int overflow = total - toInv;
+                if (overflow > 0 && economy != null) {
+                    economy.addWalletBalance(uuid, overflow);
+                }
+                String why = (reason == null || reason.isBlank()) ? "" : "（" + reason + "）";
+                p.sendMessage("§e[ルーレット] §fベットを返却しました" + why + " §b" + total + "個");
+            } else if (economy != null) {
+                economy.addWalletBalance(uuid, total);
+            }
+        }
+        lockedBets.clear();
+        lockedSpecialBets.clear();
+    }
+
     /**
      * 結果倍率に応じて精算する。
      * - 通常枠: 一致倍率の賭け枚数 × 倍率を払戻（手持ち→溢れは財布）。それ以外は没収。
