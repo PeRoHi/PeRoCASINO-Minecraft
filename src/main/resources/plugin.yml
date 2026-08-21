@@ -5,6 +5,20 @@ api-version: "1.21"
 description: A casino plugin for Minecraft
 authors: [PeRo]
 
+permissions:
+  perocasino.admin:
+    description: /perocasino 管理者コマンドの使用
+    default: op
+  perocasino.chinchiro.roll:
+    description: チンチロのサイコロを振る（練習・表示のみ）
+    default: true
+  perocasino.chinchiro.table:
+    description: チンチロ卓（村人ディーラー）に参加する
+    default: true
+  perocasino.commandwand:
+    description: config の command-wand で指定した杖（人参付きの棒等）の使用
+    default: op
+
 commands:
   balance:
     description: 財布残高と借金額を表示する
@@ -16,8 +30,18 @@ commands:
   casino:
     description: カジノメニューを開く（コンソール・コマブロからも使用可）
     usage: /casino [プレイヤー名]
+  commandbook:
+    description: コマンド集の本を受け取る（未所持のときだけ追加）。refresh で最新版に差し替え
+    usage: /commandbook [refresh]
+    aliases: [cb]
   perocasino:
     description: 管理者用（ルーレット設置・採石場範囲など）
     usage: /perocasino <subcommand>
     permission: perocasino.admin
     aliases: [pc]
+  hilo:
+    description: High & Low の選択（進行中のセッションがあるときのみ）
+    usage: /hilo select <high|low>
+  chinchiro:
+    description: チンチロ用サイコロを振る（表示領域が必要）
+    usage: /chinchiro roll

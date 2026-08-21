@@ -1,6 +1,5 @@
 package me.bokan.perocasino.listeners;
 
-import me.bokan.perocasino.games.blackjack.BlackjackMenu;
 import me.bokan.perocasino.games.hilo.HiLoMenu;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -17,7 +16,7 @@ public class GameMenuListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
         String title = event.getView().getTitle();
-        if (!BlackjackMenu.GUI_TITLE.equals(title) && !HiLoMenu.GUI_TITLE.equals(title)) return;
+        if (!HiLoMenu.GUI_TITLE.equals(title)) return;
 
         event.setCancelled(true);
 

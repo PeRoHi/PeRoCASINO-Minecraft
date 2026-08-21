@@ -1,0 +1,26 @@
+{
+  "ambientocclusion": false,
+  "textures": {
+    "particle": "minecraft:item/dice1",
+    "tex_up": "minecraft:item/dice1",
+    "tex_down": "minecraft:item/dice6",
+    "tex_north": "minecraft:item/dice2",
+    "tex_south": "minecraft:item/dice5",
+    "tex_east": "minecraft:item/dice3",
+    "tex_west": "minecraft:item/dice4"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 16, 16],
+      "faces": {
+        "up": { "uv": [0, 0, 16, 16], "texture": "#tex_up" },
+        "down": { "uv": [0, 0, 16, 16], "texture": "#tex_down" },
+        "north": { "uv": [0, 0, 16, 16], "texture": "#tex_north" },
+        "south": { "uv": [0, 0, 16, 16], "texture": "#tex_south" },
+        "east": { "uv": [0, 0, 16, 16], "texture": "#tex_east" },
+        "west": { "uv": [0, 0, 16, 16], "texture": "#tex_west" }
+      }
+    }
+  ]
+}

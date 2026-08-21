@@ -18,30 +18,35 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * 自動ルーレットの簡易精算（ベット枠の鉱石アイテムと、ランダムに出た3つの鉱石結果を突き合わせる）。
+ * 自動ルーレットの精算。
+ *
+ * 現在は「停止角度 → セグメント倍率」を採用し、総ベット×倍率を財布へ払い戻す。
  */
 public final class RouletteSettlement {
 
     private RouletteSettlement() {}
 
-    public record RoundResult(Material a, Material b, Material c) {}
+    public record AngleRoundResult(int stopAngleDeg, int multiplier) {}
 
-    public static RoundResult randomResult(List<Material> symbolPool) {
+    /**
+     * 0〜359°の停止角度をランダムに決め、その角度が属する倍率を結果として返す。
+     * 角度一様乱数なので、セグメント幅（degrees）の比率がそのまま出現確率になる。
+     */
+    public static AngleRoundResult randomAngleResult(RouletteAngleConfig angleConfig) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        Material pick() {
-            return symbolPool.get(r.nextInt(symbolPool.size()));
-        }
-        return new RoundResult(pick(), pick(), pick());
+        int angle = r.nextInt(360);
+        int mult = angleConfig.segmentForAngle(angle).multiplier();
+        return new AngleRoundResult(angle, mult);
     }
 
     public static void settleRound(EconomyManager economy,
                                    RouletteBetMenuListener betListener,
-                                   List<Material> symbolPool,
-                                   int payoutThree,
-                                   int payoutTwo,
+                                   AngleRoundResult result,
                                    Location hub,
                                    double notifyRadius) {
-        RoundResult result = randomResult(symbolPool);
+        if (result == null) {
+            throw new IllegalStateException("Roulette result が未設定です。");
+        }
 
         Map<UUID, Inventory> open = betListener.getOpenBetInventoriesView();
         List<Map.Entry<UUID, Inventory>> snapshot = new ArrayList<>(open.entrySet());
@@ -56,7 +61,6 @@ public final class RouletteSettlement {
             if (!player.getOpenInventory().getTopInventory().equals(inv)) continue;
 
             int totalBet = 0;
-            int matches = 0;
 
             for (int slot : RouletteBetMenuListener.BET_SLOTS) {
                 ItemStack stack = inv.getItem(slot);
@@ -68,21 +72,7 @@ public final class RouletteSettlement {
             int allIn = betListener.getAllInBets().getOrDefault(uuid, 0);
             totalBet += allIn;
 
-            for (int slot : RouletteBetMenuListener.BET_SLOTS) {
-                ItemStack stack = inv.getItem(slot);
-                if (stack == null || stack.getType() == Material.AIR) continue;
-                if (stack.getType() == Material.DIAMOND) continue;
-                Material m = stack.getType();
-                if (m == result.a() || m == result.b() || m == result.c()) {
-                    matches++;
-                }
-            }
-
-            int mult = 0;
-            if (matches >= 3) mult = payoutThree;
-            else if (matches == 2) mult = payoutTwo;
-
-            int payout = totalBet * mult;
+            int payout = totalBet * result.multiplier();
 
             // 盤面のベット（ダイヤ以外も）を一旦クリア
             for (int slot : RouletteBetMenuListener.BET_SLOTS) {
@@ -93,16 +83,13 @@ public final class RouletteSettlement {
 
             if (payout > 0) {
                 economy.addWalletBalance(uuid, payout);
-                player.sendMessage("§a[ルーレット] §f結果: §e" + shortName(result.a())
-                        + " §7/ §e" + shortName(result.b())
-                        + " §7/ §e" + shortName(result.c())
-                        + " §f| 一致: §b" + matches
+                player.sendMessage("§a[ルーレット] §f結果: §e" + result.multiplier() + "x"
+                        + " §7(角度 " + result.stopAngleDeg() + "°)"
                         + " §f| 払戻: §b" + payout + "§f（財布）");
             } else if (totalBet > 0) {
-                player.sendMessage("§c[ルーレット] §f結果: §e" + shortName(result.a())
-                        + " §7/ §e" + shortName(result.b())
-                        + " §7/ §e" + shortName(result.c())
-                        + " §f| 一致: §7" + matches + " §f（払戻なし）");
+                player.sendMessage("§c[ルーレット] §f結果: §e" + result.multiplier() + "x"
+                        + " §7(角度 " + result.stopAngleDeg() + "°)"
+                        + " §f（払戻なし）");
             }
 
             // 開いている人だけ即時反映
@@ -117,9 +104,7 @@ public final class RouletteSettlement {
         if (hub != null && hub.getWorld() != null) {
             World w = hub.getWorld();
             double r2 = notifyRadius * notifyRadius;
-            String msg = "§d[ルーレット] §f結果: §e" + shortName(result.a())
-                    + " §7/ §e" + shortName(result.b())
-                    + " §7/ §e" + shortName(result.c());
+            String msg = "§d[ルーレット] §f結果: §e" + result.multiplier() + "x §7(角度 " + result.stopAngleDeg() + "°)";
             for (Player p : Bukkit.getOnlinePlayers()) {
                 if (!p.getWorld().equals(w)) continue;
                 if (p.getLocation().distanceSquared(hub) <= r2) {
@@ -127,11 +112,5 @@ public final class RouletteSettlement {
                 }
             }
         }
-    }
-
-    private static String shortName(Material m) {
-        String s = m.name().toLowerCase().replace('_', ' ');
-        if (s.length() <= 14) return s;
-        return s.substring(0, 14) + "…";
     }
 }
