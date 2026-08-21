@@ -108,6 +108,25 @@ public final class RouletteBetBoardService {
         return idx >= 0 && idx < 5;
     }
 
+    /** ルーレット拠点（単体砥石）かどうか。board 未設定時のフォールバック用。 */
+    public boolean isHubGrindstone(Block block) {
+        if (block == null || block.getType() != Material.GRINDSTONE) return false;
+        FileConfiguration cfg = plugin.getConfig();
+        String wName = cfg.getString("roulette.world", "");
+        if (wName == null || wName.isBlank()) return false;
+        World w = Bukkit.getWorld(wName);
+        if (w == null || !block.getWorld().equals(w)) return false;
+        Location l = block.getLocation();
+        return l.getBlockX() == cfg.getInt("roulette.x", 0)
+                && l.getBlockY() == cfg.getInt("roulette.y", 0)
+                && l.getBlockZ() == cfg.getInt("roulette.z", 0);
+    }
+
+    /** ルーレット用砥石（拠点または5列ベット盤）かどうか。 */
+    public boolean isAnyRouletteGrindstone(Block block) {
+        return isBetGrindstone(block) || isHubGrindstone(block);
+    }
+
     public void handleBetClick(Player player, PlayerInteractEvent event) {
         if (event.getClickedBlock() == null) return;
         int mult = multiplierFor(event.getClickedBlock());
@@ -115,9 +134,9 @@ public final class RouletteBetBoardService {
         openBetGui(player, mult);
     }
 
-    public boolean isBetGui(Inventory inv) {
-        if (inv == null) return false;
-        return isBetGuiTitle(inv.getViewers().isEmpty() ? null : inv.getViewers().getFirst().getOpenInventory().getTitle());
+    public boolean isBetGui(org.bukkit.inventory.InventoryView view) {
+        if (view == null) return false;
+        return isBetGuiTitle(view.getTitle());
     }
 
     public boolean isBetGuiTitle(String title) {
@@ -144,8 +163,8 @@ public final class RouletteBetBoardService {
 
     public void onBetGuiClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
+        if (!isBetGui(event.getView())) return;
         Inventory inv = event.getInventory();
-        if (!isBetGui(inv)) return;
         int mult = multiplierFromGuiTitle(event.getView().getTitle());
         if (mult <= 0) return;
         // 保存: GUI内のダイヤ枚数をベットとして記録（それ以外は強制排出して返す）

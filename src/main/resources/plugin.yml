@@ -6,6 +6,9 @@ description: A casino plugin for Minecraft
 authors: [PeRo]
 
 permissions:
+  perocasino.admin:
+    description: 管理者用コマンド（/perocasino）
+    default: op
   perocasino.chinchiro.roll:
     description: チンチロのサイコロを振る（練習・表示のみ）
     default: true

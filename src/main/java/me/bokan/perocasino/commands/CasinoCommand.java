@@ -69,6 +69,7 @@ public class CasinoCommand implements CommandExecutor {
         gui.setItem(19, createItem(Material.TRIPWIRE_HOOK, "§e§lSLOT"));
         gui.setItem(25, createItem(Material.TOTEM_OF_UNDYING, "§5§lHI-LO (WIP)"));
         gui.setItem(28, createItem(Material.NAME_TAG, "§2§lBLACKJACK (WIP)"));
+        gui.setItem(37, createItem(Material.VILLAGER_SPAWN_EGG, "§6§lCHINCHIRO"));
         
         gui.setItem(49, createItem(Material.BARRIER,    "§7[閉じる]"));
         player.openInventory(gui);

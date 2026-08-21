@@ -5,6 +5,7 @@ import me.bokan.perocasino.games.blackjack.BlackjackService;
 import me.bokan.perocasino.games.chinchiro.ChinchiroTableService;
 import me.bokan.perocasino.games.hilo.HiLoService;
 import me.bokan.perocasino.games.slot.SlotMachineService;
+import me.bokan.perocasino.roulette.RoulettePhase;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -22,16 +23,19 @@ public class CasinoMenuListener implements Listener {
     private final BlackjackService blackjackService;
     private final HiLoService hiLoService;
     private final ChinchiroTableService chinchiroTableService;
+    private final RouletteBetMenuListener rouletteBetMenuListener;
 
     public CasinoMenuListener(LoanMenuListener loanListener, Plugin plugin, SlotMachineService slotMachineService,
                               BlackjackService blackjackService, HiLoService hiLoService,
-                              ChinchiroTableService chinchiroTableService) {
+                              ChinchiroTableService chinchiroTableService,
+                              RouletteBetMenuListener rouletteBetMenuListener) {
         this.loanListener = loanListener;
         this.plugin = plugin;
         this.slotMachineService = slotMachineService;
         this.blackjackService = blackjackService;
         this.hiLoService = hiLoService;
         this.chinchiroTableService = chinchiroTableService;
+        this.rouletteBetMenuListener = rouletteBetMenuListener;
     }
 
     @EventHandler
@@ -52,6 +56,14 @@ public class CasinoMenuListener implements Listener {
                 plugin.getServer().getScheduler().runTask(plugin, () -> loanListener.openGui(player));
             case 19 ->
                 plugin.getServer().getScheduler().runTask(plugin, () -> slotMachineService.openGui(player));
+            case 22 ->
+                plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    if (RouletteBetMenuListener.getHubPhase() != RoulettePhase.BETTING) {
+                        player.sendMessage("§cルーレット進行中はベットできません。");
+                        return;
+                    }
+                    rouletteBetMenuListener.openBetGui(player);
+                });
             case 25 ->
                 plugin.getServer().getScheduler().runTask(plugin, () -> hiLoService.openFromMenu(player));
             case 28 ->
