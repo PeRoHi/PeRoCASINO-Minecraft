@@ -1,0 +1,55 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "minecraft: build plugin",
+      "type": "shell",
+      "command": "mvn package -DskipTests",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$javac"]
+    },
+    {
+      "label": "minecraft: start dev server",
+      "type": "shell",
+      "command": "bash scripts/dev-server.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "minecraft",
+        "pattern": {
+          "regexp": "^(.*)$",
+          "file": 1,
+          "location": 1,
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Starting Paper",
+          "endsPattern": "Done \\([0-9.]+s\\)! For help, type \"help\""
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": false
+      }
+    },
+    {
+      "label": "minecraft: reload plugin (build + copy)",
+      "type": "shell",
+      "command": "mvn -q package -DskipTests && cp -f target/PeRoCasino-1.0.0.jar .dev-server/plugins/PeRoCasino.jar && echo 'Copied. Run: /reload confirm' in server console (or restart).'",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": ["$javac"]
+    }
+  ]
+}
