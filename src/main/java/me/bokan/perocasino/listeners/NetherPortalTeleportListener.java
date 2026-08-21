@@ -13,9 +13,12 @@ import org.bukkit.plugin.Plugin;
 
 /**
  * ネザーポータルに入った瞬間、指定座標へテレポートする。
- * 仕様: config.yml の portal-teleport.enabled が true の場合のみ有効。
+ * 仕様: config.yml の nether-portal.enabled が true の場合のみ有効。
  */
 public class NetherPortalTeleportListener implements Listener {
+
+    private static final String CONFIG_ROOT = "nether-portal";
+    private static final String LEGACY_ROOT = "portal-teleport";
 
     private final Plugin plugin;
 
@@ -26,21 +29,24 @@ public class NetherPortalTeleportListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPortal(PlayerPortalEvent event) {
         FileConfiguration cfg = plugin.getConfig();
-        if (!cfg.getBoolean("portal-teleport.enabled", false)) return;
+        if (!cfg.getBoolean(CONFIG_ROOT + ".enabled", cfg.getBoolean(LEGACY_ROOT + ".enabled", false))) return;
 
         // ネザーポータル由来のみ
         if (event.getCause() != PlayerPortalEvent.TeleportCause.NETHER_PORTAL) return;
 
-        String worldName = cfg.getString("portal-teleport.to.world", "");
+        String worldName = cfg.getString(CONFIG_ROOT + ".to.world",
+                cfg.getString(LEGACY_ROOT + ".to.world", ""));
         if (worldName == null || worldName.isBlank()) return;
         World w = Bukkit.getWorld(worldName);
         if (w == null) return;
 
-        double x = cfg.getDouble("portal-teleport.to.x");
-        double y = cfg.getDouble("portal-teleport.to.y");
-        double z = cfg.getDouble("portal-teleport.to.z");
-        float yaw = (float) cfg.getDouble("portal-teleport.to.yaw", 0.0);
-        float pitch = (float) cfg.getDouble("portal-teleport.to.pitch", 0.0);
+        double x = cfg.getDouble(CONFIG_ROOT + ".to.x", cfg.getDouble(LEGACY_ROOT + ".to.x", 0.0));
+        double y = cfg.getDouble(CONFIG_ROOT + ".to.y", cfg.getDouble(LEGACY_ROOT + ".to.y", 0.0));
+        double z = cfg.getDouble(CONFIG_ROOT + ".to.z", cfg.getDouble(LEGACY_ROOT + ".to.z", 0.0));
+        float yaw = (float) cfg.getDouble(CONFIG_ROOT + ".to.yaw",
+                cfg.getDouble(LEGACY_ROOT + ".to.yaw", 0.0));
+        float pitch = (float) cfg.getDouble(CONFIG_ROOT + ".to.pitch",
+                cfg.getDouble(LEGACY_ROOT + ".to.pitch", 0.0));
 
         Location to = new Location(w, x, y, z, yaw, pitch);
 

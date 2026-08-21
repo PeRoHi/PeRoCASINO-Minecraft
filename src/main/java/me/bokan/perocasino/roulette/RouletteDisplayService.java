@@ -351,5 +351,14 @@ public final class RouletteDisplayService {
             return null;
         }
     }
+
+    public void shutdown() {
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
+        targetDeg = null;
+        targetDegAbsolute = null;
+    }
 }
 

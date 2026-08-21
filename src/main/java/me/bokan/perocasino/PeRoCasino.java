@@ -50,16 +50,20 @@ public class PeRoCasino extends JavaPlugin {
     private SlotDisplayService slotDisplayService;
     private ChinchiroDiceService chinchiroDiceService;
     private ChinchiroTableService chinchiroTableService;
+    private SlotDisplayBetDealerListener slotDisplayBetDealerListener;
+    private QuarryRespawnListener quarryRespawnListener;
+    private HudTask hudTask;
+    private LoanTask loanTask;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         economyManager = new EconomyManager();
 
-        getCommand("balance").setExecutor(new BalanceCommand(economyManager));
-        getCommand("deposit").setExecutor(new DepositCommand(economyManager));
-        getCommand("casino").setExecutor(new CasinoCommand());
-        getCommand("commandbook").setExecutor(new CommandBookCommand(this));
+        registerCommand("balance", new BalanceCommand(economyManager));
+        registerCommand("deposit", new DepositCommand(economyManager));
+        registerCommand("casino", new CasinoCommand());
+        registerCommand("commandbook", new CommandBookCommand(this));
 
         slotMachineService = new SlotMachineService(this, economyManager);
         blackjackService = new BlackjackService(this, economyManager);
@@ -116,16 +120,21 @@ public class PeRoCasino extends JavaPlugin {
                 if (slotDisplayService != null) slotDisplayService.reloadFromConfig();
                 if (chinchiroDiceService != null) chinchiroDiceService.reloadFromConfig();
                 if (chinchiroTableService != null) chinchiroTableService.reloadFromConfig();
+                if (blackjackService != null) blackjackService.applyConfiguredDealerNpcSettings();
+                if (hiLoService != null) hiLoService.applyConfiguredDealerNpcSettings();
+                if (slotDisplayBetDealerListener != null) slotDisplayBetDealerListener.applyConfiguredDealerNpcSettings();
             }, slotDisplayService, chinchiroDiceService);
             pc.setExecutor(adminCmd);
             pc.setTabCompleter(adminCmd);
         }
 
-        getServer().getPluginManager().registerEvents(new QuarryRespawnListener(this), this);
+        quarryRespawnListener = new QuarryRespawnListener(this);
+        getServer().getPluginManager().registerEvents(quarryRespawnListener, this);
         getServer().getPluginManager().registerEvents(new SlotInteractListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new SlotDisplayInteractListener(slotDisplayService), this);
         getServer().getPluginManager().registerEvents(new SlotDisplayBlockButtonListener(slotDisplayService), this);
-        getServer().getPluginManager().registerEvents(new SlotDisplayBetDealerListener(this, economyManager), this);
+        slotDisplayBetDealerListener = new SlotDisplayBetDealerListener(this, economyManager);
+        getServer().getPluginManager().registerEvents(slotDisplayBetDealerListener, this);
         getServer().getPluginManager().registerEvents(new SlotMenuListener(), this);
         getServer().getPluginManager().registerEvents(new SlotSessionCleanupListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new GameMenuListener(), this);
@@ -134,16 +143,29 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(hiLoService, this);
         getServer().getPluginManager().registerEvents(chinchiroTableService, this);
 
-        new HudTask(economyManager).runTaskTimer(this, 0L, 20L);
-        new LoanTask(economyManager).runTaskTimer(this, 20L, 20L);
+        hudTask = new HudTask(economyManager);
+        hudTask.runTaskTimer(this, 0L, 20L);
+        loanTask = new LoanTask(economyManager);
+        loanTask.runTaskTimer(this, 20L, 20L);
 
         getLogger().info("PeRoCasino が有効化されました！");
     }
 
     @Override
     public void onDisable() {
+        if (hudTask != null) {
+            hudTask.cancel();
+            hudTask = null;
+        }
+        if (loanTask != null) {
+            loanTask.cancel();
+            loanTask = null;
+        }
         if (rouletteHubService != null) {
             rouletteHubService.shutdown();
+        }
+        if (rouletteDisplayService != null) {
+            rouletteDisplayService.shutdown();
         }
         if (blackjackService != null) {
             blackjackService.shutdown();
@@ -160,7 +182,19 @@ public class PeRoCasino extends JavaPlugin {
         if (chinchiroTableService != null) {
             chinchiroTableService.shutdown();
         }
+        if (quarryRespawnListener != null) {
+            quarryRespawnListener.shutdown();
+        }
         getLogger().info("PeRoCasino が無効化されました。");
+    }
+
+    private void registerCommand(String name, org.bukkit.command.CommandExecutor executor) {
+        org.bukkit.command.PluginCommand cmd = getCommand(name);
+        if (cmd == null) {
+            getLogger().severe("plugin.yml に " + name + " コマンドが定義されていません。");
+            return;
+        }
+        cmd.setExecutor(executor);
     }
 
     public EconomyManager getEconomyManager() {

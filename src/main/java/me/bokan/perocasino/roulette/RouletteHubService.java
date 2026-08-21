@@ -207,7 +207,8 @@ public class RouletteHubService extends BukkitRunnable {
             }
             case SPINNING -> {
                 if (angleConfig == null || pendingResult == null) {
-                    plugin.getLogger().warning("[Roulette] angleConfig/pendingResult is null; skipping settlement.");
+                    plugin.getLogger().warning("[Roulette] angleConfig/pendingResult is null; refunding locked bets.");
+                    betMenuListener.refundLockedBets(economyManager);
                 } else {
                     displayService.stopAtAngle(pendingResult.stopAngleDeg());
                     // 表示が止まるまで待ってから、結果通知＋精算へ

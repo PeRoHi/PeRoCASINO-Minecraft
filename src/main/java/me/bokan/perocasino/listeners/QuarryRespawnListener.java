@@ -195,4 +195,12 @@ public class QuarryRespawnListener implements Listener {
     }
 
     private record PendingRestore(String world, int x, int y, int z, Material restore, long restoreAtMillis) {}
+
+    public void shutdown() {
+        for (BukkitTask task : pending.values()) {
+            if (task != null) task.cancel();
+        }
+        pending.clear();
+        savePendingToConfig();
+    }
 }

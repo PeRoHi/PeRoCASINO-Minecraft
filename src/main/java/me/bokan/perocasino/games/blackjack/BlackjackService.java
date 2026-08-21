@@ -948,19 +948,12 @@ public final class BlackjackService implements Listener {
             } catch (IllegalArgumentException ignored) {
             }
         }
-        String sharedHilo = plugin.getConfig().getString("hilo.dealer.uuid", "");
-        if (sharedHilo != null && !sharedHilo.isBlank()) {
-            try {
-                if (villager.getUniqueId().equals(UUID.fromString(sharedHilo.trim()))) return true;
-            } catch (IllegalArgumentException ignored) {
-            }
-        }
         String name = villager.getCustomName();
         if (name == null) return false;
         String plain = org.bukkit.ChatColor.stripColor(name);
         if (plain == null) return false;
         String lower = plain.toLowerCase(Locale.ROOT);
-        return lower.contains("blackjack") || lower.contains("ブラックジャック") || lower.contains("ディーラー");
+        return lower.contains("blackjack") || lower.contains("ブラックジャック");
     }
 
     private Entity findDealerFor(Player player) {

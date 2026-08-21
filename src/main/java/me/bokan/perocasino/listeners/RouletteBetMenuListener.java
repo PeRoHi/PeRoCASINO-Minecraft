@@ -313,6 +313,49 @@ public class RouletteBetMenuListener implements Listener {
         }
     }
 
+    /**
+     * ルーレット抽選不能時など、lockBetsForSpin で回収済みのベットを返却する。
+     */
+    public void refundLockedBets(me.bokan.perocasino.economy.EconomyManager economy) {
+        for (Map.Entry<UUID, Map<Integer, Integer>> e : lockedBets.entrySet()) {
+            UUID uuid = e.getKey();
+            Map<Integer, Integer> m = e.getValue();
+            if (m == null) continue;
+            int total = m.values().stream().mapToInt(Integer::intValue).sum();
+            if (total <= 0) continue;
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                int toInv = addDiamondsToInventory(p, total);
+                int overflow = total - toInv;
+                if (overflow > 0 && economy != null) {
+                    economy.addWalletBalance(uuid, overflow);
+                }
+                p.sendMessage("§e[ルーレット] §f抽選を中止したためベットを返却しました §7(§b" + total + "個§7)");
+            } else if (economy != null) {
+                economy.addWalletBalance(uuid, total);
+            }
+        }
+        lockedBets.clear();
+
+        for (UUID uuid : new ArrayList<>(specialBets.keySet())) {
+            SpecialBet sb = specialBets.get(uuid);
+            if (sb == null || sb.amount <= 0) continue;
+            Player p = Bukkit.getPlayer(uuid);
+            if (p != null && p.isOnline()) {
+                int toInv = addDiamondsToInventory(p, sb.amount);
+                int overflow = sb.amount - toInv;
+                if (overflow > 0 && economy != null) {
+                    economy.addWalletBalance(uuid, overflow);
+                }
+                p.sendMessage("§e[ルーレット] §f特殊枠ベットを返却しました §7(§b" + sb.amount + "個§7)");
+            } else if (economy != null) {
+                economy.addWalletBalance(uuid, sb.amount);
+            }
+            specialBets.remove(uuid);
+            lockedSpecialBets.remove(uuid);
+        }
+    }
+
     /** 次ラウンドのために、開いているGUIと保存されているGUI内容のベット枠をクリアする。 */
     public void resetForNextRound() {
         for (Inventory inv : openBetInventories.values()) {
