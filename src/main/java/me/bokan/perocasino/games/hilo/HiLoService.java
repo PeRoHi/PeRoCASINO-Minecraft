@@ -76,6 +76,7 @@ public final class HiLoService implements Listener {
     private Session session;
     private BukkitTask hudTask;
     private BlackjackService blackjackService;
+    private int joinRadius = 16;
 
     public HiLoService(JavaPlugin plugin, EconomyManager economy) {
         this.plugin = plugin;
@@ -99,6 +100,7 @@ public final class HiLoService implements Listener {
 
     /** config の UUID に一致するディーラー村人がいれば AI/重力を無効化（再起動後も固定）。 */
     public void applyConfiguredDealerNpcSettings() {
+        joinRadius = Math.max(4, plugin.getConfig().getInt("hilo.join-radius", 16));
         String raw = plugin.getConfig().getString("hilo.dealer.uuid", "");
         if (raw == null || raw.isBlank()) return;
         try {
@@ -1083,7 +1085,7 @@ public final class HiLoService implements Listener {
             Entity e = Bukkit.getEntity(configured);
             if (e instanceof Villager) return e;
         }
-        for (Entity e : player.getNearbyEntities(16, 8, 16)) {
+        for (Entity e : player.getNearbyEntities(joinRadius, joinRadius / 2.0, joinRadius)) {
             if (e instanceof Villager v && isDealer(v)) return v;
         }
         return null;
