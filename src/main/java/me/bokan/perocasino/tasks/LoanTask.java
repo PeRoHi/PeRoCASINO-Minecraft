@@ -34,6 +34,13 @@ public class LoanTask extends BukkitRunnable {
             int debt = economyManager.getDebt(uuid);
             if (debt <= 0) continue;
 
+            long deadline = economyManager.getLoanDeadline(uuid);
+            if (deadline > 0 && now >= deadline) {
+                triggerForcedLabor(player);
+                economyManager.setLoanDeadline(uuid, now + INTEREST_INTERVAL_MS);
+                continue;
+            }
+
             long nextInterest = economyManager.getNextInterestMillis(uuid);
             if (nextInterest == 0 || now < nextInterest) continue;
 

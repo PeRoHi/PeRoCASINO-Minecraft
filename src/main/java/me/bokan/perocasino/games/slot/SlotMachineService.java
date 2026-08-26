@@ -18,6 +18,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -137,11 +138,12 @@ public class SlotMachineService {
         }
     }
 
-    public void onGuiClose(UUID playerId) {
-        Session s = sessions.remove(playerId);
+    public void onGuiClose(Player player, Inventory inv) {
+        Session s = sessions.remove(player.getUniqueId());
         if (s != null) {
             s.cancelAnim();
         }
+        returnBetDiamonds(player, inv);
     }
 
     private void startSpin(Player player) {
@@ -183,6 +185,7 @@ public class SlotMachineService {
         Material r2 = pickSymbol();
 
         Session session = new Session(player.getUniqueId(), inv, bet, r0, r1, r2, min, max);
+        consumeBetDiamonds(inv);
         sessions.put(player.getUniqueId(), session);
         session.start();
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.6f, 1.4f);
@@ -222,13 +225,33 @@ public class SlotMachineService {
         return n;
     }
 
+    private static void consumeBetDiamonds(Inventory inv) {
+        if (inv == null) return;
+        for (int slot : List.of(12, 14)) {
+            inv.setItem(slot, null);
+        }
+    }
+
+    private static void returnBetDiamonds(Player player, Inventory inv) {
+        if (player == null || inv == null) return;
+        for (int slot : List.of(12, 14)) {
+            ItemStack st = inv.getItem(slot);
+            if (st == null || st.getType() != Material.DIAMOND || st.getAmount() <= 0) continue;
+            inv.setItem(slot, null);
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(st);
+            leftover.values().forEach(it -> player.getWorld().dropItemNaturally(player.getLocation(), it));
+        }
+    }
+
     private final class Session {
         private final UUID playerId;
         private final Inventory inv;
         private final int bet;
         private final Material[] result = new Material[3];
         private final boolean[] stopped = new boolean[3];
-        private final int[] stopTick = new int[3];
+        private final int minDelayTicks;
+        private final int maxDelayTicks;
+        private final int[] scheduledStopAtTick = new int[] { -1, -1, -1 };
         private int tick;
         private BukkitTask anim;
 
@@ -239,11 +262,8 @@ public class SlotMachineService {
             this.result[0] = r0;
             this.result[1] = r1;
             this.result[2] = r2;
-
-            ThreadLocalRandom r = ThreadLocalRandom.current();
-            for (int i = 0; i < 3; i++) {
-                stopTick[i] = r.nextInt(min, max + 1);
-            }
+            this.minDelayTicks = Math.max(0, min);
+            this.maxDelayTicks = Math.max(this.minDelayTicks, max);
         }
 
         void start() {
@@ -266,15 +286,18 @@ public class SlotMachineService {
                     tick++;
                     renderSpinningFrame();
 
-                    // 強制停止（時間切れ）
-                    if (tick >= Math.max(stopTick[0], Math.max(stopTick[1], stopTick[2])) + 40) {
-                        for (int i = 0; i < 3; i++) {
-                            if (!stopped[i]) {
-                                forceStop(i);
-                            }
+                    // 予約停止（停止ボタン押下後のランダムtick経過で停止）
+                    for (int i = 0; i < 3; i++) {
+                        if (!stopped[i] && scheduledStopAtTick[i] >= 0 && tick >= scheduledStopAtTick[i]) {
+                            forceStop(i);
                         }
+                    }
+
+                    // 全停止で精算
+                    if (stopped[0] && stopped[1] && stopped[2]) {
                         finish(p);
                         cancelAnim();
+                        sessions.remove(playerId);
                     }
                 }
             }.runTaskTimer(plugin, 0L, 2L);
@@ -285,23 +308,23 @@ public class SlotMachineService {
                 player.sendMessage("§eそのリールは既に停止しています。");
                 return;
             }
-            if (tick < stopTick[idx]) {
-                player.sendMessage("§cまだこのリールは止められません（もう少し回してください）。");
+            if (scheduledStopAtTick[idx] >= 0) {
+                player.sendMessage("§e停止予約済みです（少し待つと止まります）。");
                 return;
             }
-            stopped[idx] = true;
-            renderStopped(idx);
-            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.8f, 1.2f);
 
-            if (stopped[0] && stopped[1] && stopped[2]) {
-                finish(player);
-                cancelAnim();
-                sessions.remove(playerId);
-            }
+            // 停止ボタンを押した時点から、ランダムtick後に止まるよう予約する
+            int min = Math.max(0, minDelayTicks);
+            int max = Math.max(min, maxDelayTicks);
+            int delay = ThreadLocalRandom.current().nextInt(min, max + 1);
+            scheduledStopAtTick[idx] = tick + delay;
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.8f, 1.2f);
+            player.sendMessage("§a停止予約！ §7" + ((delay + 19) / 20) + "秒後に停止します。");
         }
 
         private void forceStop(int idx) {
             stopped[idx] = true;
+            scheduledStopAtTick[idx] = -1;
             renderStopped(idx);
         }
 
@@ -325,10 +348,7 @@ public class SlotMachineService {
         }
 
         private void finish(Player player) {
-            // ベットダイヤを回収
-            for (int slot : List.of(12, 14)) {
-                inv.setItem(slot, null);
-            }
+            consumeBetDiamonds(inv);
 
             int three = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.three-of-a-kind", 8));
             int two = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.two-of-a-kind", 2));

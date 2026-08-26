@@ -16,6 +16,8 @@ public class SlotSessionCleanupListener implements Listener {
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
         if (!SlotMachineService.GUI_TITLE.equals(event.getView().getTitle())) return;
-        slotMachineService.onGuiClose(event.getPlayer().getUniqueId());
+        if (event.getPlayer() instanceof org.bukkit.entity.Player player) {
+            slotMachineService.onGuiClose(player, event.getInventory());
+        }
     }
 }
