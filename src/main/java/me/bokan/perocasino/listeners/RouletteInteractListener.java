@@ -3,24 +3,19 @@ package me.bokan.perocasino.listeners;
 import me.bokan.perocasino.roulette.RouletteBetBoardService;
 import me.bokan.perocasino.roulette.RoulettePhase;
 import org.bukkit.block.Block;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.plugin.Plugin;
 
 public class RouletteInteractListener implements Listener {
 
-    private final Plugin plugin;
     private final RouletteBetMenuListener betMenuListener;
     private final RouletteBetBoardService betBoardService;
 
-    public RouletteInteractListener(Plugin plugin, RouletteBetMenuListener betMenuListener,
+    public RouletteInteractListener(RouletteBetMenuListener betMenuListener,
                                     RouletteBetBoardService betBoardService) {
-        this.plugin = plugin;
         this.betMenuListener = betMenuListener;
         this.betBoardService = betBoardService;
     }
@@ -31,10 +26,11 @@ public class RouletteInteractListener implements Listener {
             return;
         }
         Block block = event.getClickedBlock();
-        if (block == null || block.getType() != Material.GRINDSTONE) {
+        if (block == null) {
             return;
         }
-        if (!isRegisteredRouletteGrindstone(block)) {
+        // ルーレット拠点・ベット盤の砥石のみ反応（ワールド中の全砥石には反応しない）
+        if (betBoardService == null || !betBoardService.isAnyRouletteGrindstone(block)) {
             return;
         }
 
@@ -48,22 +44,5 @@ public class RouletteInteractListener implements Listener {
 
         // 要望: 砥石5列のどれを右クリックしても、列別GUIではなく 54枠ベットGUI を開く
         betMenuListener.openBetGui(player);
-    }
-
-    private boolean isRegisteredRouletteGrindstone(Block block) {
-        if (betBoardService != null && betBoardService.isBetGrindstone(block)) {
-            return true;
-        }
-        FileConfiguration cfg = plugin.getConfig();
-        String worldName = cfg.getString("roulette.world", "");
-        if (worldName == null || worldName.isBlank() || block.getWorld() == null) {
-            return false;
-        }
-        if (!worldName.equals(block.getWorld().getName())) {
-            return false;
-        }
-        return block.getX() == cfg.getInt("roulette.x")
-                && block.getY() == cfg.getInt("roulette.y")
-                && block.getZ() == cfg.getInt("roulette.z");
     }
 }

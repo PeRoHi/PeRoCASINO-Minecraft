@@ -69,6 +69,7 @@ public final class BlackjackService implements Listener {
     private Table table;
     private BukkitTask hudTask;
     private HiLoService hiLoService;
+    private int joinRadius = 16;
 
     public BlackjackService(JavaPlugin plugin, EconomyManager economy) {
         this.plugin = plugin;
@@ -91,6 +92,7 @@ public final class BlackjackService implements Listener {
 
     /** config の UUID に一致するディーラー村人がいれば AI/重力を無効化（再起動後も固定）。 */
     public void applyConfiguredDealerNpcSettings() {
+        joinRadius = Math.max(4, plugin.getConfig().getInt("blackjack.join-radius", 16));
         String raw = plugin.getConfig().getString("blackjack.dealer.uuid", "");
         if (raw == null || raw.isBlank()) return;
         try {
@@ -828,9 +830,17 @@ public final class BlackjackService implements Listener {
         return item.getItemMeta().getPersistentDataContainer().has(cardKey, PersistentDataType.BYTE);
     }
 
+    private boolean isBlackjackCardOwnedBy(ItemStack item, UUID owner) {
+        if (!isBlackjackCard(item)) return false;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return false;
+        return owner.toString().equals(meta.getPersistentDataContainer().get(ownerKey, PersistentDataType.STRING));
+    }
+
     private void removePlayerCards(Player player, PlayerState ps) {
+        UUID ownerId = player.getUniqueId();
         for (ItemStack item : player.getInventory().getContents()) {
-            if (isBlackjackCard(item)) {
+            if (isBlackjackCardOwnedBy(item, ownerId)) {
                 item.setAmount(0);
             }
         }
@@ -1003,7 +1013,7 @@ public final class BlackjackService implements Listener {
             } catch (IllegalArgumentException ignored) {
             }
         }
-        for (Entity e : player.getNearbyEntities(8, 4, 8)) {
+        for (Entity e : player.getNearbyEntities(joinRadius, joinRadius / 2.0, joinRadius)) {
             if (e instanceof Villager v && isDealer(v)) return v;
         }
         return null;

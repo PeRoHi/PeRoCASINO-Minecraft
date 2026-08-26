@@ -438,20 +438,20 @@ chinchiro:
     edge-length-blocks: 0.5
     # Paper/MC 1.21.11系で ItemDisplay の見た目が極小になる分を補正。配置判定には使わない。
     # 0.5ブロック指定なのに0.05程度に見える環境では 10.0 のままでOK。
-    model-scale-correction: 0.5
+    model-scale-correction: 10.0
     # XZ 上でサイコロ中心同士の最低距離の下限。辺長に応じて余白も増やす
     separation: 0.55
     random-tries: 120
     region:
       world: world
       min:
-        x: 150
-        y: 63
-        z: 221
-      max:
         x: 149
         y: 63
         z: 220
+      max:
+        x: 150
+        y: 63
+        z: 221
 
 # メインハンドの杖アイテムを「右クリック（使用）」したときに、プレイヤーとしてコマンドを実行する。
 # 「振る」= 右クリック使用を想定（空気・ブロックどちらでも可）。ブタン用の Interaction ではありません。

@@ -29,7 +29,7 @@ public class RouletteBetBoardMenuListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (!betBoardService.isBetGui(event.getView().getTopInventory())) return;
+        if (!betBoardService.isBetGui(event.getView())) return;
 
         if (RouletteBetMenuListener.getHubPhase() != RoulettePhase.BETTING) {
             event.setCancelled(true);
