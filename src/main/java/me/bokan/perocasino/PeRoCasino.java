@@ -47,9 +47,9 @@ public class PeRoCasino extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new WalletListener(economyManager, this), this);
 
         // 【追加】ルーレットのリスナーを登録
-        RouletteBetMenuListener betListener = new RouletteBetMenuListener(this);
+        RouletteBetMenuListener betListener = new RouletteBetMenuListener(this, economyManager);
         getServer().getPluginManager().registerEvents(betListener, this);
-        getServer().getPluginManager().registerEvents(new RouletteInteractListener(betListener), this);
+        getServer().getPluginManager().registerEvents(new RouletteInteractListener(this, betListener), this);
 
         rouletteHubService = new RouletteHubService(this, economyManager, betListener);
         rouletteHubService.runTaskTimer(this, 0L, 1L);
@@ -66,7 +66,7 @@ public class PeRoCasino extends JavaPlugin {
 
         getServer().getPluginManager().registerEvents(new QuarryRespawnListener(this), this);
         getServer().getPluginManager().registerEvents(new SlotInteractListener(slotMachineService), this);
-        getServer().getPluginManager().registerEvents(new SlotMenuListener(), this);
+        getServer().getPluginManager().registerEvents(new SlotMenuListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new SlotSessionCleanupListener(slotMachineService), this);
         getServer().getPluginManager().registerEvents(new GameMenuListener(), this);
 
@@ -81,6 +81,9 @@ public class PeRoCasino extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (slotMachineService != null) {
+            slotMachineService.shutdown();
+        }
         if (rouletteHubService != null) {
             rouletteHubService.shutdown();
         }

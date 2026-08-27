@@ -28,10 +28,10 @@ public final class RouletteSettlement {
 
     public static RoundResult randomResult(List<Material> symbolPool) {
         ThreadLocalRandom r = ThreadLocalRandom.current();
-        Material pick() {
-            return symbolPool.get(r.nextInt(symbolPool.size()));
-        }
-        return new RoundResult(pick(), pick(), pick());
+        Material a = symbolPool.get(r.nextInt(symbolPool.size()));
+        Material b = symbolPool.get(r.nextInt(symbolPool.size()));
+        Material c = symbolPool.get(r.nextInt(symbolPool.size()));
+        return new RoundResult(a, b, c);
     }
 
     public static void settleRound(EconomyManager economy,
@@ -52,8 +52,6 @@ public final class RouletteSettlement {
             if (inv == null) continue;
 
             Player player = Bukkit.getPlayer(uuid);
-            if (player == null || !player.isOnline()) continue;
-            if (!player.getOpenInventory().getTopInventory().equals(inv)) continue;
 
             int totalBet = 0;
             int matches = 0;
@@ -66,7 +64,8 @@ public final class RouletteSettlement {
             }
 
             int allIn = betListener.getAllInBets().getOrDefault(uuid, 0);
-            totalBet += allIn;
+            long totalLong = (long) totalBet + (long) allIn;
+            totalBet = totalLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) totalLong;
 
             for (int slot : RouletteBetMenuListener.BET_SLOTS) {
                 ItemStack stack = inv.getItem(slot);
@@ -82,9 +81,9 @@ public final class RouletteSettlement {
             if (matches >= 3) mult = payoutThree;
             else if (matches == 2) mult = payoutTwo;
 
-            int payout = totalBet * mult;
+            long payoutLong = (long) totalBet * (long) mult;
+            int payout = payoutLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) payoutLong;
 
-            // 盤面のベット（ダイヤ以外も）を一旦クリア
             for (int slot : RouletteBetMenuListener.BET_SLOTS) {
                 inv.setItem(slot, null);
             }
@@ -92,20 +91,22 @@ public final class RouletteSettlement {
             betListener.refreshHiddenBundle(uuid, inv);
 
             if (payout > 0) {
-                economy.addWalletBalance(uuid, payout);
-                player.sendMessage("§a[ルーレット] §f結果: §e" + shortName(result.a())
-                        + " §7/ §e" + shortName(result.b())
-                        + " §7/ §e" + shortName(result.c())
-                        + " §f| 一致: §b" + matches
-                        + " §f| 払戻: §b" + payout + "§f（財布）");
-            } else if (totalBet > 0) {
+                if (!economy.tryDepositWallet(uuid, payout)) {
+                    Bukkit.getLogger().warning("Roulette payout rejected (wallet overflow) uuid=" + uuid);
+                } else if (player != null && player.isOnline()) {
+                    player.sendMessage("§a[ルーレット] §f結果: §e" + shortName(result.a())
+                            + " §7/ §e" + shortName(result.b())
+                            + " §7/ §e" + shortName(result.c())
+                            + " §f| 一致: §b" + matches
+                            + " §f| 払戻: §b" + payout + "§f（財布）");
+                }
+            } else if (totalBet > 0 && player != null && player.isOnline()) {
                 player.sendMessage("§c[ルーレット] §f結果: §e" + shortName(result.a())
                         + " §7/ §e" + shortName(result.b())
                         + " §7/ §e" + shortName(result.c())
                         + " §f| 一致: §7" + matches + " §f（払戻なし）");
             }
 
-            // 開いている人だけ即時反映
             for (HumanEntity viewer : new ArrayList<>(inv.getViewers())) {
                 if (viewer instanceof Player p) {
                     p.updateInventory();

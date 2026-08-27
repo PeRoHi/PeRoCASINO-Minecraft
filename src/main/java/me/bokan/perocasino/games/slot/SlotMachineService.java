@@ -11,6 +11,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -18,20 +19,23 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 3リール式スロット（GUI表示 + 3つの停止ボタン）。
  *
  * 仕様:
  * - スピン開始時点で結果（各リールの停止シンボル）を先に決める
- * - スピン中はシンボルを順繰り表示
- * - 各リールは個別の「停止ブロック」右クリックで止める（先に決めた結果に揃える）
+ * - スピン開始時にベットダイヤを回収する（精算前に取り出して無償スピンできない）
+ * - 精算はセッションあたり一度だけ
+ * - 未精算の中断（GUI閉鎖・切断・プラグイン停止）はベットを返却する
  */
 public class SlotMachineService {
 
@@ -95,13 +99,16 @@ public class SlotMachineService {
         return new Location(w, x, y, z);
     }
 
+    public boolean isSpinning(UUID playerId) {
+        return sessions.containsKey(playerId);
+    }
+
     public void openGui(Player player) {
         Inventory inv = Bukkit.createInventory(null, 27, GUI_TITLE);
         inv.setItem(10, icon(Material.HOPPER, "§eベット枠（ダイヤ）", List.of("§7ここにダイヤを置いてください")));
         inv.setItem(13, icon(Material.NOTE_BLOCK, "§dスロット", List.of("§7下のボタンでスピン/停止")));
         inv.setItem(16, icon(Material.HOPPER, "§eベット枠（ダイヤ）", List.of("§7ここにダイヤを置いてください")));
 
-        // ベット置き場（簡易: 12と14）
         inv.setItem(12, null);
         inv.setItem(14, null);
 
@@ -110,6 +117,7 @@ public class SlotMachineService {
 
     public void handleInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (event.getHand() != EquipmentSlot.HAND) return;
         Block b = event.getClickedBlock();
         if (b == null) return;
         Location loc = b.getLocation();
@@ -137,10 +145,38 @@ public class SlotMachineService {
         }
     }
 
-    public void onGuiClose(UUID playerId) {
+    public void onGuiClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
+        UUID playerId = event.getPlayer().getUniqueId();
+        Player player = event.getPlayer() instanceof Player p ? p : Bukkit.getPlayer(playerId);
         Session s = sessions.remove(playerId);
         if (s != null) {
-            s.cancelAnim();
+            s.abort(player);
+            return;
+        }
+        int leftover = countBetDiamonds(event.getInventory());
+        if (leftover > 0 && player != null) {
+            clearBetSlots(event.getInventory());
+            economy.giveDiamondsOrWallet(player, leftover);
+            if (player.isOnline()) {
+                player.sendMessage("§e[SLOT] ベット枠のダイヤを返却しました。");
+            }
+        }
+    }
+
+    public void onQuit(UUID playerId) {
+        abortSession(playerId, Bukkit.getPlayer(playerId));
+    }
+
+    public void shutdown() {
+        for (UUID id : List.copyOf(sessions.keySet())) {
+            abortSession(id, Bukkit.getPlayer(id));
+        }
+    }
+
+    private void abortSession(UUID playerId, Player player) {
+        Session s = sessions.remove(playerId);
+        if (s != null) {
+            s.abort(player);
         }
     }
 
@@ -154,9 +190,9 @@ public class SlotMachineService {
             return;
         }
 
-        Session old = sessions.remove(player.getUniqueId());
-        if (old != null) {
-            old.cancelAnim();
+        if (sessions.containsKey(player.getUniqueId())) {
+            player.sendMessage("§cすでにスピン中です。");
+            return;
         }
 
         if (!GUI_TITLE.equals(player.getOpenInventory().getTitle())) {
@@ -174,6 +210,8 @@ public class SlotMachineService {
             player.sendMessage("§cベットするダイヤをGUIに置いてください（スロット左右の空き枠）。");
             return;
         }
+
+        clearBetSlots(inv);
 
         int min = Math.max(1, plugin.getConfig().getInt("slot-machine.spin-min-ticks", 40));
         int max = Math.max(min, plugin.getConfig().getInt("slot-machine.spin-max-ticks", 120));
@@ -222,6 +260,12 @@ public class SlotMachineService {
         return n;
     }
 
+    private static void clearBetSlots(Inventory inv) {
+        for (int slot : List.of(12, 14)) {
+            inv.setItem(slot, null);
+        }
+    }
+
     private final class Session {
         private final UUID playerId;
         private final Inventory inv;
@@ -229,6 +273,7 @@ public class SlotMachineService {
         private final Material[] result = new Material[3];
         private final boolean[] stopped = new boolean[3];
         private final int[] stopTick = new int[3];
+        private final AtomicBoolean closed = new AtomicBoolean(false);
         private int tick;
         private BukkitTask anim;
 
@@ -251,14 +296,18 @@ public class SlotMachineService {
             anim = new BukkitRunnable() {
                 @Override
                 public void run() {
+                    if (closed.get()) {
+                        cancel();
+                        return;
+                    }
                     Player p = Bukkit.getPlayer(playerId);
                     if (p == null || !p.isOnline()) {
-                        cancelAnim();
+                        abort(p);
                         sessions.remove(playerId);
                         return;
                     }
                     if (!GUI_TITLE.equals(p.getOpenInventory().getTitle())) {
-                        cancelAnim();
+                        abort(p);
                         sessions.remove(playerId);
                         return;
                     }
@@ -266,7 +315,6 @@ public class SlotMachineService {
                     tick++;
                     renderSpinningFrame();
 
-                    // 強制停止（時間切れ）
                     if (tick >= Math.max(stopTick[0], Math.max(stopTick[1], stopTick[2])) + 40) {
                         for (int i = 0; i < 3; i++) {
                             if (!stopped[i]) {
@@ -274,13 +322,15 @@ public class SlotMachineService {
                             }
                         }
                         finish(p);
-                        cancelAnim();
                     }
                 }
             }.runTaskTimer(plugin, 0L, 2L);
         }
 
         void stopReel(int idx, Player player) {
+            if (closed.get()) {
+                return;
+            }
             if (stopped[idx]) {
                 player.sendMessage("§eそのリールは既に停止しています。");
                 return;
@@ -295,8 +345,6 @@ public class SlotMachineService {
 
             if (stopped[0] && stopped[1] && stopped[2]) {
                 finish(player);
-                cancelAnim();
-                sessions.remove(playerId);
             }
         }
 
@@ -325,10 +373,11 @@ public class SlotMachineService {
         }
 
         private void finish(Player player) {
-            // ベットダイヤを回収
-            for (int slot : List.of(12, 14)) {
-                inv.setItem(slot, null);
+            if (!closed.compareAndSet(false, true)) {
+                return;
             }
+            cancelAnim();
+            sessions.remove(playerId);
 
             int three = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.three-of-a-kind", 8));
             int two = Math.max(0, plugin.getConfig().getInt("slot-machine.payouts.two-of-a-kind", 2));
@@ -340,12 +389,17 @@ public class SlotMachineService {
             if (allEq) mult = three;
             else if (pair) mult = two;
 
-            int payout = bet * mult;
+            long payoutLong = (long) bet * (long) mult;
+            int payout = payoutLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) payoutLong;
             if (payout > 0) {
-                economy.addWalletBalance(player.getUniqueId(), payout);
-                player.sendMessage("§a[SLOT] §f結果: §e" + result[0] + " §7| §e" + result[1] + " §7| §e" + result[2]
-                        + " §f| 払戻: §b" + payout + " §7(財布)");
-                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.6f);
+                if (!economy.tryDepositWallet(player.getUniqueId(), payout)) {
+                    player.sendMessage("§c[SLOT] 財布が上限のため払戻を受け取れませんでした。管理者に連絡してください。");
+                    plugin.getLogger().warning("Slot payout rejected (wallet overflow) for " + player.getUniqueId());
+                } else {
+                    player.sendMessage("§a[SLOT] §f結果: §e" + result[0] + " §7| §e" + result[1] + " §7| §e" + result[2]
+                            + " §f| 払戻: §b" + payout + " §7(財布)");
+                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.6f);
+                }
             } else {
                 player.sendMessage("§c[SLOT] §f結果: §e" + result[0] + " §7| §e" + result[1] + " §7| §e" + result[2]
                         + " §f| はずれ");
@@ -353,8 +407,26 @@ public class SlotMachineService {
             }
         }
 
+        void abort(Player player) {
+            if (!closed.compareAndSet(false, true)) {
+                return;
+            }
+            cancelAnim();
+            if (player != null) {
+                economy.giveDiamondsOrWallet(player, bet);
+                if (player.isOnline()) {
+                    player.sendMessage("§e[SLOT] スピンが中断されたため、ベット " + bet + " を返却しました。");
+                }
+            } else {
+                economy.tryDepositWallet(playerId, bet);
+            }
+        }
+
         void cancelAnim() {
-            if (anim != null) anim.cancel();
+            if (anim != null) {
+                anim.cancel();
+                anim = null;
+            }
         }
     }
 }

@@ -37,10 +37,9 @@ public class LoanTask extends BukkitRunnable {
             long nextInterest = economyManager.getNextInterestMillis(uuid);
             if (nextInterest == 0 || now < nextInterest) continue;
 
-            // 10% 利息（最低 +1）
+            // 10% 利息（最低 +1）。int 溢れは MAX_VALUE キャップ（0 へラップしない）
             int interest = Math.max(1, (int) (debt * 0.10));
-            economyManager.addDebt(uuid, interest);
-            int newDebt = economyManager.getDebt(uuid);
+            int newDebt = economyManager.applyInterest(uuid, interest);
 
             player.sendMessage("§c§l[利息] §f借金が §c" + debt + " §f→ §c" + newDebt + " §fになりました。");
 

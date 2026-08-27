@@ -12,6 +12,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -22,7 +23,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
 import java.util.List;
-import java.util.Map;
+import java.util.UUID;
 
 public class WalletListener implements Listener {
 
@@ -47,13 +48,11 @@ public class WalletListener implements Listener {
         setupWalletItems(event.getPlayer());
     }
 
-    // --- 【追加】死んだときにアイテムをドロップさせない ---
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         event.getDrops().removeIf(this::isWalletItem);
     }
 
-    // --- 【追加】リスポーン時にアイテムを再配布する ---
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
         setupWalletItems(event.getPlayer());
@@ -91,10 +90,14 @@ public class WalletListener implements Listener {
 
         if (event.isShiftClick()
                 && event.getCurrentItem() != null
-                && event.getCurrentItem().getType() == Material.DIAMOND) {
-            event.setCancelled(true);
+                && event.getCurrentItem().getType() == Material.DIAMOND
+                && isOwnInventoryView(event)) {
             int amount = event.getCurrentItem().getAmount();
-            economyManager.addWalletBalance(player.getUniqueId(), amount);
+            if (!economyManager.tryDepositWallet(player.getUniqueId(), amount)) {
+                player.sendMessage("§c財布が上限のため預け入れできません。");
+                return;
+            }
+            event.setCancelled(true);
             player.getInventory().setItem(slot, null);
             player.sendMessage("§a" + amount + " ダイヤを財布に収納しました。財布: "
                     + economyManager.getWalletBalance(player.getUniqueId()));
@@ -105,37 +108,39 @@ public class WalletListener implements Listener {
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (player.getGameMode() == GameMode.CREATIVE) return;
+        if (!isOwnInventoryView(event.getView().getType())) return;
 
-        Map<Integer, ItemStack> newItems = event.getNewItems();
-        if (!newItems.containsKey(BUNDLE_SLOT)) return;
-        
-        boolean targetsBundleSlot = event.getRawSlots().stream().anyMatch(rawSlot -> {
+        int deposited = 0;
+        for (int raw : event.getRawSlots()) {
             try {
-                return event.getView().convertSlot(rawSlot) == BUNDLE_SLOT
-                        && event.getView().getInventory(rawSlot) instanceof PlayerInventory;
-            } catch (Exception e) {
-                return false;
+                if (!(event.getView().getInventory(raw) instanceof PlayerInventory)) continue;
+                if (event.getView().convertSlot(raw) != BUNDLE_SLOT) continue;
+                ItemStack placed = event.getNewItems().get(raw);
+                if (placed != null && placed.getType() == Material.DIAMOND) {
+                    deposited += placed.getAmount();
+                }
+            } catch (IllegalArgumentException ignored) {
+                // convertSlot can throw for some raw slots
             }
-        });
-        if (!targetsBundleSlot) return;
-
-        if (event.getOldCursor() == null
-                || event.getOldCursor().getType() != Material.DIAMOND) return;
+        }
+        if (deposited <= 0) return;
 
         event.setCancelled(true);
 
-        int total = newItems.values().stream()
-                .filter(i -> i != null && i.getType() == Material.DIAMOND)
-                .mapToInt(ItemStack::getAmount)
-                .sum();
-        if (total <= 0) return;
+        ItemStack cursor = event.getOldCursor();
+        if (cursor == null || cursor.getType() != Material.DIAMOND) return;
 
-        ItemStack cursor = event.getOldCursor().clone();
-        cursor.setAmount(Math.max(0, cursor.getAmount() - total));
-        event.getView().setCursor(cursor.getAmount() == 0 ? null : cursor);
+        int take = Math.min(deposited, cursor.getAmount());
+        if (!economyManager.tryDepositWallet(player.getUniqueId(), take)) {
+            player.sendMessage("§c財布が上限のため預け入れできません。");
+            return;
+        }
 
-        economyManager.addWalletBalance(player.getUniqueId(), total);
-        player.sendMessage("§a" + total + " ダイヤを財布に収納しました。財布: "
+        ItemStack next = cursor.clone();
+        next.setAmount(cursor.getAmount() - take);
+        event.getView().setCursor(next.getAmount() <= 0 ? null : next);
+
+        player.sendMessage("§a" + take + " ダイヤを財布に収納しました。財布: "
                 + economyManager.getWalletBalance(player.getUniqueId()));
     }
 
@@ -147,7 +152,8 @@ public class WalletListener implements Listener {
     }
 
     private void handleWithdraw(Player player, InventoryClickEvent event) {
-        int wallet = economyManager.getWalletBalance(player.getUniqueId());
+        UUID uuid = player.getUniqueId();
+        int wallet = economyManager.getWalletBalance(uuid);
         if (wallet <= 0) {
             player.sendMessage("§c財布に残高がありません。");
             return;
@@ -155,10 +161,16 @@ public class WalletListener implements Listener {
         int withdraw = Math.min(wallet, 64);
 
         if (event.isShiftClick()) {
-            economyManager.addWalletBalance(player.getUniqueId(), -withdraw);
-            player.getInventory().addItem(new ItemStack(Material.DIAMOND, withdraw));
-            player.sendMessage("§b" + withdraw + " ダイヤをインベントリに引き出しました。財布: "
-                    + economyManager.getWalletBalance(player.getUniqueId()));
+            if (!economyManager.tryWithdrawWallet(uuid, withdraw)) {
+                player.sendMessage("§c引き出しに失敗しました。");
+                return;
+            }
+            if (!economyManager.giveDiamondsOrWallet(player, withdraw)) {
+                player.sendMessage("§eインベントリと財布の両方に入り切らなかった分は足元に落ちました。");
+            } else {
+                player.sendMessage("§b" + withdraw + " ダイヤをインベントリに引き出しました。財布: "
+                        + economyManager.getWalletBalance(uuid));
+            }
         } else {
             ItemStack cursor = event.getCursor();
             Material cursorType = (cursor == null) ? Material.AIR : cursor.getType();
@@ -173,10 +185,13 @@ public class WalletListener implements Listener {
                 player.sendMessage("§cカーソルがいっぱいです。");
                 return;
             }
-            economyManager.addWalletBalance(player.getUniqueId(), -withdraw);
+            if (!economyManager.tryWithdrawWallet(uuid, withdraw)) {
+                player.sendMessage("§c引き出しに失敗しました。");
+                return;
+            }
             event.getView().setCursor(new ItemStack(Material.DIAMOND, held + withdraw));
             player.sendMessage("§b" + withdraw + " ダイヤをカーソルに引き出しました。財布: "
-                    + economyManager.getWalletBalance(player.getUniqueId()));
+                    + economyManager.getWalletBalance(uuid));
         }
     }
 
@@ -188,7 +203,10 @@ public class WalletListener implements Listener {
         ItemStack cursor = event.getCursor();
         if (cursor != null && cursor.getType() == Material.DIAMOND && cursor.getAmount() > 0) {
             int amount = cursor.getAmount();
-            economyManager.addWalletBalance(player.getUniqueId(), amount);
+            if (!economyManager.tryDepositWallet(player.getUniqueId(), amount)) {
+                player.sendMessage("§c財布が上限のため預け入れできません。");
+                return;
+            }
             event.getView().setCursor(null);
             player.sendMessage("§a" + amount + " ダイヤを財布に収納しました。財布: "
                     + economyManager.getWalletBalance(player.getUniqueId()));
@@ -203,15 +221,31 @@ public class WalletListener implements Listener {
             if (item == null || item.getType() != Material.DIAMOND) continue;
             if (i == WITHDRAW_SLOT || i == BUNDLE_SLOT) continue;
             total += item.getAmount();
+        }
+        if (total <= 0) {
+            player.sendMessage("§cインベントリにダイヤがありません。");
+            return;
+        }
+        if (!economyManager.tryDepositWallet(player.getUniqueId(), total)) {
+            player.sendMessage("§c財布が上限のため預け入れできません。");
+            return;
+        }
+        for (int i = 0; i < 36; i++) {
+            ItemStack item = contents[i];
+            if (item == null || item.getType() != Material.DIAMOND) continue;
+            if (i == WITHDRAW_SLOT || i == BUNDLE_SLOT) continue;
             player.getInventory().setItem(i, null);
         }
-        if (total > 0) {
-            economyManager.addWalletBalance(player.getUniqueId(), total);
-            player.sendMessage("§aインベントリから " + total + " ダイヤを財布に収納しました。財布: "
-                    + economyManager.getWalletBalance(player.getUniqueId()));
-        } else {
-            player.sendMessage("§cインベントリにダイヤがありません。");
-        }
+        player.sendMessage("§aインベントリから " + total + " ダイヤを財布に収納しました。財布: "
+                + economyManager.getWalletBalance(player.getUniqueId()));
+    }
+
+    private static boolean isOwnInventoryView(InventoryClickEvent event) {
+        return isOwnInventoryView(event.getView().getType());
+    }
+
+    private static boolean isOwnInventoryView(InventoryType type) {
+        return type == InventoryType.CRAFTING || type == InventoryType.PLAYER;
     }
 
     private boolean isWalletItem(ItemStack item) {

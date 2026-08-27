@@ -6,77 +6,114 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
-import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.ItemStack;
 
 /**
  * スロットGUIのクリック制御（ベット枠以外は持ち出し不可）。
+ * スピン中はベット枠もロックする。
  */
 public class SlotMenuListener implements Listener {
+
+    private final SlotMachineService slotMachineService;
+
+    public SlotMenuListener(SlotMachineService slotMachineService) {
+        this.slotMachineService = slotMachineService;
+    }
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (!SlotMachineService.GUI_TITLE.equals(event.getView().getTitle())) return;
 
-        int raw = event.getRawSlot();
+        GuiSafety.cancelOutsideClick(event);
 
-        // プレイヤーインベントリ側は基本許可（ダイヤを持ってくるため）
-        if (raw >= 27) {
-            // ただしシフトクリックで変な場所に入らないよう、GUIへのシフト移動は制御する
-            if (event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT) {
-                ItemStack current = event.getCurrentItem();
-                if (current != null && current.getType() == Material.DIAMOND) {
-                    // 上位インベントリへのシフト移動は、ベット枠へだけ許可したいが判定が難しいので一旦キャンセル
-                    // （ダイヤはドラッグで置いてもらう）
-                    event.setCancelled(true);
-                }
-            }
+        if (GuiSafety.cancelUnsafeBottomMoves(event)) {
             return;
         }
 
-        // GUI上部
+        if (!GuiSafety.isTopInventory(event)) {
+            return;
+        }
+
         event.setCancelled(true);
 
         int topSlot = event.getSlot();
         boolean isBetSlot = (topSlot == 12 || topSlot == 14);
-
         if (!isBetSlot) {
             return;
         }
 
-        // ベット枠: ダイヤのみ入出し
-        ItemStack cursor = event.getCursor();
-        ItemStack clicked = event.getCurrentItem();
-
-        if (event.getClick() == ClickType.NUMBER_KEY) {
-            event.setCancelled(true);
+        if (slotMachineService.isSpinning(player.getUniqueId())) {
             return;
         }
 
-        // 置く
+        if (event.getClick() == ClickType.NUMBER_KEY) {
+            return;
+        }
+
+        ItemStack cursor = event.getCursor();
+        ItemStack clicked = event.getCurrentItem();
+
         if (cursor != null && cursor.getType() != Material.AIR) {
             if (cursor.getType() != Material.DIAMOND) {
                 return;
             }
-            // キャンセル済みなので手動で反映する（単純置換）
             int amount = cursor.getAmount();
             if (clicked == null || clicked.getType() == Material.AIR) {
-                invSet(player, topSlot, new ItemStack(Material.DIAMOND, amount));
-                player.setItemOnCursor(null);
+                int place = Math.min(64, amount);
+                invSet(player, topSlot, new ItemStack(Material.DIAMOND, place));
+                cursor.setAmount(amount - place);
+                player.setItemOnCursor(cursor.getAmount() <= 0 ? null : cursor);
             } else if (clicked.getType() == Material.DIAMOND) {
-                int sum = clicked.getAmount() + amount;
-                invSet(player, topSlot, new ItemStack(Material.DIAMOND, sum));
-                player.setItemOnCursor(null);
+                int room = 64 - clicked.getAmount();
+                if (room <= 0) {
+                    return;
+                }
+                int moved = Math.min(room, amount);
+                clicked.setAmount(clicked.getAmount() + moved);
+                invSet(player, topSlot, clicked);
+                cursor.setAmount(amount - moved);
+                player.setItemOnCursor(cursor.getAmount() <= 0 ? null : cursor);
             }
             return;
         }
 
-        // 取る
         if (clicked != null && clicked.getType() == Material.DIAMOND) {
             player.setItemOnCursor(clicked.clone());
             invSet(player, topSlot, null);
+        }
+    }
+
+    @EventHandler
+    public void onDrag(InventoryDragEvent event) {
+        if (!SlotMachineService.GUI_TITLE.equals(event.getView().getTitle())) return;
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+
+        if (slotMachineService.isSpinning(player.getUniqueId())) {
+            event.setCancelled(true);
+            return;
+        }
+
+        int topSize = event.getView().getTopInventory().getSize();
+        for (int raw : event.getRawSlots()) {
+            if (raw < 0 || raw >= topSize) {
+                continue;
+            }
+            if (raw != 12 && raw != 14) {
+                event.setCancelled(true);
+                return;
+            }
+            ItemStack stacked = event.getNewItems().get(raw);
+            if (stacked != null && stacked.getType() != Material.DIAMOND) {
+                event.setCancelled(true);
+                return;
+            }
+            if (stacked != null && stacked.getAmount() > 64) {
+                event.setCancelled(true);
+                return;
+            }
         }
     }
 
