@@ -1,5 +1,7 @@
 package me.bokan.perocasino.listeners;
 
+import me.bokan.perocasino.economy.EconomyManager;
+import me.bokan.perocasino.roulette.RoulettePhase;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -8,14 +10,14 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import me.bokan.perocasino.roulette.RoulettePhase;
-
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,20 +38,20 @@ public class RouletteBetMenuListener implements Listener {
     );
 
     // 盤面に置かれたダイヤの保存用
-    private final Map<UUID, ItemStack[]> savedBets = new HashMap<>();
-    
-    // 【新規】全ベット（特殊枠）として預けられたダイヤの個数データ
-    private final Map<UUID, Integer> allInBets = new HashMap<>();
+    private final Map<UUID, ItemStack[]> savedBets = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> allInBets = new ConcurrentHashMap<>();
 
     /** 現在開いているベットGUI（自動ルーレットの精算対象） */
     private final Map<UUID, Inventory> openBetInventories = new ConcurrentHashMap<>();
 
     private final JavaPlugin plugin;
+    private final EconomyManager economy;
 
     private static volatile RoulettePhase hubPhase = RoulettePhase.BETTING;
 
-    public RouletteBetMenuListener(JavaPlugin plugin) {
+    public RouletteBetMenuListener(JavaPlugin plugin, EconomyManager economy) {
         this.plugin = plugin;
+        this.economy = economy;
     }
 
     public static RoulettePhase getHubPhase() {
@@ -65,13 +67,20 @@ public class RouletteBetMenuListener implements Listener {
     }
 
     public void openBetGui(Player player) {
+        Inventory existing = openBetInventories.get(player.getUniqueId());
+        if (existing != null) {
+            if (player.getOpenInventory().getTopInventory() != existing) {
+                player.openInventory(existing);
+            }
+            return;
+        }
+
         Inventory gui = Bukkit.createInventory(null, 54, GUI_TITLE);
 
         if (savedBets.containsKey(player.getUniqueId())) {
             gui.setContents(savedBets.get(player.getUniqueId()));
         }
 
-        // 隠しバンドル（表示更新メソッドを呼ぶ）
         updateHiddenBundle(player.getUniqueId(), gui);
 
         player.openInventory(gui);
@@ -123,34 +132,32 @@ public class RouletteBetMenuListener implements Listener {
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
         if (!event.getView().getTitle().equals(GUI_TITLE)) return;
+        if (!(event.getWhoClicked() instanceof Player player)) {
+            event.setCancelled(true);
+            return;
+        }
 
-        Player player = (Player) event.getWhoClicked();
-        int slot = event.getRawSlot();
-        ItemStack currentItem = event.getCurrentItem();
-
-        // 自動ルーレット：ベット受付中以外は盤面操作をロック
         if (getHubPhase() != RoulettePhase.BETTING) {
             event.setCancelled(true);
             return;
         }
 
-        // 1. 手持ちインベントリからのシフトクリックでの不正な移動を防ぐ
-        if (event.getClick() == ClickType.SHIFT_LEFT || event.getClick() == ClickType.SHIFT_RIGHT) {
-            if (slot >= 54 && currentItem != null && currentItem.getType() == Material.DIAMOND) {
+        GuiSafety.cancelOutsideClick(event);
+        if (GuiSafety.cancelUnsafeBottomMoves(event)) {
+            return;
+        }
+
+        int slot = event.getRawSlot();
+        ItemStack currentItem = event.getCurrentItem();
+
+        if (slot >= 0 && slot < 54) {
+            if (event.getClick() == ClickType.NUMBER_KEY || event.getClick() == ClickType.DOUBLE_CLICK) {
                 event.setCancelled(true);
                 return;
             }
-        }
 
-        // GUI側（上半分）の操作
-        if (slot >= 0 && slot < 54) {
-            
-            // 2. 隠しバンドルの特殊アクション
             if (slot == HIDDEN_BUNDLE_SLOT && isHiddenBundleItem(currentItem)) {
-                event.setCancelled(true); // バンドル自体の移動を禁止
-
-                // ※ここに後で「ルーレットが回転中なら return する」というロック処理を追加する
-                
+                event.setCancelled(true);
                 if (event.getClick() == ClickType.SHIFT_LEFT) {
                     performAllIn(player, event.getInventory());
                 } else if (event.getClick() == ClickType.LEFT) {
@@ -159,85 +166,173 @@ public class RouletteBetMenuListener implements Listener {
                 return;
             }
 
-            // 3. 通常のベット枠（ダイヤのみ許可）
             if (BET_SLOTS.contains(slot)) {
                 ItemStack cursor = event.getCursor();
                 if (cursor != null && cursor.getType() != Material.AIR && cursor.getType() != Material.DIAMOND) {
                     event.setCancelled(true);
                 }
             } else {
-                // 許可エリア以外のクリック禁止
                 event.setCancelled(true);
             }
         }
     }
 
-    // 全ベット（預け入れ）処理
-    private void performAllIn(Player player, Inventory gui) {
-        int addAmount = 0;
-        for (ItemStack item : player.getInventory().getContents()) {
-            if (item != null && item.getType() == Material.DIAMOND) {
-                addAmount += item.getAmount();
-                item.setAmount(0); // インベントリから回収
-            }
+    @EventHandler
+    public void onInventoryDrag(InventoryDragEvent event) {
+        if (!event.getView().getTitle().equals(GUI_TITLE)) return;
+        if (getHubPhase() != RoulettePhase.BETTING) {
+            event.setCancelled(true);
+            return;
         }
-
-        if (addAmount > 0) {
-            UUID uuid = player.getUniqueId();
-            int current = allInBets.getOrDefault(uuid, 0);
-            allInBets.put(uuid, current + addAmount); // データとして保存
-            
-            updateHiddenBundle(uuid, gui); // 表示を更新
-            player.sendMessage("§a手持ちのダイヤをすべて特殊枠に預けました！");
-        } else {
-            player.sendMessage("§cインベントリに預けるダイヤがありません。");
+        int topSize = event.getView().getTopInventory().getSize();
+        for (int raw : event.getRawSlots()) {
+            if (raw < 0 || raw >= topSize) continue;
+            if (!BET_SLOTS.contains(raw)) {
+                event.setCancelled(true);
+                return;
+            }
+            ItemStack stacked = event.getNewItems().get(raw);
+            if (stacked != null && stacked.getType() != Material.DIAMOND) {
+                event.setCancelled(true);
+                return;
+            }
+            if (stacked != null && stacked.getAmount() > 64) {
+                event.setCancelled(true);
+                return;
+            }
         }
     }
 
-    // 引き出し処理
+    private void performAllIn(Player player, Inventory gui) {
+        ItemStack[] contents = player.getInventory().getContents();
+        int addAmount = 0;
+        for (ItemStack item : contents) {
+            if (item != null && item.getType() == Material.DIAMOND) {
+                addAmount += item.getAmount();
+            }
+        }
+
+        if (addAmount <= 0) {
+            player.sendMessage("§cインベントリに預けるダイヤがありません。");
+            return;
+        }
+
+        UUID uuid = player.getUniqueId();
+        int current = allInBets.getOrDefault(uuid, 0);
+        long sum = (long) current + (long) addAmount;
+        if (sum > Integer.MAX_VALUE) {
+            player.sendMessage("§c特殊枠が上限のためこれ以上預けられません。");
+            return;
+        }
+
+        for (int i = 0; i < contents.length; i++) {
+            ItemStack item = contents[i];
+            if (item != null && item.getType() == Material.DIAMOND) {
+                player.getInventory().setItem(i, null);
+            }
+        }
+
+        allInBets.put(uuid, (int) sum);
+        updateHiddenBundle(uuid, gui);
+        player.sendMessage("§a手持ちのダイヤをすべて特殊枠に預けました！");
+    }
+
     private void withdrawAllIn(Player player, Inventory gui) {
         UUID uuid = player.getUniqueId();
         int amount = allInBets.getOrDefault(uuid, 0);
-
-        if (amount > 0) {
-            // ダイヤをインベントリに返却
-            HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(new ItemStack(Material.DIAMOND, amount));
-            
-            // インベントリが満タンで入り切らなかった場合は足元に落とす
-            if (!leftover.isEmpty()) {
-                for (ItemStack item : leftover.values()) {
-                    player.getWorld().dropItemNaturally(player.getLocation(), item);
-                }
-                player.sendMessage("§eインベントリが満タンのため、一部のダイヤが足元に落ちました。");
-            }
-            
-            allInBets.put(uuid, 0); // データを0にリセット
-            updateHiddenBundle(uuid, gui); // 表示を更新
-            player.sendMessage("§b特殊枠のダイヤを引き出しました。");
+        if (amount <= 0) {
+            return;
         }
+        allInBets.put(uuid, 0);
+        updateHiddenBundle(uuid, gui);
+        economy.giveDiamondsOrWallet(player, amount);
+        player.sendMessage("§b特殊枠のダイヤを引き出しました。");
     }
 
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
-        if (event.getView().getTitle().equals(GUI_TITLE)) {
-            if (getHubPhase() != RoulettePhase.BETTING) {
-                // 回転中に閉じるとベットが宙に浮くので、強制的に開き直す
-                if (event.getPlayer() instanceof Player player) {
-                    player.sendMessage("§cルーレット進行中はGUIを閉じられません。");
-                    Bukkit.getScheduler().runTaskLater(
-                            plugin,
-                            () -> openBetGui(player),
-                            1L
-                    );
-                }
-                return;
+        if (!event.getView().getTitle().equals(GUI_TITLE)) return;
+        UUID uuid = event.getPlayer().getUniqueId();
+        if (getHubPhase() != RoulettePhase.BETTING) {
+            if (event.getPlayer() instanceof Player player) {
+                player.sendMessage("§cルーレット進行中はGUIを閉じられません。");
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    Inventory existing = openBetInventories.get(player.getUniqueId());
+                    if (existing != null) {
+                        player.openInventory(existing);
+                    }
+                }, 1L);
             }
-            savedBets.put(event.getPlayer().getUniqueId(), event.getInventory().getContents());
-            openBetInventories.remove(event.getPlayer().getUniqueId());
+            return;
+        }
+        savedBets.put(uuid, event.getInventory().getContents());
+        openBetInventories.remove(uuid);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        if (getHubPhase() == RoulettePhase.BETTING) {
+            Inventory open = openBetInventories.remove(uuid);
+            if (open != null) {
+                savedBets.put(uuid, open.getContents());
+            }
         }
     }
 
-    // 後でRouletteManagerからデータを回収するためのゲッター
+    public void returnAllChips() {
+        Set<UUID> ids = new HashSet<>();
+        ids.addAll(openBetInventories.keySet());
+        ids.addAll(savedBets.keySet());
+        ids.addAll(allInBets.keySet());
+        for (UUID uuid : ids) {
+            int chips = allInBets.getOrDefault(uuid, 0);
+            Inventory open = openBetInventories.get(uuid);
+            if (open != null) {
+                chips += countBetDiamonds(open);
+            } else {
+                ItemStack[] saved = savedBets.get(uuid);
+                if (saved != null) {
+                    chips += countBetDiamonds(saved);
+                }
+            }
+            if (chips > 0) {
+                economy.tryDepositWallet(uuid, chips);
+                Player p = Bukkit.getPlayer(uuid);
+                if (p != null && p.isOnline()) {
+                    p.sendMessage("§eルーレット停止のためベットを財布に戻しました: " + chips);
+                }
+            }
+        }
+        allInBets.clear();
+        savedBets.clear();
+        openBetInventories.clear();
+    }
+
+    private static int countBetDiamonds(Inventory inv) {
+        int n = 0;
+        for (int slot : BET_SLOTS) {
+            ItemStack stack = inv.getItem(slot);
+            if (stack != null && stack.getType() == Material.DIAMOND) {
+                n += stack.getAmount();
+            }
+        }
+        return n;
+    }
+
+    private static int countBetDiamonds(ItemStack[] contents) {
+        int n = 0;
+        for (int slot : BET_SLOTS) {
+            if (slot < 0 || slot >= contents.length) continue;
+            ItemStack stack = contents[slot];
+            if (stack != null && stack.getType() == Material.DIAMOND) {
+                n += stack.getAmount();
+            }
+        }
+        return n;
+    }
+
     public Map<UUID, Integer> getAllInBets() {
         return allInBets;
     }

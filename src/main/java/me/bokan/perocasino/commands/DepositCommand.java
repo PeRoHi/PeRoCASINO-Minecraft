@@ -31,8 +31,11 @@ public class DepositCommand implements CommandExecutor {
         }
 
         int amount = mainHand.getAmount();
+        if (!economyManager.tryDepositWallet(player.getUniqueId(), amount)) {
+            player.sendMessage(ChatColor.RED + "財布が上限のため預け入れできません。");
+            return true;
+        }
         player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
-        economyManager.addWalletBalance(player.getUniqueId(), amount);
         int newBalance = economyManager.getWalletBalance(player.getUniqueId());
 
         player.sendMessage(ChatColor.GREEN + "ダイヤを " + ChatColor.YELLOW + amount

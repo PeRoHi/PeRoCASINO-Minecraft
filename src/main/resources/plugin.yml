@@ -21,3 +21,8 @@ commands:
     usage: /perocasino <subcommand>
     permission: perocasino.admin
     aliases: [pc]
+
+permissions:
+  perocasino.admin:
+    description: 管理者コマンド、および他プレイヤーのカジノGUIを開く
+    default: op

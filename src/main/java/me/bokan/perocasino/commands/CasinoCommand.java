@@ -33,27 +33,50 @@ public class CasinoCommand implements CommandExecutor {
             targets = Bukkit.selectEntities(sender, args[0]);
         } catch (IllegalArgumentException e) {
             Player target = Bukkit.getPlayer(args[0]);
-            if (target != null) {
-                open(target);
-            } else {
+            if (target == null) {
                 sender.sendMessage("§cプレイヤー「§e" + args[0] + "§c」が見つかりません。");
+                return true;
             }
+            if (!canOpenFor(sender, target)) {
+                sender.sendMessage("§c他プレイヤーのメニューを開く権限がありません。");
+                return true;
+            }
+            open(target);
             return true;
         }
 
         boolean opened = false;
+        boolean denied = false;
         for (Entity entity : targets) {
             if (entity instanceof Player player) {
+                if (!canOpenFor(sender, player)) {
+                    denied = true;
+                    continue;
+                }
                 open(player);
                 opened = true;
             }
         }
 
         if (!opened) {
-            sender.sendMessage("§c対象のプレイヤーが見つかりませんでした。");
+            if (denied) {
+                sender.sendMessage("§c他プレイヤーのメニューを開く権限がありません。");
+            } else {
+                sender.sendMessage("§c対象のプレイヤーが見つかりませんでした。");
+            }
         }
 
         return true;
+    }
+
+    private static boolean canOpenFor(CommandSender sender, Player target) {
+        if (!(sender instanceof Player player)) {
+            return true;
+        }
+        if (player.getUniqueId().equals(target.getUniqueId())) {
+            return true;
+        }
+        return player.hasPermission("perocasino.admin");
     }
 
     public static void open(Player player) {

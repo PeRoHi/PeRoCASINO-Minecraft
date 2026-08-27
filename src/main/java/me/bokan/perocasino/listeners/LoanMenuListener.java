@@ -1,6 +1,5 @@
 package me.bokan.perocasino.listeners;
 
-import me.bokan.perocasino.commands.CasinoCommand;
 import me.bokan.perocasino.economy.EconomyManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -148,12 +147,30 @@ public class LoanMenuListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         String title = event.getView().getTitle();
 
+        if (!MODE_TITLE.equals(title) && !BORROW_TITLE.equals(title) && !REPAY_TITLE.equals(title)) {
+            return;
+        }
+
+        event.setCancelled(true);
+        GuiSafety.cancelOutsideClick(event);
+        if (!GuiSafety.isTopInventory(event)) {
+            return;
+        }
+
         if (MODE_TITLE.equals(title)) {
             handleModeClick(player, event);
         } else if (BORROW_TITLE.equals(title)) {
             handleInputClick(player, event, true);
         } else if (REPAY_TITLE.equals(title)) {
             handleInputClick(player, event, false);
+        }
+    }
+
+    @EventHandler
+    public void onInventoryDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
+        String title = event.getView().getTitle();
+        if (MODE_TITLE.equals(title) || BORROW_TITLE.equals(title) || REPAY_TITLE.equals(title)) {
+            event.setCancelled(true);
         }
     }
 
@@ -168,9 +185,6 @@ public class LoanMenuListener implements Listener {
     }
 
     private void handleModeClick(Player player, InventoryClickEvent event) {
-        event.setCancelled(true);
-        if (event.getClickedInventory() == null) return;
-        if (!event.getClickedInventory().equals(event.getView().getTopInventory())) return;
 
         switch (event.getSlot()) {
             case 11 -> plugin.getServer().getScheduler()
@@ -194,9 +208,6 @@ public class LoanMenuListener implements Listener {
     }
 
     private void handleInputClick(Player player, InventoryClickEvent event, boolean isBorrow) {
-        event.setCancelled(true);
-        if (event.getClickedInventory() == null) return;
-        if (!event.getClickedInventory().equals(event.getView().getTopInventory())) return;
 
         UUID uuid    = player.getUniqueId();
         int current  = inputValues.getOrDefault(uuid, 0);
@@ -235,11 +246,13 @@ public class LoanMenuListener implements Listener {
             player.sendMessage("§c金額を1以上入力してください。");
             return;
         }
-        inputValues.remove(uuid);
 
+        if (!economyManager.tryBorrow(uuid, amount)) {
+            player.sendMessage("§c借入できません（財布または借金が上限です）。");
+            return;
+        }
+        inputValues.remove(uuid);
         long now = System.currentTimeMillis();
-        economyManager.addDebt(uuid, amount);
-        economyManager.addWalletBalance(uuid, amount); // 財布反映
         economyManager.setLoanDeadline(uuid, now + LOAN_DURATION_MS);
         economyManager.setNextInterestMillis(uuid, now + INTEREST_INTERVAL_MS);
 
@@ -259,11 +272,22 @@ public class LoanMenuListener implements Listener {
             return;
         }
 
+        int liveWallet = economyManager.getWalletBalance(uuid);
+        int liveDebt = economyManager.getDebt(uuid);
+        int actualMax = Math.min(maxRepay, Math.min(liveWallet, liveDebt));
+        if (amount > actualMax) {
+            player.sendMessage("§c返済額が限度を超えています（最大: " + actualMax + "）。");
+            return;
+        }
+
+        int paid = economyManager.tryRepay(uuid, amount);
+        if (paid <= 0) {
+            player.sendMessage("§c返済に失敗しました。残高を確認してください。");
+            return;
+        }
+
         inputValues.remove(uuid);
         repayMaxValues.remove(uuid);
-
-        economyManager.addWalletBalance(uuid, -amount);
-        economyManager.addDebt(uuid, -amount);
 
         int remaining = economyManager.getDebt(uuid);
         player.closeInventory();

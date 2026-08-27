@@ -28,4 +28,12 @@ public class GameMenuListener implements Listener {
             player.closeInventory();
         }
     }
+
+    @EventHandler
+    public void onInventoryDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
+        String title = event.getView().getTitle();
+        if (BlackjackMenu.GUI_TITLE.equals(title) || HiLoMenu.GUI_TITLE.equals(title)) {
+            event.setCancelled(true);
+        }
+    }
 }

@@ -51,4 +51,10 @@ public class CasinoMenuListener implements Listener {
             // 13 (SHOP), 16 (SABOTAGE) は今後実装
         }
     }
+
+    @EventHandler
+    public void onInventoryDrag(org.bukkit.event.inventory.InventoryDragEvent event) {
+        if (!CasinoCommand.GUI_TITLE.equals(event.getView().getTitle())) return;
+        event.setCancelled(true);
+    }
 }
