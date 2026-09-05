@@ -28,6 +28,9 @@ public class SlotMenuListener implements Listener {
         if (!SlotMachineService.GUI_TITLE.equals(event.getView().getTitle())) return;
 
         GuiSafety.cancelOutsideClick(event);
+        if (GuiSafety.cancelExoticClicks(event)) {
+            return;
+        }
 
         if (GuiSafety.cancelUnsafeBottomMoves(event)) {
             return;

@@ -17,8 +17,6 @@ import org.bukkit.scheduler.BukkitRunnable;
  */
 public class LoanTask extends BukkitRunnable {
 
-    private static final long INTEREST_INTERVAL_MS = 5 * 60 * 1000L; // 5分
-
     private final EconomyManager economyManager;
 
     public LoanTask(EconomyManager economyManager) {
@@ -43,8 +41,8 @@ public class LoanTask extends BukkitRunnable {
 
             player.sendMessage("§c§l[利息] §f借金が §c" + debt + " §f→ §c" + newDebt + " §fになりました。");
 
-            // 次回利息スケジュール
-            economyManager.setNextInterestMillis(uuid, nextInterest + INTEREST_INTERVAL_MS);
+            // 遅延分を一気に連打しない（次回は今から5分後）
+            economyManager.setNextInterestMillis(uuid, LoanInterestSchedule.nextAfterApply(now));
 
             // 返済能力チェック
             if (economyManager.getWalletBalance(uuid) == 0 && countInvDiamonds(player) == 0) {

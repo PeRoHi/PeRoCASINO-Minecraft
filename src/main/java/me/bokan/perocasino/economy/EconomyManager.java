@@ -1,11 +1,13 @@
 package me.bokan.perocasino.economy;
 
 import me.bokan.perocasino.data.PlayerData;
+import me.bokan.perocasino.data.PlayerDataStore;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.Material;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -15,9 +17,52 @@ import java.util.concurrent.ConcurrentHashMap;
 public class EconomyManager {
 
     private final Map<UUID, PlayerData> playerDataMap = new ConcurrentHashMap<>();
+    private final Set<UUID> loadFailed = ConcurrentHashMap.newKeySet();
+    private PlayerDataStore store;
 
-    /** プレイヤーデータを取得する。存在しない場合は新規作成して返す。 */
+    public void attachStore(PlayerDataStore store) {
+        this.store = store;
+    }
+
+    public boolean isLoadFailed(UUID playerId) {
+        return loadFailed.contains(playerId);
+    }
+
+    public Set<UUID> loadFailedIds() {
+        return Set.copyOf(loadFailed);
+    }
+
+    public void loadAll() {
+        if (store == null) {
+            return;
+        }
+        for (UUID id : store.listPlayerIds()) {
+            PlayerDataStore.Result result = store.load(id);
+            if (result.outcome() == PlayerDataStore.Outcome.FAILED) {
+                loadFailed.add(id);
+                playerDataMap.remove(id);
+            } else if (result.outcome() == PlayerDataStore.Outcome.OK && result.data() != null) {
+                playerDataMap.put(id, result.data());
+                loadFailed.remove(id);
+            }
+        }
+    }
+
+    public void savePlayer(UUID playerId) {
+        persist(playerId);
+    }
+
+    public void saveAll() {
+        for (UUID id : playerDataMap.keySet()) {
+            persist(id);
+        }
+    }
+
+    /** プレイヤーデータを取得する。存在しない場合は新規作成して返す。読込失敗プレイヤーは null。 */
     public PlayerData getData(UUID playerId) {
+        if (loadFailed.contains(playerId)) {
+            return null;
+        }
         return playerDataMap.computeIfAbsent(playerId, PlayerData::new);
     }
 
@@ -26,54 +71,171 @@ public class EconomyManager {
     }
 
     // --- 財布残高 ---
-    public int getWalletBalance(UUID id) { return getData(id).getWalletBalance(); }
-    public void setWalletBalance(UUID id, int amount) { getData(id).setWalletBalance(amount); }
+    public int getWalletBalance(UUID id) {
+        PlayerData data = getData(id);
+        return data == null ? 0 : data.getWalletBalance();
+    }
+
+    public void setWalletBalance(UUID id, int amount) {
+        PlayerData data = getData(id);
+        if (data == null) {
+            return;
+        }
+        data.setWalletBalance(amount);
+        persist(id);
+    }
 
     /** @return 入金／出金が受理されたか。拒否時は残高据え置き。 */
     public boolean addWalletBalance(UUID id, int amount) {
-        return getData(id).addWalletBalance(amount);
+        PlayerData data = getData(id);
+        if (data == null) {
+            return false;
+        }
+        boolean ok = data.addWalletBalance(amount);
+        if (ok) {
+            persist(id);
+        }
+        return ok;
     }
 
     public boolean tryDepositWallet(UUID id, int amount) {
-        return getData(id).tryDepositWallet(amount);
+        PlayerData data = getData(id);
+        if (data == null) {
+            return false;
+        }
+        boolean ok = data.tryDepositWallet(amount);
+        if (ok) {
+            persist(id);
+        }
+        return ok;
     }
 
     public boolean tryWithdrawWallet(UUID id, int amount) {
-        return getData(id).tryWithdrawWallet(amount);
+        PlayerData data = getData(id);
+        if (data == null) {
+            return false;
+        }
+        boolean ok = data.tryWithdrawWallet(amount);
+        if (ok) {
+            persist(id);
+        }
+        return ok;
     }
 
     // --- 借金 ---
-    public int getDebt(UUID id) { return getData(id).getDebt(); }
-    public void setDebt(UUID id, int amount) { getData(id).setDebt(amount); }
-    public boolean addDebt(UUID id, int amount) { return getData(id).addDebt(amount); }
+    public int getDebt(UUID id) {
+        PlayerData data = getData(id);
+        return data == null ? 0 : data.getDebt();
+    }
+
+    public void setDebt(UUID id, int amount) {
+        PlayerData data = getData(id);
+        if (data == null) {
+            return;
+        }
+        data.setDebt(amount);
+        persist(id);
+    }
+
+    public boolean addDebt(UUID id, int amount) {
+        PlayerData data = getData(id);
+        if (data == null) {
+            return false;
+        }
+        boolean ok = data.addDebt(amount);
+        if (ok) {
+            persist(id);
+        }
+        return ok;
+    }
 
     public boolean tryBorrow(UUID id, int amount) {
-        return getData(id).tryBorrow(amount);
+        PlayerData data = getData(id);
+        if (data == null) {
+            return false;
+        }
+        boolean ok = data.tryBorrow(amount);
+        if (ok) {
+            persist(id);
+        }
+        return ok;
     }
 
     /** @return 実際に返済した額 */
     public int tryRepay(UUID id, int amount) {
-        return getData(id).tryRepay(amount);
+        PlayerData data = getData(id);
+        if (data == null) {
+            return 0;
+        }
+        int paid = data.tryRepay(amount);
+        if (paid > 0) {
+            persist(id);
+        }
+        return paid;
     }
 
     public int applyInterest(UUID id, int interest) {
-        return getData(id).applyInterest(interest);
+        PlayerData data = getData(id);
+        if (data == null) {
+            return 0;
+        }
+        int debt = data.applyInterest(interest);
+        persist(id);
+        return debt;
     }
 
     // --- ローンタイマー ---
-    public long getLoanDeadline(UUID id) { return getData(id).getLoanDeadlineMillis(); }
-    public void setLoanDeadline(UUID id, long millis) { getData(id).setLoanDeadlineMillis(millis); }
+    public long getLoanDeadline(UUID id) {
+        PlayerData data = getData(id);
+        return data == null ? 0L : data.getLoanDeadlineMillis();
+    }
 
-    public long getNextInterestMillis(UUID id) { return getData(id).getNextInterestMillis(); }
-    public void setNextInterestMillis(UUID id, long millis) { getData(id).setNextInterestMillis(millis); }
+    public void setLoanDeadline(UUID id, long millis) {
+        PlayerData data = getData(id);
+        if (data == null) {
+            return;
+        }
+        data.setLoanDeadlineMillis(millis);
+        persist(id);
+    }
+
+    public long getNextInterestMillis(UUID id) {
+        PlayerData data = getData(id);
+        return data == null ? 0L : data.getNextInterestMillis();
+    }
+
+    public void setNextInterestMillis(UUID id, long millis) {
+        PlayerData data = getData(id);
+        if (data == null) {
+            return;
+        }
+        data.setNextInterestMillis(millis);
+        persist(id);
+    }
 
     /**
      * ローンタイマーを完全リセットする（完済時に呼ぶ）。
      * debt は呼び出し元で 0 にしておくこと。
      */
     public void clearLoanTimer(UUID id) {
-        getData(id).setLoanDeadlineMillis(0L);
-        getData(id).setNextInterestMillis(0L);
+        PlayerData data = getData(id);
+        if (data == null) {
+            return;
+        }
+        data.setLoanDeadlineMillis(0L);
+        data.setNextInterestMillis(0L);
+        persist(id);
+    }
+
+    private void persist(UUID id) {
+        if (store == null || loadFailed.contains(id)) {
+            return;
+        }
+        PlayerData data = playerDataMap.get(id);
+        if (data == null) {
+            return;
+        }
+        store.save(data, store.fileExists(id));
     }
 
     /**

@@ -39,7 +39,18 @@ public final class GuiSafety {
                 || type == ClickType.SHIFT_RIGHT
                 || type == ClickType.DOUBLE_CLICK
                 || type == ClickType.NUMBER_KEY
+                || type == ClickType.SWAP_OFFHAND
                 || type == ClickType.UNKNOWN) {
+            event.setCancelled(true);
+            return true;
+        }
+        return false;
+    }
+
+    /** オフハンド入れ替えなど、カーソル経由でない移動を止める。 */
+    public static boolean cancelExoticClicks(InventoryClickEvent event) {
+        ClickType type = event.getClick();
+        if (type == ClickType.SWAP_OFFHAND || type == ClickType.UNKNOWN) {
             event.setCancelled(true);
             return true;
         }

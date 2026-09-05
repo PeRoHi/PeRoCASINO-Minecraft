@@ -4,6 +4,7 @@ import me.bokan.perocasino.commands.BalanceCommand;
 import me.bokan.perocasino.commands.CasinoCommand;
 import me.bokan.perocasino.commands.DepositCommand;
 import me.bokan.perocasino.commands.PerocasinoCommand;
+import me.bokan.perocasino.data.PlayerDataStore;
 import me.bokan.perocasino.economy.EconomyManager;
 import me.bokan.perocasino.games.slot.SlotMachineService;
 import me.bokan.perocasino.listeners.CasinoMenuListener;
@@ -31,6 +32,12 @@ public class PeRoCasino extends JavaPlugin {
     public void onEnable() {
         saveDefaultConfig();
         economyManager = new EconomyManager();
+        PlayerDataStore store = new PlayerDataStore(getDataFolder().toPath().resolve("players"), getLogger());
+        economyManager.attachStore(store);
+        economyManager.loadAll();
+        if (!economyManager.loadFailedIds().isEmpty()) {
+            getLogger().severe("壊れたプレイヤー経済ファイルがあります。該当UUIDは残高操作を拒否し、ファイルを上書きしません。");
+        }
 
         getCommand("balance").setExecutor(new BalanceCommand(economyManager));
         getCommand("deposit").setExecutor(new DepositCommand(economyManager));
@@ -86,6 +93,9 @@ public class PeRoCasino extends JavaPlugin {
         }
         if (rouletteHubService != null) {
             rouletteHubService.shutdown();
+        }
+        if (economyManager != null) {
+            economyManager.saveAll();
         }
         getLogger().info("PeRoCasino が無効化されました。");
     }
