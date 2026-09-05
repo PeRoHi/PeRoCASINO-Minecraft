@@ -37,6 +37,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         if (args.length == 0) {
             sender.sendMessage("§e/perocasino roulette set §7… 見ている砥石をルーレット拠点に登録");
             sender.sendMessage("§e/perocasino quarry set §7… 採石場の立方体範囲を現在位置の角として登録（2回実行）");
+            sender.sendMessage("§e/perocasino quarry cancel §7… 未確定の角指定を取り消す（稼働中の範囲は残す）");
             sender.sendMessage("§e/perocasino reload §7… config.yml を再読込");
             return true;
         }
@@ -82,8 +83,19 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage("§cこの操作はプレイヤーから実行してください。");
                 return true;
             }
-            if (args.length < 2 || !"set".equalsIgnoreCase(args[1])) {
-                sender.sendMessage("§c使い方: /perocasino quarry set");
+            if (args.length < 2) {
+                sender.sendMessage("§c使い方: /perocasino quarry set | cancel");
+                return true;
+            }
+            FileConfiguration cfg = plugin.getConfig();
+            if ("cancel".equalsIgnoreCase(args[1])) {
+                cfg.set("quarry.pending", null);
+                plugin.saveConfig();
+                sender.sendMessage("§e未確定の採石場角指定を取り消しました。稼働中の範囲はそのままです。");
+                return true;
+            }
+            if (!"set".equalsIgnoreCase(args[1])) {
+                sender.sendMessage("§c使い方: /perocasino quarry set | cancel");
                 return true;
             }
             Location loc = player.getLocation();
@@ -93,36 +105,50 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
 
-            FileConfiguration cfg = plugin.getConfig();
-            String pathBase = "quarry.";
-            if (!cfg.isSet(pathBase + "min.x")) {
-                cfg.set(pathBase + "world", world.getName());
-                cfg.set(pathBase + "min.x", loc.getBlockX());
-                cfg.set(pathBase + "min.y", loc.getBlockY());
-                cfg.set(pathBase + "min.z", loc.getBlockZ());
+            QuarryCornerSet.Corner here = new QuarryCornerSet.Corner(
+                    world.getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
+
+            if (!cfg.isSet("quarry.pending.x")) {
+                cfg.set("quarry.pending.world", here.world());
+                cfg.set("quarry.pending.x", here.x());
+                cfg.set("quarry.pending.y", here.y());
+                cfg.set("quarry.pending.z", here.z());
                 plugin.saveConfig();
-                sender.sendMessage("§e採石場の §fMIN §e角を設定しました。もう一度同じコマンドで §fMAX §e角を設定してください。");
+                sender.sendMessage("§e採石場の §f1点目 §eを記録しました。稼働中の範囲はまだ変えていません。");
+                sender.sendMessage("§7もう一度 /perocasino quarry set で対角を確定してください。");
                 return true;
             }
 
-            int minX = cfg.getInt(pathBase + "min.x");
-            int minY = cfg.getInt(pathBase + "min.y");
-            int minZ = cfg.getInt(pathBase + "min.z");
-            int maxX = loc.getBlockX();
-            int maxY = loc.getBlockY();
-            int maxZ = loc.getBlockZ();
+            QuarryCornerSet.Corner first = new QuarryCornerSet.Corner(
+                    cfg.getString("quarry.pending.world", world.getName()),
+                    cfg.getInt("quarry.pending.x"),
+                    cfg.getInt("quarry.pending.y"),
+                    cfg.getInt("quarry.pending.z"));
+            var completed = QuarryCornerSet.complete(first, here);
+            if (completed.isEmpty()) {
+                cfg.set("quarry.pending.world", here.world());
+                cfg.set("quarry.pending.x", here.x());
+                cfg.set("quarry.pending.y", here.y());
+                cfg.set("quarry.pending.z", here.z());
+                plugin.saveConfig();
+                sender.sendMessage("§cワールドが違うため 1点目を現在位置に更新しました。同じワールドでもう一度対角を指定してください。");
+                return true;
+            }
 
-            cfg.set(pathBase + "world", world.getName());
-            cfg.set(pathBase + "max.x", maxX);
-            cfg.set(pathBase + "max.y", maxY);
-            cfg.set(pathBase + "max.z", maxZ);
-            // 次回セットし直せるように min を一旦消す
-            cfg.set(pathBase + "min", null);
+            QuarryCornerSet.Range range = completed.get();
+            cfg.set("quarry.world", range.world());
+            cfg.set("quarry.min.x", range.minX());
+            cfg.set("quarry.min.y", range.minY());
+            cfg.set("quarry.min.z", range.minZ());
+            cfg.set("quarry.max.x", range.maxX());
+            cfg.set("quarry.max.y", range.maxY());
+            cfg.set("quarry.max.z", range.maxZ());
+            cfg.set("quarry.pending", null);
             plugin.saveConfig();
 
-            sender.sendMessage("§a採石場範囲を登録しました: §f" + world.getName()
-                    + " §7MIN§f(" + minX + "," + minY + "," + minZ + ")"
-                    + " §7MAX§f(" + maxX + "," + maxY + "," + maxZ + ")");
+            sender.sendMessage("§a採石場範囲を登録しました: §f" + range.world()
+                    + " §7MIN§f(" + range.minX() + "," + range.minY() + "," + range.minZ() + ")"
+                    + " §7MAX§f(" + range.maxX() + "," + range.maxY() + "," + range.maxZ() + ")");
             sender.sendMessage("§7※ もう一度 /perocasino quarry set を2回実行すると範囲を作り直せます。");
             return true;
         }
@@ -145,6 +171,7 @@ public class PerocasinoCommand implements CommandExecutor, TabCompleter {
         } else if (args.length == 2 && "quarry".equalsIgnoreCase(args[0])) {
             String a = args[1].toLowerCase();
             if ("set".startsWith(a)) out.add("set");
+            if ("cancel".startsWith(a)) out.add("cancel");
         }
         return out;
     }

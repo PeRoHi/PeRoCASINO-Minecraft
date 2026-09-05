@@ -143,6 +143,9 @@ public class RouletteBetMenuListener implements Listener {
         }
 
         GuiSafety.cancelOutsideClick(event);
+        if (GuiSafety.cancelExoticClicks(event)) {
+            return;
+        }
         if (GuiSafety.cancelUnsafeBottomMoves(event)) {
             return;
         }

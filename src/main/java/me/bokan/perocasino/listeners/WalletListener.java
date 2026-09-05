@@ -15,6 +15,7 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -46,6 +47,14 @@ public class WalletListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         setupWalletItems(event.getPlayer());
+        if (economyManager.isLoadFailed(event.getPlayer().getUniqueId())) {
+            event.getPlayer().sendMessage("§c経済データの読込に失敗したため、財布操作は無効です。管理者に連絡してください。");
+        }
+    }
+
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        economyManager.savePlayer(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
