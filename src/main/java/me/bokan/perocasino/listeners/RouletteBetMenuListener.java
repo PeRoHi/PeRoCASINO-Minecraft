@@ -289,6 +289,7 @@ public class RouletteBetMenuListener implements Listener {
         ids.addAll(openBetInventories.keySet());
         ids.addAll(savedBets.keySet());
         ids.addAll(allInBets.keySet());
+        Set<UUID> keep = new HashSet<>();
         for (UUID uuid : ids) {
             int chips = allInBets.getOrDefault(uuid, 0);
             Inventory open = openBetInventories.get(uuid);
@@ -301,16 +302,26 @@ public class RouletteBetMenuListener implements Listener {
                 }
             }
             if (chips > 0) {
-                economy.tryDepositWallet(uuid, chips);
                 Player p = Bukkit.getPlayer(uuid);
+                if (!economy.creditPayout(uuid, p, chips)) {
+                    plugin.getLogger().warning("Roulette shutdown refund could not be credited; chips kept uuid=" + uuid);
+                    keep.add(uuid);
+                    continue;
+                }
                 if (p != null && p.isOnline()) {
                     p.sendMessage("§eルーレット停止のためベットを財布に戻しました: " + chips);
                 }
             }
         }
-        allInBets.clear();
-        savedBets.clear();
-        openBetInventories.clear();
+        if (keep.isEmpty()) {
+            allInBets.clear();
+            savedBets.clear();
+            openBetInventories.clear();
+            return;
+        }
+        allInBets.keySet().retainAll(keep);
+        savedBets.keySet().retainAll(keep);
+        openBetInventories.keySet().retainAll(keep);
     }
 
     private static int countBetDiamonds(Inventory inv) {

@@ -392,12 +392,12 @@ public class SlotMachineService {
             long payoutLong = (long) bet * (long) mult;
             int payout = payoutLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) payoutLong;
             if (payout > 0) {
-                if (!economy.tryDepositWallet(player.getUniqueId(), payout)) {
-                    player.sendMessage("§c[SLOT] 財布が上限のため払戻を受け取れませんでした。管理者に連絡してください。");
-                    plugin.getLogger().warning("Slot payout rejected (wallet overflow) for " + player.getUniqueId());
+                if (!economy.creditPayout(player.getUniqueId(), player, payout)) {
+                    player.sendMessage("§c[SLOT] 払戻を渡せませんでした。管理者に連絡してください。");
+                    plugin.getLogger().warning("Slot payout could not be credited for " + player.getUniqueId());
                 } else {
                     player.sendMessage("§a[SLOT] §f結果: §e" + result[0] + " §7| §e" + result[1] + " §7| §e" + result[2]
-                            + " §f| 払戻: §b" + payout + " §7(財布)");
+                            + " §f| 払戻: §b" + payout + " §7(財布／手持ち)");
                     player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.6f);
                 }
             } else {
@@ -412,13 +412,10 @@ public class SlotMachineService {
                 return;
             }
             cancelAnim();
-            if (player != null) {
-                economy.giveDiamondsOrWallet(player, bet);
-                if (player.isOnline()) {
-                    player.sendMessage("§e[SLOT] スピンが中断されたため、ベット " + bet + " を返却しました。");
-                }
-            } else {
-                economy.tryDepositWallet(playerId, bet);
+            if (!economy.creditPayout(playerId, player, bet)) {
+                plugin.getLogger().warning("Slot abort refund could not be credited for " + playerId);
+            } else if (player != null && player.isOnline()) {
+                player.sendMessage("§e[SLOT] スピンが中断されたため、ベット " + bet + " を返却しました。");
             }
         }
 

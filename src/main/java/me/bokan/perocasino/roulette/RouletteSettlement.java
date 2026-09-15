@@ -84,22 +84,23 @@ public final class RouletteSettlement {
             long payoutLong = (long) totalBet * (long) mult;
             int payout = payoutLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) payoutLong;
 
+            if (payout > 0 && !economy.creditPayout(uuid, player, payout)) {
+                Bukkit.getLogger().warning("Roulette payout could not be credited; chips kept uuid=" + uuid);
+                continue;
+            }
+
             for (int slot : RouletteBetMenuListener.BET_SLOTS) {
                 inv.setItem(slot, null);
             }
             betListener.getAllInBets().put(uuid, 0);
             betListener.refreshHiddenBundle(uuid, inv);
 
-            if (payout > 0) {
-                if (!economy.tryDepositWallet(uuid, payout)) {
-                    Bukkit.getLogger().warning("Roulette payout rejected (wallet overflow) uuid=" + uuid);
-                } else if (player != null && player.isOnline()) {
-                    player.sendMessage("§a[ルーレット] §f結果: §e" + shortName(result.a())
-                            + " §7/ §e" + shortName(result.b())
-                            + " §7/ §e" + shortName(result.c())
-                            + " §f| 一致: §b" + matches
-                            + " §f| 払戻: §b" + payout + "§f（財布）");
-                }
+            if (payout > 0 && player != null && player.isOnline()) {
+                player.sendMessage("§a[ルーレット] §f結果: §e" + shortName(result.a())
+                        + " §7/ §e" + shortName(result.b())
+                        + " §7/ §e" + shortName(result.c())
+                        + " §f| 一致: §b" + matches
+                        + " §f| 払戻: §b" + payout + "§f（財布／手持ち）");
             } else if (totalBet > 0 && player != null && player.isOnline()) {
                 player.sendMessage("§c[ルーレット] §f結果: §e" + shortName(result.a())
                         + " §7/ §e" + shortName(result.b())

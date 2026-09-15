@@ -29,6 +29,11 @@ public class HudTask extends BukkitRunnable {
             int wallet  = economyManager.getWalletBalance(player.getUniqueId());
             int debt    = economyManager.getDebt(player.getUniqueId());
             long deadline = economyManager.getLoanDeadline(player.getUniqueId());
+            if (economyManager.isLoadFailed(player.getUniqueId())) {
+                player.spigot().sendMessage(ChatMessageType.ACTION_BAR,
+                        new TextComponent("§c経済データ読込失敗（財布操作は無効）"));
+                continue;
+            }
 
             String timerStr;
             if (debt > 0 && deadline > 0) {

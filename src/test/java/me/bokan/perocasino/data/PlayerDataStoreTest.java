@@ -72,6 +72,20 @@ class PlayerDataStoreTest {
     }
 
     @Test
+    void danglingSymlinkIsFailedNotMissing() throws Exception {
+        PlayerDataStore store = store();
+        Path file = store.fileFor(ID);
+        try {
+            Files.createSymbolicLink(file, temp.resolve("does-not-exist.yml"));
+        } catch (UnsupportedOperationException | IOException skipped) {
+            return;
+        }
+        PlayerDataStore.Result loaded = store.load(ID);
+        assertEquals(PlayerDataStore.Outcome.FAILED, loaded.outcome());
+        assertTrue(store.fileExists(ID));
+    }
+
+    @Test
     void parseRejectsMissingWallet() {
         try {
             PlayerDataYaml.parse(ID, "debt: 1\n");
