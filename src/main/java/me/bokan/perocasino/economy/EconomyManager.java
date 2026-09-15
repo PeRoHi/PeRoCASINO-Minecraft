@@ -58,10 +58,29 @@ public class EconomyManager {
         }
     }
 
-    /** プレイヤーデータを取得する。存在しない場合は新規作成して返す。読込失敗プレイヤーは null。 */
+    /**
+     * プレイヤーデータを取得する。メモリに無ければディスクを見てからゼロ新規にする。
+     * 読込失敗プレイヤーは null（操作も保存もしない）。
+     */
     public PlayerData getData(UUID playerId) {
         if (loadFailed.contains(playerId)) {
             return null;
+        }
+        PlayerData cached = playerDataMap.get(playerId);
+        if (cached != null) {
+            return cached;
+        }
+        if (store != null) {
+            PlayerDataStore.Result result = store.load(playerId);
+            if (result.outcome() == PlayerDataStore.Outcome.FAILED) {
+                loadFailed.add(playerId);
+                playerDataMap.remove(playerId);
+                return null;
+            }
+            if (result.outcome() == PlayerDataStore.Outcome.OK && result.data() != null) {
+                PlayerData prior = playerDataMap.putIfAbsent(playerId, result.data());
+                return prior != null ? prior : result.data();
+            }
         }
         return playerDataMap.computeIfAbsent(playerId, PlayerData::new);
     }
@@ -236,6 +255,24 @@ public class EconomyManager {
             return;
         }
         store.save(data, store.fileExists(id));
+    }
+
+    /**
+     * 払戻・精算。まず財布。拒否（上限・loadFailed）ならオンラインはインベントリ／足元。
+     * オフラインで財布に置けない場合は false（呼び出し側はチップを消さない）。
+     */
+    public boolean creditPayout(UUID id, Player playerOrNull, int amount) {
+        if (amount <= 0) {
+            return true;
+        }
+        if (tryDepositWallet(id, amount)) {
+            return true;
+        }
+        if (playerOrNull != null && playerOrNull.isOnline()) {
+            giveDiamondsOrWallet(playerOrNull, amount);
+            return true;
+        }
+        return false;
     }
 
     /**

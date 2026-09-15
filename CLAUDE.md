@@ -22,5 +22,5 @@ In-memory wallet/debt keyed by UUID. Games: slot, roulette, loan; blackjack/HiLo
 ## Rules
 
 - Do not invent payout rates. Record assumes in `docs/DECISIONS.md`.
-- Do not treat missing/corrupt player files as an empty store (persistence is not implemented yet).
+- Missing player YAML → new zero OK. Existing empty/corrupt/symlink leaf → loadFailed (refuse ops and overwrite). Do not treat a failed directory listing as an empty store; `getData` must load disk before allocating zeros.
 - Do not commit secrets, world names from live servers, or `.claude/settings.local.json`.

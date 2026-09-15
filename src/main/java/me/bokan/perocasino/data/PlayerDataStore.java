@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -74,14 +75,16 @@ public final class PlayerDataStore {
 
     public Result load(UUID playerId) {
         Path file = fileFor(playerId);
-        if (!Files.exists(file)) {
-            return Result.missing();
-        }
         try {
-            AtomicFiles.refuseSymlink(file, "leaf");
+            if (AtomicFiles.existsNoFollow(file) && Files.isSymbolicLink(file)) {
+                return Result.failed("symlink leaf");
+            }
             Path parent = file.getParent();
             if (parent != null) {
                 AtomicFiles.refuseSymlink(parent, "parent");
+            }
+            if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
+                return Result.missing();
             }
             byte[] bytes = Files.readAllBytes(file);
             if (bytes.length == 0) {
@@ -117,7 +120,7 @@ public final class PlayerDataStore {
     }
 
     public boolean fileExists(UUID playerId) {
-        return Files.exists(fileFor(playerId));
+        return AtomicFiles.existsNoFollow(fileFor(playerId));
     }
 
     private void warn(String message) {

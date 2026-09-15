@@ -36,6 +36,34 @@ class AtomicFilesTest {
     }
 
     @Test
+    void leftoverRegularTmpIsReplacedWithCreateNew() throws IOException {
+        Path file = temp.resolve("save.yml");
+        Path tmp = temp.resolve("save.yml.tmp");
+        Files.writeString(tmp, "stale-tmp");
+        AtomicFiles.writeAtomic(file, "hello: 1\n".getBytes(StandardCharsets.UTF_8));
+        assertEquals("hello: 1\n", Files.readString(file));
+        assertTrue(Files.notExists(tmp));
+    }
+
+    @Test
+    void refuseSymlinkTmp() throws IOException {
+        Path file = temp.resolve("save.yml");
+        Path real = temp.resolve("other.yml");
+        Files.writeString(real, "wallet: 1\n");
+        Path tmp = temp.resolve("save.yml.tmp");
+        try {
+            Files.createSymbolicLink(tmp, real);
+        } catch (UnsupportedOperationException | IOException skipped) {
+            return;
+        }
+        IOException ex = assertThrows(IOException.class,
+                () -> AtomicFiles.writeAtomic(file, "hello: 1\n".getBytes(StandardCharsets.UTF_8)));
+        assertTrue(ex.getMessage().contains("symlink"));
+        assertEquals("wallet: 1\n", Files.readString(real));
+        assertTrue(Files.notExists(file));
+    }
+
+    @Test
     void refuseSymlinkLeaf() throws IOException {
         Path real = temp.resolve("real.yml");
         Files.writeString(real, "wallet: 1\n");

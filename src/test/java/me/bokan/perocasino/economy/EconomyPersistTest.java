@@ -36,6 +36,38 @@ class EconomyPersistTest {
     }
 
     @Test
+    void getDataLoadsDiskBeforeCreatingZeros() throws Exception {
+        PlayerDataStore store = new PlayerDataStore(temp, Logger.getLogger("test"));
+        Path file = store.fileFor(ID);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "wallet: 40\ndebt: 2\n");
+
+        EconomyManager economy = new EconomyManager();
+        economy.attachStore(store);
+        // loadAll を飛ばしても既存ファイルをゼロで上書きしない
+        assertEquals(40, economy.getWalletBalance(ID));
+        assertTrue(economy.tryDepositWallet(ID, 1));
+        assertEquals(41, economy.getWalletBalance(ID));
+        assertTrue(Files.readString(file).contains("wallet: 41"));
+    }
+
+    @Test
+    void creditPayoutKeepsFalseWhenOfflineAndWalletRejected() {
+        EconomyManager economy = new EconomyManager();
+        UUID id = ID;
+        economy.getData(id).setWalletBalance(Integer.MAX_VALUE);
+        assertFalse(economy.creditPayout(id, null, 1));
+        assertEquals(Integer.MAX_VALUE, economy.getWalletBalance(id));
+    }
+
+    @Test
+    void creditPayoutDepositsWhenWalletHasRoom() {
+        EconomyManager economy = new EconomyManager();
+        assertTrue(economy.creditPayout(ID, null, 4));
+        assertEquals(4, economy.getWalletBalance(ID));
+    }
+
+    @Test
     void corruptFileRefusesMutationAndOverwrite() throws Exception {
         PlayerDataStore store = new PlayerDataStore(temp, Logger.getLogger("test"));
         Path file = store.fileFor(ID);

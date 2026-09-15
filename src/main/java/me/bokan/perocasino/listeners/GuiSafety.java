@@ -1,6 +1,7 @@
 package me.bokan.perocasino.listeners;
 
 import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 
@@ -40,17 +41,20 @@ public final class GuiSafety {
                 || type == ClickType.DOUBLE_CLICK
                 || type == ClickType.NUMBER_KEY
                 || type == ClickType.SWAP_OFFHAND
-                || type == ClickType.UNKNOWN) {
+                || type == ClickType.UNKNOWN
+                || event.getAction() == InventoryAction.SWAP_WITH_CURSOR) {
             event.setCancelled(true);
             return true;
         }
         return false;
     }
 
-    /** オフハンド入れ替えなど、カーソル経由でない移動を止める。 */
+    /** オフハンド入れ替え・SWAP_WITH_CURSOR など、カーソル経由でない移動を止める。 */
     public static boolean cancelExoticClicks(InventoryClickEvent event) {
         ClickType type = event.getClick();
-        if (type == ClickType.SWAP_OFFHAND || type == ClickType.UNKNOWN) {
+        if (type == ClickType.SWAP_OFFHAND
+                || type == ClickType.UNKNOWN
+                || event.getAction() == InventoryAction.SWAP_WITH_CURSOR) {
             event.setCancelled(true);
             return true;
         }

@@ -153,6 +153,9 @@ public class LoanMenuListener implements Listener {
 
         event.setCancelled(true);
         GuiSafety.cancelOutsideClick(event);
+        if (GuiSafety.cancelExoticClicks(event)) {
+            return;
+        }
         if (!GuiSafety.isTopInventory(event)) {
             return;
         }

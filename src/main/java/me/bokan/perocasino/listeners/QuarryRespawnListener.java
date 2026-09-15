@@ -37,6 +37,8 @@ public class QuarryRespawnListener implements Listener {
         if (type != Material.DIAMOND_ORE && type != Material.DEEPSLATE_DIAMOND_ORE) return;
 
         Location loc = block.getLocation();
+        World world = loc.getWorld();
+        if (world == null) return;
         if (!isInQuarry(cfg, loc)) return;
 
         String key = key(loc);
@@ -49,8 +51,6 @@ public class QuarryRespawnListener implements Listener {
         block.setType(Material.COBBLESTONE, true);
 
         long delay = Math.max(20L, cfg.getLong("quarry.respawn-delay-ticks", 6000L));
-        World world = loc.getWorld();
-        if (world == null) return;
 
         int x = loc.getBlockX();
         int y = loc.getBlockY();

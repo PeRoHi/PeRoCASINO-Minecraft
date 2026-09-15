@@ -3,6 +3,7 @@ package me.bokan.perocasino.data;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
@@ -69,6 +70,20 @@ class PlayerDataStoreTest {
         PlayerData data = new PlayerData(ID);
         assertTrue(store.save(data, false));
         assertFalse(Files.exists(store.fileFor(ID)));
+    }
+
+    @Test
+    void danglingSymlinkIsFailedNotMissing() throws Exception {
+        PlayerDataStore store = store();
+        Path file = store.fileFor(ID);
+        try {
+            Files.createSymbolicLink(file, temp.resolve("does-not-exist.yml"));
+        } catch (UnsupportedOperationException | IOException skipped) {
+            return;
+        }
+        PlayerDataStore.Result loaded = store.load(ID);
+        assertEquals(PlayerDataStore.Outcome.FAILED, loaded.outcome());
+        assertTrue(store.fileExists(ID));
     }
 
     @Test
