@@ -250,6 +250,10 @@ public class LoanMenuListener implements Listener {
             return;
         }
 
+        if (economyManager.isLoadFailed(uuid)) {
+            player.sendMessage("§c経済データの読込に失敗したため、借入できません。");
+            return;
+        }
         if (!economyManager.tryBorrow(uuid, amount)) {
             player.sendMessage("§c借入できません（財布または借金が上限です）。");
             return;
@@ -280,6 +284,11 @@ public class LoanMenuListener implements Listener {
         int actualMax = Math.min(maxRepay, Math.min(liveWallet, liveDebt));
         if (amount > actualMax) {
             player.sendMessage("§c返済額が限度を超えています（最大: " + actualMax + "）。");
+            return;
+        }
+
+        if (economyManager.isLoadFailed(uuid)) {
+            player.sendMessage("§c経済データの読込に失敗したため、返済できません。");
             return;
         }
 

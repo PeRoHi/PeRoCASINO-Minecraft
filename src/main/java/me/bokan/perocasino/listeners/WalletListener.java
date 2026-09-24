@@ -24,6 +24,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class WalletListener implements Listener {
@@ -40,8 +41,25 @@ public class WalletListener implements Listener {
     }
 
     public void setupWalletItems(Player player) {
-        player.getInventory().setItem(WITHDRAW_SLOT, createWithdrawItem());
-        player.getInventory().setItem(BUNDLE_SLOT,   createBundleItem());
+        placeWalletItem(player, WITHDRAW_SLOT, createWithdrawItem());
+        placeWalletItem(player, BUNDLE_SLOT, createBundleItem());
+    }
+
+    private void placeWalletItem(Player player, int slot, ItemStack walletItem) {
+        PlayerInventory inv = player.getInventory();
+        ItemStack existing = inv.getItem(slot);
+        if (existing == null || existing.getType() == Material.AIR || isWalletItem(existing)) {
+            inv.setItem(slot, walletItem);
+            return;
+        }
+        inv.setItem(slot, walletItem);
+        Map<Integer, ItemStack> leftover = inv.addItem(existing);
+        if (leftover.isEmpty()) {
+            return;
+        }
+        for (ItemStack extra : leftover.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), extra);
+        }
     }
 
     @EventHandler
@@ -101,12 +119,12 @@ public class WalletListener implements Listener {
                 && event.getCurrentItem() != null
                 && event.getCurrentItem().getType() == Material.DIAMOND
                 && isOwnInventoryView(event)) {
+            event.setCancelled(true);
             int amount = event.getCurrentItem().getAmount();
             if (!economyManager.tryDepositWallet(player.getUniqueId(), amount)) {
                 player.sendMessage("§c財布が上限のため預け入れできません。");
                 return;
             }
-            event.setCancelled(true);
             player.getInventory().setItem(slot, null);
             player.sendMessage("§a" + amount + " ダイヤを財布に収納しました。財布: "
                     + economyManager.getWalletBalance(player.getUniqueId()));

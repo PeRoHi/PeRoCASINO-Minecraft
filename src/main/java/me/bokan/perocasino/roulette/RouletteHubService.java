@@ -37,6 +37,7 @@ public class RouletteHubService extends BukkitRunnable {
 
     private RoulettePhase phase = RoulettePhase.BETTING;
     private int phaseTicksRemaining;
+    private boolean phaseArmed;
 
     private final List<Material> symbolPool = new ArrayList<>();
 
@@ -99,9 +100,20 @@ public class RouletteHubService extends BukkitRunnable {
             }
         }
 
-        // フェーズをリセット
-        phase = RoulettePhase.BETTING;
-        phaseTicksRemaining = betTicks;
+        if (!phaseArmed) {
+            phase = RoulettePhase.BETTING;
+            phaseTicksRemaining = betTicks;
+            phaseArmed = true;
+        } else {
+            int cap = switch (phase) {
+                case BETTING -> betTicks;
+                case SPINNING -> spinTicks;
+                case COOLDOWN -> cooldownTicks;
+            };
+            if (phaseTicksRemaining > cap) {
+                phaseTicksRemaining = cap;
+            }
+        }
         RouletteBetMenuListener.setHubPhase(phase);
         updateBossBarForPhase();
     }

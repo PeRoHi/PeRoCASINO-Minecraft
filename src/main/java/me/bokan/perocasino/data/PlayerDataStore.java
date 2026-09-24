@@ -86,7 +86,7 @@ public final class PlayerDataStore {
             if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) {
                 return Result.missing();
             }
-            byte[] bytes = Files.readAllBytes(file);
+            byte[] bytes = AtomicFiles.readNoFollow(file);
             if (bytes.length == 0) {
                 return Result.failed("empty file");
             }

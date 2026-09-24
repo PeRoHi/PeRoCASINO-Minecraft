@@ -13,3 +13,8 @@ Assumes for the economy-integrity change. Game payout rates and match rules are 
 - Wallet credit for slot/roulette win or interrupt refund tries the wallet first (same overflow reject as deposits). If that is refused (int cap or loadFailed), an online player gets inventory then floor drops. Offline refuse leaves chips in the in-memory roulette maps / logs the slot refund; no new YAML store.
 - `EconomyManager.getData` loads the player file before allocating zeros. A missed `loadAll` index cannot persist a blank wallet over an existing file. A dangling or symlink leaf is loadFailed, not a new player.
 - Atomic player YAML tmp is opened with CREATE_NEW after refusing a symlink tmp (leftover regular `.tmp` is deleted first).
+- Atomic replace re-checks that tmp is a regular file, then fsyncs the destination. Player YAML is read with NOFOLLOW (symlink/non-regular leaf is loadFailed).
+- Roulette settlement includes closed GUIs (`savedBets`) and all-in-only players, not only currently open inventories. Failed credit still keeps chips.
+- `/perocasino reload` refreshes hub coords/timings/symbols but does not reset an in-progress roulette phase. Remaining ticks are clamped if the new duration is shorter.
+- Join/respawn wallet icons occupy slots 8 and 35 only after moving a non-wallet occupant (inventory first, else feet). Existing wallet icons are refreshed in place.
+- Quarry cobble replace runs on the next tick and only if the broken block is air, so vanilla diamond-ore drops are not replaced in the same event.
