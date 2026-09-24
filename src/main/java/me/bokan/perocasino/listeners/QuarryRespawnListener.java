@@ -42,22 +42,15 @@ public class QuarryRespawnListener implements Listener {
         if (!isInQuarry(cfg, loc)) return;
 
         String key = key(loc);
-        // 既に復帰待ちの座標なら二重登録しない
         if (pending.containsKey(key)) return;
 
-        // ドロップはバニラ通り出るので、ブロックだけ置換する
-        event.setDropItems(true);
-
-        block.setType(Material.COBBLESTONE, true);
-
         long delay = Math.max(20L, cfg.getLong("quarry.respawn-delay-ticks", 6000L));
-
         int x = loc.getBlockX();
         int y = loc.getBlockY();
         int z = loc.getBlockZ();
         Material restore = type;
 
-        BukkitTask task = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+        BukkitTask restoreTask = plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             pending.remove(key);
             if (!world.isChunkLoaded(x >> 4, z >> 4)) return;
             Block b = world.getBlockAt(x, y, z);
@@ -65,8 +58,17 @@ public class QuarryRespawnListener implements Listener {
                 b.setType(restore, false);
             }
         }, delay);
+        pending.put(key, restoreTask);
 
-        pending.put(key, task);
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            if (!world.isChunkLoaded(x >> 4, z >> 4)) {
+                return;
+            }
+            Block b = world.getBlockAt(x, y, z);
+            if (b.getType() == Material.AIR) {
+                b.setType(Material.COBBLESTONE, true);
+            }
+        });
     }
 
     private static boolean isInQuarry(FileConfiguration cfg, Location loc) {

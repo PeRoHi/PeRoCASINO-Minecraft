@@ -24,6 +24,11 @@ public class DepositCommand implements CommandExecutor {
             return true;
         }
 
+        if (economyManager.isLoadFailed(player.getUniqueId())) {
+            player.sendMessage(ChatColor.RED + "経済データの読込に失敗したため、預け入れできません。");
+            return true;
+        }
+
         ItemStack mainHand = player.getInventory().getItemInMainHand();
         if (mainHand.getType() != Material.DIAMOND) {
             player.sendMessage(ChatColor.RED + "メインハンドにダイヤモンドを持ってください。");

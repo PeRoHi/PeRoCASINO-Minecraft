@@ -78,4 +78,27 @@ class AtomicFilesTest {
         assertTrue(ex.getMessage().contains("symlink"));
         assertEquals("wallet: 1\n", Files.readString(real));
     }
+
+    @Test
+    void readNoFollowRegularFile() throws IOException {
+        Path file = temp.resolve("save.yml");
+        Files.writeString(file, "wallet: 3\n");
+        byte[] bytes = AtomicFiles.readNoFollow(file);
+        assertEquals("wallet: 3\n", new String(bytes, StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void readNoFollowRefusesSymlink() throws IOException {
+        Path real = temp.resolve("real.yml");
+        Files.writeString(real, "wallet: 1\n");
+        Path link = temp.resolve("link.yml");
+        try {
+            Files.createSymbolicLink(link, real);
+        } catch (UnsupportedOperationException | IOException skipped) {
+            return;
+        }
+        IOException ex = assertThrows(IOException.class, () -> AtomicFiles.readNoFollow(link));
+        assertTrue(ex.getMessage().contains("symlink"));
+        assertEquals("wallet: 1\n", Files.readString(real));
+    }
 }

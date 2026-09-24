@@ -87,6 +87,16 @@ class PlayerDataStoreTest {
     }
 
     @Test
+    void whitespaceOnlyFileIsFailed() throws Exception {
+        PlayerDataStore store = store();
+        Path file = store.fileFor(ID);
+        Files.writeString(file, " \n\t\n");
+        PlayerDataStore.Result loaded = store.load(ID);
+        assertEquals(PlayerDataStore.Outcome.FAILED, loaded.outcome());
+        assertEquals(" \n\t\n", Files.readString(file));
+    }
+
+    @Test
     void parseRejectsMissingWallet() {
         try {
             PlayerDataYaml.parse(ID, "debt: 1\n");

@@ -13,7 +13,6 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -34,6 +33,61 @@ public final class RouletteSettlement {
         return new RoundResult(a, b, c);
     }
 
+    public static int computePayout(int totalBet, int matches, int payoutThree, int payoutTwo) {
+        int mult = 0;
+        if (matches >= 3) {
+            mult = payoutThree;
+        } else if (matches == 2) {
+            mult = payoutTwo;
+        }
+        if (totalBet <= 0 || mult <= 0) {
+            return 0;
+        }
+        long payoutLong = (long) totalBet * (long) mult;
+        return payoutLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) payoutLong;
+    }
+
+    public static int countBetDiamonds(ItemStack[] contents) {
+        int n = 0;
+        if (contents == null) {
+            return 0;
+        }
+        for (int slot : RouletteBetMenuListener.BET_SLOTS) {
+            if (slot < 0 || slot >= contents.length) {
+                continue;
+            }
+            ItemStack stack = contents[slot];
+            if (stack != null && stack.getType() == Material.DIAMOND) {
+                n += stack.getAmount();
+            }
+        }
+        return n;
+    }
+
+    public static int countOreMatches(ItemStack[] contents, RoundResult result) {
+        int matches = 0;
+        if (contents == null) {
+            return 0;
+        }
+        for (int slot : RouletteBetMenuListener.BET_SLOTS) {
+            if (slot < 0 || slot >= contents.length) {
+                continue;
+            }
+            ItemStack stack = contents[slot];
+            if (stack == null || stack.getType() == Material.AIR) {
+                continue;
+            }
+            if (stack.getType() == Material.DIAMOND) {
+                continue;
+            }
+            Material m = stack.getType();
+            if (m == result.a() || m == result.b() || m == result.c()) {
+                matches++;
+            }
+        }
+        return matches;
+    }
+
     public static void settleRound(EconomyManager economy,
                                    RouletteBetMenuListener betListener,
                                    List<Material> symbolPool,
@@ -43,57 +97,24 @@ public final class RouletteSettlement {
                                    double notifyRadius) {
         RoundResult result = randomResult(symbolPool);
 
-        Map<UUID, Inventory> open = betListener.getOpenBetInventoriesView();
-        List<Map.Entry<UUID, Inventory>> snapshot = new ArrayList<>(open.entrySet());
-
-        for (Map.Entry<UUID, Inventory> entry : snapshot) {
-            UUID uuid = entry.getKey();
-            Inventory inv = entry.getValue();
-            if (inv == null) continue;
-
+        for (UUID uuid : betListener.idsForSettlement()) {
+            ItemStack[] contents = betListener.boardContents(uuid);
             Player player = Bukkit.getPlayer(uuid);
 
-            int totalBet = 0;
-            int matches = 0;
-
-            for (int slot : RouletteBetMenuListener.BET_SLOTS) {
-                ItemStack stack = inv.getItem(slot);
-                if (stack == null || stack.getType() == Material.AIR) continue;
-                if (stack.getType() != Material.DIAMOND) continue;
-                totalBet += stack.getAmount();
-            }
-
+            int totalBet = countBetDiamonds(contents);
             int allIn = betListener.getAllInBets().getOrDefault(uuid, 0);
             long totalLong = (long) totalBet + (long) allIn;
             totalBet = totalLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) totalLong;
 
-            for (int slot : RouletteBetMenuListener.BET_SLOTS) {
-                ItemStack stack = inv.getItem(slot);
-                if (stack == null || stack.getType() == Material.AIR) continue;
-                if (stack.getType() == Material.DIAMOND) continue;
-                Material m = stack.getType();
-                if (m == result.a() || m == result.b() || m == result.c()) {
-                    matches++;
-                }
-            }
-
-            int mult = 0;
-            if (matches >= 3) mult = payoutThree;
-            else if (matches == 2) mult = payoutTwo;
-
-            long payoutLong = (long) totalBet * (long) mult;
-            int payout = payoutLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) payoutLong;
+            int matches = countOreMatches(contents, result);
+            int payout = computePayout(totalBet, matches, payoutThree, payoutTwo);
 
             if (payout > 0 && !economy.creditPayout(uuid, player, payout)) {
                 Bukkit.getLogger().warning("Roulette payout could not be credited; chips kept uuid=" + uuid);
                 continue;
             }
 
-            for (int slot : RouletteBetMenuListener.BET_SLOTS) {
-                inv.setItem(slot, null);
-            }
-            betListener.getAllInBets().put(uuid, 0);
-            betListener.refreshHiddenBundle(uuid, inv);
+            betListener.clearSettledBoard(uuid);
 
             if (payout > 0 && player != null && player.isOnline()) {
                 player.sendMessage("§a[ルーレット] §f結果: §e" + shortName(result.a())
@@ -108,14 +129,16 @@ public final class RouletteSettlement {
                         + " §f| 一致: §7" + matches + " §f（払戻なし）");
             }
 
-            for (HumanEntity viewer : new ArrayList<>(inv.getViewers())) {
-                if (viewer instanceof Player p) {
-                    p.updateInventory();
+            Inventory open = betListener.getOpenBetInventoriesView().get(uuid);
+            if (open != null) {
+                for (HumanEntity viewer : new ArrayList<>(open.getViewers())) {
+                    if (viewer instanceof Player p) {
+                        p.updateInventory();
+                    }
                 }
             }
         }
 
-        // 近くにいるプレイヤーへ結果の一斉通知（GUIを開いていない人向け）
         if (hub != null && hub.getWorld() != null) {
             World w = hub.getWorld();
             double r2 = notifyRadius * notifyRadius;

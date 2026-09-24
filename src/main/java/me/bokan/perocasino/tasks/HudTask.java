@@ -25,15 +25,15 @@ public class HudTask extends BukkitRunnable {
     public void run() {
         long now = System.currentTimeMillis();
         for (Player player : Bukkit.getOnlinePlayers()) {
-            int inv     = countInvDiamonds(player);
-            int wallet  = economyManager.getWalletBalance(player.getUniqueId());
-            int debt    = economyManager.getDebt(player.getUniqueId());
-            long deadline = economyManager.getLoanDeadline(player.getUniqueId());
             if (economyManager.isLoadFailed(player.getUniqueId())) {
                 player.spigot().sendMessage(ChatMessageType.ACTION_BAR,
                         new TextComponent("§c経済データ読込失敗（財布操作は無効）"));
                 continue;
             }
+            int inv     = countInvDiamonds(player);
+            int wallet  = economyManager.getWalletBalance(player.getUniqueId());
+            int debt    = economyManager.getDebt(player.getUniqueId());
+            long deadline = economyManager.getLoanDeadline(player.getUniqueId());
 
             String timerStr;
             if (debt > 0 && deadline > 0) {

@@ -66,6 +66,42 @@ public class RouletteBetMenuListener implements Listener {
         return openBetInventories;
     }
 
+    public Set<UUID> idsForSettlement() {
+        Set<UUID> ids = new HashSet<>();
+        ids.addAll(openBetInventories.keySet());
+        ids.addAll(savedBets.keySet());
+        ids.addAll(allInBets.keySet());
+        return ids;
+    }
+
+    public ItemStack[] boardContents(UUID uuid) {
+        Inventory open = openBetInventories.get(uuid);
+        if (open != null) {
+            return open.getContents();
+        }
+        return savedBets.get(uuid);
+    }
+
+    public void clearSettledBoard(UUID uuid) {
+        Inventory open = openBetInventories.get(uuid);
+        if (open != null) {
+            for (int slot : BET_SLOTS) {
+                open.setItem(slot, null);
+            }
+            refreshHiddenBundle(uuid, open);
+        }
+        ItemStack[] saved = savedBets.get(uuid);
+        if (saved != null) {
+            for (int slot : BET_SLOTS) {
+                if (slot >= 0 && slot < saved.length) {
+                    saved[slot] = null;
+                }
+            }
+            savedBets.put(uuid, saved);
+        }
+        allInBets.put(uuid, 0);
+    }
+
     public void openBetGui(Player player) {
         Inventory existing = openBetInventories.get(player.getUniqueId());
         if (existing != null) {
