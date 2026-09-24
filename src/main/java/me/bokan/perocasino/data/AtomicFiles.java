@@ -42,7 +42,7 @@ public final class AtomicFiles {
         try (FileChannel channel = FileChannel.open(tmp,
                 StandardOpenOption.CREATE_NEW,
                 StandardOpenOption.WRITE,
-                StandardOpenOption.NOFOLLOW_LINKS)) {
+                LinkOption.NOFOLLOW_LINKS)) {
             channel.write(ByteBuffer.wrap(body));
             channel.force(true);
         } catch (IOException ex) {
@@ -86,7 +86,7 @@ public final class AtomicFiles {
         }
         try (FileChannel channel = FileChannel.open(path,
                 StandardOpenOption.READ,
-                StandardOpenOption.NOFOLLOW_LINKS)) {
+                LinkOption.NOFOLLOW_LINKS)) {
             long size = channel.size();
             if (size > Integer.MAX_VALUE) {
                 throw new IOException("file too large");
@@ -134,7 +134,7 @@ public final class AtomicFiles {
         }
         try (FileChannel channel = FileChannel.open(target,
                 StandardOpenOption.WRITE,
-                StandardOpenOption.NOFOLLOW_LINKS)) {
+                LinkOption.NOFOLLOW_LINKS)) {
             channel.force(true);
         }
     }
