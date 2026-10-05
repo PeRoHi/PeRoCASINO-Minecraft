@@ -54,6 +54,22 @@ public final class RouletteSettlement {
         return ChipFate.CLEAR;
     }
 
+    /**
+     * BETTING 中にベット GUI を開くとき。未払があれば先に払い、成功時だけ空盤面で開く。
+     */
+    public enum UnpaidOpenFate {
+        OPEN,
+        CLEAR_AFTER_CREDIT,
+        REFUSE
+    }
+
+    public static UnpaidOpenFate decideUnpaidOpen(int unpaid, boolean creditOk) {
+        if (unpaid <= 0) {
+            return UnpaidOpenFate.OPEN;
+        }
+        return creditOk ? UnpaidOpenFate.CLEAR_AFTER_CREDIT : UnpaidOpenFate.REFUSE;
+    }
+
     public static int computePayout(int totalBet, int matches, int payoutThree, int payoutTwo) {
         int mult = 0;
         if (matches >= 3) {

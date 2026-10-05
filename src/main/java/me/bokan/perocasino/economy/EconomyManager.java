@@ -270,7 +270,11 @@ public class EconomyManager {
         if (data == null) {
             return;
         }
-        if (!store.save(data)) {
+        if (store.save(data)) {
+            return;
+        }
+        PlayerDataStore.Result disk = store.load(id);
+        if (disk.outcome() == PlayerDataStore.Outcome.FAILED) {
             loadFailed.add(id);
         }
     }

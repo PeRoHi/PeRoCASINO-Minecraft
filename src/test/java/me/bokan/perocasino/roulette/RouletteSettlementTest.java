@@ -23,6 +23,18 @@ class RouletteSettlementTest {
     }
 
     @Test
+    void unpaidOpenCreditsThenClearsOrRefuses() {
+        assertEquals(RouletteSettlement.UnpaidOpenFate.OPEN,
+                RouletteSettlement.decideUnpaidOpen(0, true));
+        assertEquals(RouletteSettlement.UnpaidOpenFate.OPEN,
+                RouletteSettlement.decideUnpaidOpen(0, false));
+        assertEquals(RouletteSettlement.UnpaidOpenFate.CLEAR_AFTER_CREDIT,
+                RouletteSettlement.decideUnpaidOpen(40, true));
+        assertEquals(RouletteSettlement.UnpaidOpenFate.REFUSE,
+                RouletteSettlement.decideUnpaidOpen(40, false));
+    }
+
+    @Test
     void computePayoutUsesExistingMultipliersOnly() {
         assertEquals(0, RouletteSettlement.computePayout(5, 1, 8, 2));
         assertEquals(10, RouletteSettlement.computePayout(5, 2, 8, 2));

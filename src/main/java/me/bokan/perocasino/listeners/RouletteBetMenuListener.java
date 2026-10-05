@@ -2,6 +2,7 @@ package me.bokan.perocasino.listeners;
 
 import me.bokan.perocasino.economy.EconomyManager;
 import me.bokan.perocasino.roulette.RoulettePhase;
+import me.bokan.perocasino.roulette.RouletteSettlement;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -128,6 +129,22 @@ public class RouletteBetMenuListener implements Listener {
                 player.openInventory(existing);
             }
             return;
+        }
+
+        UUID uuid = player.getUniqueId();
+        int unpaid = getUnpaidPayout(uuid);
+        if (unpaid > 0) {
+            boolean creditOk = economy.creditPayout(uuid, player, unpaid);
+            RouletteSettlement.UnpaidOpenFate fate = RouletteSettlement.decideUnpaidOpen(unpaid, creditOk);
+            if (fate == RouletteSettlement.UnpaidOpenFate.REFUSE) {
+                plugin.getLogger().warning("Roulette unpaid payout still uncredited; bet GUI not opened uuid=" + uuid);
+                return;
+            }
+            if (fate == RouletteSettlement.UnpaidOpenFate.CLEAR_AFTER_CREDIT) {
+                clearUnpaidPayout(uuid);
+                clearSettledBoard(uuid);
+                player.sendMessage("§a[ルーレット] §f保留していた払戻 §b" + unpaid + "§f を渡せました。");
+            }
         }
 
         Inventory gui = Bukkit.createInventory(null, 54, GUI_TITLE);
