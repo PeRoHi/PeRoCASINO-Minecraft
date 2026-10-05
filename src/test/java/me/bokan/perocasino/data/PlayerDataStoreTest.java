@@ -33,7 +33,7 @@ class PlayerDataStoreTest {
         data.setDebt(7);
         data.setLoanDeadlineMillis(111L);
         data.setNextInterestMillis(222L);
-        assertTrue(store.save(data, false));
+        assertTrue(store.save(data));
 
         PlayerDataStore.Result loaded = store.load(ID);
         assertEquals(PlayerDataStore.Outcome.OK, loaded.outcome());
@@ -68,7 +68,7 @@ class PlayerDataStoreTest {
     void skipZeroStateWhenNoFile() {
         PlayerDataStore store = store();
         PlayerData data = new PlayerData(ID);
-        assertTrue(store.save(data, false));
+        assertTrue(store.save(data));
         assertFalse(Files.exists(store.fileFor(ID)));
     }
 
@@ -94,6 +94,17 @@ class PlayerDataStoreTest {
         PlayerDataStore.Result loaded = store.load(ID);
         assertEquals(PlayerDataStore.Outcome.FAILED, loaded.outcome());
         assertEquals(" \n\t\n", Files.readString(file));
+    }
+
+    @Test
+    void saveRefusesOverwriteWhenExistingIsCorrupt() throws Exception {
+        PlayerDataStore store = store();
+        Path file = store.fileFor(ID);
+        Files.writeString(file, "wallet: nope\ndebt: 1\n");
+        PlayerData data = new PlayerData(ID);
+        data.setWalletBalance(9);
+        assertFalse(store.save(data));
+        assertEquals("wallet: nope\ndebt: 1\n", Files.readString(file));
     }
 
     @Test

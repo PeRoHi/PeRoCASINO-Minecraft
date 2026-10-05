@@ -82,4 +82,52 @@ class EconomyPersistTest {
         assertEquals(0, economy.getWalletBalance(ID));
         assertEquals("wallet: nope\ndebt: 1\n", Files.readString(file));
     }
+
+    @Test
+    void mutateRefusesWhenFileTurnsCorruptAfterGetData() throws Exception {
+        PlayerDataStore store = new PlayerDataStore(temp, Logger.getLogger("test"));
+        EconomyManager economy = new EconomyManager();
+        economy.attachStore(store);
+        assertEquals(0, economy.getWalletBalance(ID));
+        Path file = store.fileFor(ID);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "");
+        assertFalse(economy.tryDepositWallet(ID, 5));
+        assertTrue(economy.isLoadFailed(ID));
+        assertEquals("", Files.readString(file));
+    }
+
+    @Test
+    void writeFailureDoesNotMarkLoadFailedAndLaterPersistRetries() throws Exception {
+        PlayerDataStore store = new PlayerDataStore(temp, Logger.getLogger("test"));
+        EconomyManager economy = new EconomyManager();
+        economy.attachStore(store);
+        assertTrue(economy.tryDepositWallet(ID, 10));
+        Path file = store.fileFor(ID);
+        Path blockingTmp = Path.of(file.toString() + ".tmp");
+        Files.createDirectory(blockingTmp);
+        assertTrue(economy.tryDepositWallet(ID, 5));
+        assertFalse(economy.isLoadFailed(ID));
+        assertEquals(15, economy.getWalletBalance(ID));
+        assertTrue(Files.readString(file).contains("wallet: 10"));
+        Files.delete(blockingTmp);
+        economy.savePlayer(ID);
+        assertFalse(economy.isLoadFailed(ID));
+        assertTrue(Files.readString(file).contains("wallet: 15"));
+    }
+
+    @Test
+    void persistSaveFailureOnCorruptFileIsLoadFailedAndDoesNotOverwrite() throws Exception {
+        PlayerDataStore store = new PlayerDataStore(temp, Logger.getLogger("test"));
+        EconomyManager economy = new EconomyManager();
+        economy.attachStore(store);
+        assertTrue(economy.tryDepositWallet(ID, 10));
+        Path file = store.fileFor(ID);
+        Files.writeString(file, "wallet: nope\ndebt: 1\n");
+        economy.savePlayer(ID);
+        assertTrue(economy.isLoadFailed(ID));
+        assertEquals("wallet: nope\ndebt: 1\n", Files.readString(file));
+        assertFalse(economy.tryDepositWallet(ID, 1));
+        assertEquals("wallet: nope\ndebt: 1\n", Files.readString(file));
+    }
 }

@@ -80,6 +80,20 @@ class AtomicFilesTest {
     }
 
     @Test
+    void refuseNonRegularDestBeforeReplace() throws Exception {
+        Path dest = temp.resolve("fifo-dest.yml");
+        Process mkfifo = new ProcessBuilder("mkfifo", dest.toString()).start();
+        if (mkfifo.waitFor() != 0) {
+            return;
+        }
+        IOException ex = assertThrows(IOException.class,
+                () -> AtomicFiles.writeAtomic(dest, "wallet: 1\n".getBytes(StandardCharsets.UTF_8)));
+        assertTrue(ex.getMessage().contains("non-regular dest"));
+        assertTrue(Files.exists(dest));
+        assertTrue(Files.notExists(temp.resolve("fifo-dest.yml.tmp")));
+    }
+
+    @Test
     void readNoFollowRegularFile() throws IOException {
         Path file = temp.resolve("save.yml");
         Files.writeString(file, "wallet: 3\n");

@@ -393,8 +393,13 @@ public class SlotMachineService {
             int payout = payoutLong > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) payoutLong;
             if (payout > 0) {
                 if (!economy.creditPayout(player.getUniqueId(), player, payout)) {
-                    player.sendMessage("§c[SLOT] 払戻を渡せませんでした。管理者に連絡してください。");
-                    plugin.getLogger().warning("Slot payout could not be credited for " + player.getUniqueId());
+                    if (!economy.creditPayout(player.getUniqueId(), player, bet)) {
+                        player.sendMessage("§c[SLOT] 払戻を渡せませんでした。管理者に連絡してください。");
+                        plugin.getLogger().warning("Slot payout and bet refund could not be credited for " + player.getUniqueId());
+                    } else {
+                        player.sendMessage("§e[SLOT] 当たり払戻を渡せなかったため、ベット " + bet + " を返却しました。");
+                        plugin.getLogger().warning("Slot payout could not be credited; bet refunded for " + player.getUniqueId());
+                    }
                 } else {
                     player.sendMessage("§a[SLOT] §f結果: §e" + result[0] + " §7| §e" + result[1] + " §7| §e" + result[2]
                             + " §f| 払戻: §b" + payout + " §7(財布／手持ち)");

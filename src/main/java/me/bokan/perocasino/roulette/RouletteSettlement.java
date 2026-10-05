@@ -33,6 +33,43 @@ public final class RouletteSettlement {
         return new RoundResult(a, b, c);
     }
 
+    /**
+     * 未払があるあいだは新規ベットとして精算しない。
+     * 未払クレジット失敗のあと負けラウンドで盤面を消さない。
+     */
+    public enum ChipFate {
+        RETRY_UNPAID,
+        CLEAR_AFTER_UNPAID,
+        KEEP_NEW_PAYOUT,
+        CLEAR
+    }
+
+    public static ChipFate decideChipFate(int unpaid, int newPayout, boolean creditOk) {
+        if (unpaid > 0) {
+            return creditOk ? ChipFate.CLEAR_AFTER_UNPAID : ChipFate.RETRY_UNPAID;
+        }
+        if (newPayout > 0 && !creditOk) {
+            return ChipFate.KEEP_NEW_PAYOUT;
+        }
+        return ChipFate.CLEAR;
+    }
+
+    /**
+     * BETTING 中にベット GUI を開くとき。未払があれば先に払い、成功時だけ空盤面で開く。
+     */
+    public enum UnpaidOpenFate {
+        OPEN,
+        CLEAR_AFTER_CREDIT,
+        REFUSE
+    }
+
+    public static UnpaidOpenFate decideUnpaidOpen(int unpaid, boolean creditOk) {
+        if (unpaid <= 0) {
+            return UnpaidOpenFate.OPEN;
+        }
+        return creditOk ? UnpaidOpenFate.CLEAR_AFTER_CREDIT : UnpaidOpenFate.REFUSE;
+    }
+
     public static int computePayout(int totalBet, int matches, int payoutThree, int payoutTwo) {
         int mult = 0;
         if (matches >= 3) {
@@ -101,6 +138,20 @@ public final class RouletteSettlement {
             ItemStack[] contents = betListener.boardContents(uuid);
             Player player = Bukkit.getPlayer(uuid);
 
+            int unpaid = betListener.getUnpaidPayout(uuid);
+            if (unpaid > 0) {
+                if (!economy.creditPayout(uuid, player, unpaid)) {
+                    Bukkit.getLogger().warning("Roulette unpaid payout still uncredited; chips kept uuid=" + uuid);
+                    continue;
+                }
+                betListener.clearUnpaidPayout(uuid);
+                betListener.clearSettledBoard(uuid);
+                if (player != null && player.isOnline()) {
+                    player.sendMessage("§a[ルーレット] §f保留していた払戻 §b" + unpaid + "§f を渡せました。");
+                }
+                continue;
+            }
+
             int totalBet = countBetDiamonds(contents);
             int allIn = betListener.getAllInBets().getOrDefault(uuid, 0);
             long totalLong = (long) totalBet + (long) allIn;
@@ -110,6 +161,7 @@ public final class RouletteSettlement {
             int payout = computePayout(totalBet, matches, payoutThree, payoutTwo);
 
             if (payout > 0 && !economy.creditPayout(uuid, player, payout)) {
+                betListener.setUnpaidPayout(uuid, payout);
                 Bukkit.getLogger().warning("Roulette payout could not be credited; chips kept uuid=" + uuid);
                 continue;
             }

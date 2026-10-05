@@ -2,6 +2,7 @@ package me.bokan.perocasino.listeners;
 
 import me.bokan.perocasino.economy.EconomyManager;
 import me.bokan.perocasino.roulette.RoulettePhase;
+import me.bokan.perocasino.roulette.RouletteSettlement;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -40,6 +41,8 @@ public class RouletteBetMenuListener implements Listener {
     // 盤面に置かれたダイヤの保存用
     private final Map<UUID, ItemStack[]> savedBets = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> allInBets = new ConcurrentHashMap<>();
+    /** 財布拒否で渡せなかった当たり。次ラウンドの新規ベットには使わない。 */
+    private final Map<UUID, Integer> unpaidPayouts = new ConcurrentHashMap<>();
 
     /** 現在開いているベットGUI（自動ルーレットの精算対象） */
     private final Map<UUID, Inventory> openBetInventories = new ConcurrentHashMap<>();
@@ -71,7 +74,24 @@ public class RouletteBetMenuListener implements Listener {
         ids.addAll(openBetInventories.keySet());
         ids.addAll(savedBets.keySet());
         ids.addAll(allInBets.keySet());
+        ids.addAll(unpaidPayouts.keySet());
         return ids;
+    }
+
+    public int getUnpaidPayout(UUID uuid) {
+        return unpaidPayouts.getOrDefault(uuid, 0);
+    }
+
+    public void setUnpaidPayout(UUID uuid, int amount) {
+        if (amount <= 0) {
+            unpaidPayouts.remove(uuid);
+            return;
+        }
+        unpaidPayouts.put(uuid, amount);
+    }
+
+    public void clearUnpaidPayout(UUID uuid) {
+        unpaidPayouts.remove(uuid);
     }
 
     public ItemStack[] boardContents(UUID uuid) {
@@ -109,6 +129,22 @@ public class RouletteBetMenuListener implements Listener {
                 player.openInventory(existing);
             }
             return;
+        }
+
+        UUID uuid = player.getUniqueId();
+        int unpaid = getUnpaidPayout(uuid);
+        if (unpaid > 0) {
+            boolean creditOk = economy.creditPayout(uuid, player, unpaid);
+            RouletteSettlement.UnpaidOpenFate fate = RouletteSettlement.decideUnpaidOpen(unpaid, creditOk);
+            if (fate == RouletteSettlement.UnpaidOpenFate.REFUSE) {
+                plugin.getLogger().warning("Roulette unpaid payout still uncredited; bet GUI not opened uuid=" + uuid);
+                return;
+            }
+            if (fate == RouletteSettlement.UnpaidOpenFate.CLEAR_AFTER_CREDIT) {
+                clearUnpaidPayout(uuid);
+                clearSettledBoard(uuid);
+                player.sendMessage("§a[ルーレット] §f保留していた払戻 §b" + unpaid + "§f を渡せました。");
+            }
         }
 
         Inventory gui = Bukkit.createInventory(null, 54, GUI_TITLE);
@@ -292,6 +328,7 @@ public class RouletteBetMenuListener implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!event.getView().getTitle().equals(GUI_TITLE)) return;
         UUID uuid = event.getPlayer().getUniqueId();
+        savedBets.put(uuid, event.getInventory().getContents());
         if (getHubPhase() != RoulettePhase.BETTING) {
             if (event.getPlayer() instanceof Player player) {
                 player.sendMessage("§cルーレット進行中はGUIを閉じられません。");
@@ -305,18 +342,15 @@ public class RouletteBetMenuListener implements Listener {
             }
             return;
         }
-        savedBets.put(uuid, event.getInventory().getContents());
         openBetInventories.remove(uuid);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
-        if (getHubPhase() == RoulettePhase.BETTING) {
-            Inventory open = openBetInventories.remove(uuid);
-            if (open != null) {
-                savedBets.put(uuid, open.getContents());
-            }
+        Inventory open = openBetInventories.remove(uuid);
+        if (open != null) {
+            savedBets.put(uuid, open.getContents());
         }
     }
 
@@ -325,8 +359,10 @@ public class RouletteBetMenuListener implements Listener {
         ids.addAll(openBetInventories.keySet());
         ids.addAll(savedBets.keySet());
         ids.addAll(allInBets.keySet());
+        ids.addAll(unpaidPayouts.keySet());
         Set<UUID> keep = new HashSet<>();
         for (UUID uuid : ids) {
+            int unpaid = unpaidPayouts.getOrDefault(uuid, 0);
             int chips = allInBets.getOrDefault(uuid, 0);
             Inventory open = openBetInventories.get(uuid);
             if (open != null) {
@@ -337,27 +373,32 @@ public class RouletteBetMenuListener implements Listener {
                     chips += countBetDiamonds(saved);
                 }
             }
-            if (chips > 0) {
+            int refund = unpaid > 0 ? unpaid : chips;
+            if (refund > 0) {
                 Player p = Bukkit.getPlayer(uuid);
-                if (!economy.creditPayout(uuid, p, chips)) {
+                if (!economy.creditPayout(uuid, p, refund)) {
                     plugin.getLogger().warning("Roulette shutdown refund could not be credited; chips kept uuid=" + uuid);
                     keep.add(uuid);
                     continue;
                 }
                 if (p != null && p.isOnline()) {
-                    p.sendMessage("§eルーレット停止のためベットを財布に戻しました: " + chips);
+                    p.sendMessage("§eルーレット停止のためベットを財布に戻しました: " + refund);
                 }
             }
+            clearSettledBoard(uuid);
+            unpaidPayouts.remove(uuid);
         }
         if (keep.isEmpty()) {
             allInBets.clear();
             savedBets.clear();
             openBetInventories.clear();
+            unpaidPayouts.clear();
             return;
         }
         allInBets.keySet().retainAll(keep);
         savedBets.keySet().retainAll(keep);
         openBetInventories.keySet().retainAll(keep);
+        unpaidPayouts.keySet().retainAll(keep);
     }
 
     private static int countBetDiamonds(Inventory inv) {
