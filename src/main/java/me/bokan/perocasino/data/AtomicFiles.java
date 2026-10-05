@@ -58,12 +58,23 @@ public final class AtomicFiles {
         if (!Files.isRegularFile(tmp, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("refuse non-regular tmp before replace");
         }
+        if (existsNoFollow(target)
+                && !Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
+            try {
+                if (existsNoFollow(tmp) && Files.isRegularFile(tmp, LinkOption.NOFOLLOW_LINKS)) {
+                    Files.deleteIfExists(tmp);
+                }
+            } catch (IOException ignored) {
+                // dest 拒否を優先
+            }
+            throw new IOException("refuse non-regular dest");
+        }
         try {
             Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (AtomicMoveNotSupportedException ex) {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
         }
-        fsyncDest(target);
+        fsyncDestBestEffort(target);
     }
 
     /**
@@ -79,7 +90,7 @@ public final class AtomicFiles {
             refuseSymlink(parent, "parent");
         }
         if (!existsNoFollow(path)) {
-            throw new NoSuchFileException(path.toString());
+            throw new NoSuchFileException("missing player file");
         }
         if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
             throw new IOException("refuse non-regular leaf");
@@ -128,14 +139,19 @@ public final class AtomicFiles {
         Files.delete(tmp);
     }
 
-    private static void fsyncDest(Path target) throws IOException {
-        if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
-            throw new IOException("refuse non-regular dest after replace");
-        }
-        try (FileChannel channel = FileChannel.open(target,
-                StandardOpenOption.WRITE,
-                LinkOption.NOFOLLOW_LINKS)) {
-            channel.force(true);
+    /** replace 済みの dest fsync は best-effort。失敗しても保存成功を覆さない。 */
+    private static void fsyncDestBestEffort(Path target) {
+        try {
+            if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
+                return;
+            }
+            try (FileChannel channel = FileChannel.open(target,
+                    StandardOpenOption.WRITE,
+                    LinkOption.NOFOLLOW_LINKS)) {
+                channel.force(true);
+            }
+        } catch (IOException ignored) {
+            // replace 済み。失敗を保存失敗にしない
         }
     }
 }

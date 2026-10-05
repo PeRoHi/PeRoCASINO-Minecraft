@@ -18,3 +18,8 @@ Assumes for the economy-integrity change. Game payout rates and match rules are 
 - `/perocasino reload` refreshes hub coords/timings/symbols but does not reset an in-progress roulette phase. Remaining ticks are clamped if the new duration is shorter.
 - Join/respawn wallet icons occupy slots 8 and 35 only after moving a non-wallet occupant (inventory first, else feet). Existing wallet icons are refreshed in place.
 - Quarry cobble replace runs on the next tick and only if the broken block is air, so vanilla diamond-ore drops are not replaced in the same event.
+- Persist re-reads the player YAML immediately before mutate/save. A file that is empty/corrupt/symlink after first load is loadFailed; it is not overwritten with in-memory zeros.
+- Destination fsync after atomic replace is best-effort (replace already succeeded). Non-regular dest is refused before move. I/O errors use generic reasons (no OS path in store results).
+- Roulette unpaid win is retried and is not treated as a new bet. A later losing spin does not clear those chips. Shutdown refunds the unpaid amount if present, else board+all-in, and clears GUI bet slots after a successful credit.
+- Slot win that cannot be credited refunds the original bet when that credit is possible.
+- Wallet/loan GUI checks loadFailed after the same eligibility guards as the action, then refuses with a generic unread message (not a 0 balance).

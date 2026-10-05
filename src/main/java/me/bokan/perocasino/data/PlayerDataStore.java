@@ -93,16 +93,21 @@ public final class PlayerDataStore {
             String text = new String(bytes, StandardCharsets.UTF_8);
             return Result.ok(PlayerDataYaml.parse(playerId, text));
         } catch (IllegalArgumentException | IOException ex) {
-            return Result.failed(ex.getMessage());
+            return Result.failed(safeLoadReason(ex));
         }
     }
 
     /**
+     * persist 直前にディスクを再読する。壊れた／symlink 葉は上書きしない。
      * @return 書き込んだ、または意図的にスキップした（失敗時は false）
      */
-    public boolean save(PlayerData data, boolean fileAlreadyExists) {
-        Path file = fileFor(data.getPlayerId());
-        if (PlayerDataYaml.isZeroState(data) && !fileAlreadyExists && !Files.exists(file)) {
+    public boolean save(PlayerData data) {
+        Result disk = load(data.getPlayerId());
+        if (disk.outcome() == Outcome.FAILED) {
+            warn("保存拒否（既存ファイルが読めない） uuid=" + data.getPlayerId());
+            return false;
+        }
+        if (PlayerDataYaml.isZeroState(data) && disk.outcome() == Outcome.MISSING) {
             return true;
         }
         try {
@@ -111,16 +116,37 @@ public final class PlayerDataStore {
                 warn("空シリアライズを拒否 uuid=" + data.getPlayerId());
                 return false;
             }
-            AtomicFiles.writeAtomic(file, body);
+            AtomicFiles.writeAtomic(fileFor(data.getPlayerId()), body);
             return true;
         } catch (IOException ex) {
-            warn("保存失敗 uuid=" + data.getPlayerId() + " : " + ex.getMessage());
+            warn("保存失敗 uuid=" + data.getPlayerId());
             return false;
         }
     }
 
     public boolean fileExists(UUID playerId) {
         return AtomicFiles.existsNoFollow(fileFor(playerId));
+    }
+
+    private static String safeLoadReason(Exception ex) {
+        String msg = ex.getMessage();
+        if (msg == null || msg.isBlank()) {
+            return "unreadable";
+        }
+        if (msg.startsWith("refuse ")
+                || msg.equals("empty file")
+                || msg.equals("file too large")
+                || msg.equals("missing player file")
+                || msg.equals("empty player data")
+                || msg.equals("missing required keys wallet/debt")
+                || msg.startsWith("invalid yaml")
+                || msg.startsWith("invalid int ")
+                || msg.startsWith("invalid long ")
+                || msg.endsWith(" is negative")
+                || msg.startsWith("duplicate or empty key")) {
+            return msg;
+        }
+        return "unreadable";
     }
 
     private void warn(String message) {

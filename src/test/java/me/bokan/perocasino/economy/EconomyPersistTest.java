@@ -82,4 +82,18 @@ class EconomyPersistTest {
         assertEquals(0, economy.getWalletBalance(ID));
         assertEquals("wallet: nope\ndebt: 1\n", Files.readString(file));
     }
+
+    @Test
+    void mutateRefusesWhenFileTurnsCorruptAfterGetData() throws Exception {
+        PlayerDataStore store = new PlayerDataStore(temp, Logger.getLogger("test"));
+        EconomyManager economy = new EconomyManager();
+        economy.attachStore(store);
+        assertEquals(0, economy.getWalletBalance(ID));
+        Path file = store.fileFor(ID);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "");
+        assertFalse(economy.tryDepositWallet(ID, 5));
+        assertTrue(economy.isLoadFailed(ID));
+        assertEquals("", Files.readString(file));
+    }
 }

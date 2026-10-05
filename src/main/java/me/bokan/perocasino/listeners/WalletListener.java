@@ -120,6 +120,9 @@ public class WalletListener implements Listener {
                 && event.getCurrentItem().getType() == Material.DIAMOND
                 && isOwnInventoryView(event)) {
             event.setCancelled(true);
+            if (refuseIfUnreadable(player)) {
+                return;
+            }
             int amount = event.getCurrentItem().getAmount();
             if (!economyManager.tryDepositWallet(player.getUniqueId(), amount)) {
                 player.sendMessage("§c財布が上限のため預け入れできません。");
@@ -156,6 +159,9 @@ public class WalletListener implements Listener {
 
         ItemStack cursor = event.getOldCursor();
         if (cursor == null || cursor.getType() != Material.DIAMOND) return;
+        if (refuseIfUnreadable(player)) {
+            return;
+        }
 
         int take = Math.min(deposited, cursor.getAmount());
         if (!economyManager.tryDepositWallet(player.getUniqueId(), take)) {
@@ -179,6 +185,9 @@ public class WalletListener implements Listener {
     }
 
     private void handleWithdraw(Player player, InventoryClickEvent event) {
+        if (refuseIfUnreadable(player)) {
+            return;
+        }
         UUID uuid = player.getUniqueId();
         int wallet = economyManager.getWalletBalance(uuid);
         if (wallet <= 0) {
@@ -223,6 +232,9 @@ public class WalletListener implements Listener {
     }
 
     private void handleBundle(Player player, InventoryClickEvent event) {
+        if (refuseIfUnreadable(player)) {
+            return;
+        }
         if (event.isShiftClick()) {
             collectAllDiamonds(player);
             return;
@@ -253,6 +265,9 @@ public class WalletListener implements Listener {
             player.sendMessage("§cインベントリにダイヤがありません。");
             return;
         }
+        if (refuseIfUnreadable(player)) {
+            return;
+        }
         if (!economyManager.tryDepositWallet(player.getUniqueId(), total)) {
             player.sendMessage("§c財布が上限のため預け入れできません。");
             return;
@@ -265,6 +280,14 @@ public class WalletListener implements Listener {
         }
         player.sendMessage("§aインベントリから " + total + " ダイヤを財布に収納しました。財布: "
                 + economyManager.getWalletBalance(player.getUniqueId()));
+    }
+
+    private boolean refuseIfUnreadable(Player player) {
+        if (!economyManager.isLoadFailed(player.getUniqueId())) {
+            return false;
+        }
+        player.sendMessage("§c経済データを読めないため財布操作はできません。");
+        return true;
     }
 
     private static boolean isOwnInventoryView(InventoryClickEvent event) {

@@ -82,7 +82,7 @@ public final class PlayerDataYaml {
         try {
             return Integer.parseInt(raw);
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("invalid int " + key + "=" + raw);
+            throw new IllegalArgumentException("invalid int " + key);
         }
     }
 
@@ -90,7 +90,7 @@ public final class PlayerDataYaml {
         try {
             return Long.parseLong(raw);
         } catch (NumberFormatException ex) {
-            throw new IllegalArgumentException("invalid long " + key + "=" + raw);
+            throw new IllegalArgumentException("invalid long " + key);
         }
     }
 }

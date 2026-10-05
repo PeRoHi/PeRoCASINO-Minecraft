@@ -44,6 +44,10 @@ public class LoanMenuListener implements Listener {
     }
 
     public void openGui(Player player) {
+        if (economyManager.isLoadFailed(player.getUniqueId())) {
+            player.sendMessage("§c経済データを読めないためローン操作はできません。");
+            return;
+        }
         player.openInventory(buildModeGui(player));
     }
 
@@ -188,6 +192,10 @@ public class LoanMenuListener implements Listener {
     }
 
     private void handleModeClick(Player player, InventoryClickEvent event) {
+        if (economyManager.isLoadFailed(player.getUniqueId())) {
+            player.sendMessage("§c経済データを読めないためローン操作はできません。");
+            return;
+        }
 
         switch (event.getSlot()) {
             case 11 -> plugin.getServer().getScheduler()
@@ -211,6 +219,10 @@ public class LoanMenuListener implements Listener {
     }
 
     private void handleInputClick(Player player, InventoryClickEvent event, boolean isBorrow) {
+        if (economyManager.isLoadFailed(player.getUniqueId())) {
+            player.sendMessage("§c経済データを読めないためローン操作はできません。");
+            return;
+        }
 
         UUID uuid    = player.getUniqueId();
         int current  = inputValues.getOrDefault(uuid, 0);

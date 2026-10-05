@@ -9,6 +9,20 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class RouletteSettlementTest {
 
     @Test
+    void unpaidPayoutIsNotClearedOnLaterLoss() {
+        assertEquals(RouletteSettlement.ChipFate.KEEP_NEW_PAYOUT,
+                RouletteSettlement.decideChipFate(0, 40, false));
+        assertEquals(RouletteSettlement.ChipFate.RETRY_UNPAID,
+                RouletteSettlement.decideChipFate(40, 0, false));
+        assertEquals(RouletteSettlement.ChipFate.CLEAR_AFTER_UNPAID,
+                RouletteSettlement.decideChipFate(40, 0, true));
+        assertEquals(RouletteSettlement.ChipFate.CLEAR,
+                RouletteSettlement.decideChipFate(0, 0, true));
+        assertEquals(RouletteSettlement.ChipFate.CLEAR,
+                RouletteSettlement.decideChipFate(0, 40, true));
+    }
+
+    @Test
     void computePayoutUsesExistingMultipliersOnly() {
         assertEquals(0, RouletteSettlement.computePayout(5, 1, 8, 2));
         assertEquals(10, RouletteSettlement.computePayout(5, 2, 8, 2));

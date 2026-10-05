@@ -97,7 +97,7 @@ public class EconomyManager {
 
     public void setWalletBalance(UUID id, int amount) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return;
         }
         data.setWalletBalance(amount);
@@ -107,7 +107,7 @@ public class EconomyManager {
     /** @return 入金／出金が受理されたか。拒否時は残高据え置き。 */
     public boolean addWalletBalance(UUID id, int amount) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return false;
         }
         boolean ok = data.addWalletBalance(amount);
@@ -119,7 +119,7 @@ public class EconomyManager {
 
     public boolean tryDepositWallet(UUID id, int amount) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return false;
         }
         boolean ok = data.tryDepositWallet(amount);
@@ -131,7 +131,7 @@ public class EconomyManager {
 
     public boolean tryWithdrawWallet(UUID id, int amount) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return false;
         }
         boolean ok = data.tryWithdrawWallet(amount);
@@ -149,7 +149,7 @@ public class EconomyManager {
 
     public void setDebt(UUID id, int amount) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return;
         }
         data.setDebt(amount);
@@ -158,7 +158,7 @@ public class EconomyManager {
 
     public boolean addDebt(UUID id, int amount) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return false;
         }
         boolean ok = data.addDebt(amount);
@@ -170,7 +170,7 @@ public class EconomyManager {
 
     public boolean tryBorrow(UUID id, int amount) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return false;
         }
         boolean ok = data.tryBorrow(amount);
@@ -183,7 +183,7 @@ public class EconomyManager {
     /** @return 実際に返済した額 */
     public int tryRepay(UUID id, int amount) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return 0;
         }
         int paid = data.tryRepay(amount);
@@ -195,7 +195,7 @@ public class EconomyManager {
 
     public int applyInterest(UUID id, int interest) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return 0;
         }
         int debt = data.applyInterest(interest);
@@ -211,7 +211,7 @@ public class EconomyManager {
 
     public void setLoanDeadline(UUID id, long millis) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return;
         }
         data.setLoanDeadlineMillis(millis);
@@ -225,7 +225,7 @@ public class EconomyManager {
 
     public void setNextInterestMillis(UUID id, long millis) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return;
         }
         data.setNextInterestMillis(millis);
@@ -238,12 +238,28 @@ public class EconomyManager {
      */
     public void clearLoanTimer(UUID id) {
         PlayerData data = getData(id);
-        if (data == null) {
+        if (data == null || !diskWritable(id)) {
             return;
         }
         data.setLoanDeadlineMillis(0L);
         data.setNextInterestMillis(0L);
         persist(id);
+    }
+
+    /** persist 前にディスクを再読。壊れ／symlink なら変異しない。 */
+    private boolean diskWritable(UUID id) {
+        if (store == null) {
+            return !loadFailed.contains(id);
+        }
+        if (loadFailed.contains(id)) {
+            return false;
+        }
+        PlayerDataStore.Result disk = store.load(id);
+        if (disk.outcome() == PlayerDataStore.Outcome.FAILED) {
+            loadFailed.add(id);
+            return false;
+        }
+        return true;
     }
 
     private void persist(UUID id) {
@@ -254,7 +270,9 @@ public class EconomyManager {
         if (data == null) {
             return;
         }
-        store.save(data, store.fileExists(id));
+        if (!store.save(data)) {
+            loadFailed.add(id);
+        }
     }
 
     /**
